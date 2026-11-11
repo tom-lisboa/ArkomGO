@@ -50,5 +50,6 @@ jobs:
       - run: flutter --disable-analytics
       - run: flutter pub get && flutter analyze && flutter test
         working-directory: apps/genesis_flutter
-      - run: node --test apps/genesis_flutter/test/bridge.test.cjs
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test apps/genesis_flutter/test/*.test.cjs
       - run: python3 scripts/build-genesis-flutter.py
