@@ -22,9 +22,9 @@ Os nomes Git, banco de dados, SDK e workspace não precisam fazer parte da jorna
 
 ## Direção do frontend: Flutter
 
-Decisão de produto em 11/11/2026: concentrar a etapa atual no backend Go e no deepH; migrar integralmente o frontend da plataforma para Flutter quando começar a etapa de interface. O portal Next.js e o estúdio atual ficam como superfície de validação temporária. Não foi iniciada a migração nem instalado o SDK Flutter nesta entrega.
+Decisão de produto em 11/11/2026: concentrar a etapa atual no backend Go e no deepH; migrar integralmente o frontend da plataforma para Flutter quando começar a etapa de interface. O primeiro recorte foi antecipado: o estúdio Genesis em `/demo/genesis` agora é Flutter Web, dentro do shell Next.js da Arkom. O restante do portal e o fluxo legado de qualificação continuam em React. O SDK Flutter 3.50.0 está instalado em `.local/flutter` nesta estação.
 
-A integração deve permanecer por API autenticada: identidade da empresa, permissões, arquivos, estados, traces, cancelamento e exportação pertencem ao backend. O cliente Flutter consumirá esses contratos sem acessar credenciais de serviços ou bancos. A identidade visual Arkom e os Gophers continuam como requisitos de produto, independentes do framework.
+A integração deve permanecer por API autenticada: identidade da empresa, permissões, arquivos, estados, traces, cancelamento e exportação pertencem ao backend. O estúdio Flutter já consome esses contratos e acompanha eventos persistidos por SSE; os demais clientes Flutter deverão consumir os mesmos contratos sem acessar credenciais de serviços ou bancos. A identidade visual Arkom e os Gophers continuam como requisitos de produto, independentes do framework.
 
 A compatibilidade do futuro frontend Flutter com o Remix Lovable ainda exige desenho e validação; esta decisão não significa que o código Flutter já seja exportável para Lovable. Os arquivos HTML/CSS/JS gerados no ensaio atual são artefatos do protótipo, não a arquitetura definitiva do frontend. Referência fornecida: [instalação oficial do Flutter com VS Code](https://docs.flutter.dev/install/with-vs-code).
 

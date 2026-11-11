@@ -1,0 +1,22 @@
+sequenceDiagram
+    participant Portal as Shell Arkom
+    participant Flutter as Genesis Flutter
+    participant Bridge as Transporte do navegador
+    participant Go as API Go
+    participant DB as SQLite
+    Portal->>Bridge: Sessao em memoria por postMessage de mesma origem
+    Bridge->>Flutter: Identidade da sessao
+    Flutter->>Bridge: Selecionar projeto
+    Bridge->>Go: GET events com Bearer e cursor
+    Go->>Go: Validar empresa e sessao
+    Go-->>Bridge: SSE snapshot com arquivos e traces
+    Bridge-->>Flutter: Estado inicial
+    loop Acoes dos agentes deepH
+        Go->>DB: Persistir arquivo e trace juntos
+        DB-->>Go: Commit confirmado
+        Go-->>Bridge: SSE update com nova sequencia
+        Bridge-->>Flutter: Atualizar time, arquivos e atividade
+    end
+    Note over Bridge,Go: Reconexao retoma o cursor sem duplicar eventos
+    Go-->>Bridge: SSE end
+    Bridge-->>Flutter: Historico sincronizado

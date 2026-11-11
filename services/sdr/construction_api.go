@@ -54,13 +54,17 @@ func (a *App) constructionTrace(id string, event construction.Event) error {
 	if b == nil || b.Status != "running" {
 		return errors.New("build_not_running")
 	}
-	return a.transact(func() {
+	err := a.transact(func() {
 		if event.Kind == "file.written" {
 			b.Files[event.Path] = event.After
 		}
 		b.UpdatedAt = a.now().UTC()
 		b.Traces = append(b.Traces, ConstructionTrace{event, len(b.Traces) + 1, b.UpdatedAt})
 	})
+	if err == nil {
+		a.signalConstruction()
+	}
+	return err
 }
 func (a *App) runConstruction(ctx context.Context, id string, planner *sdrsdk.OpenAIPlanner, initial map[string]string) {
 	defer func() {
@@ -103,6 +107,9 @@ func (a *App) runConstruction(ctx context.Context, id string, planner *sdrsdk.Op
 		b.Traces = append(b.Traces, ConstructionTrace{construction.Event{Kind: "build." + b.Status, Agent: "system", Summary: summary}, len(b.Traces) + 1, b.UpdatedAt})
 		a.record(AuditEntry{Org: b.Org, Actor: "deeph", Action: "construction." + b.Status, Operation: id})
 	})
+	if saveErr == nil {
+		a.signalConstruction()
+	}
 	if saveErr != nil {
 		log.Print("construction final state could not be persisted")
 	}
@@ -114,6 +121,10 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 	}
 	suffix := strings.TrimPrefix(r.URL.Path, prefix)
 	parts := strings.Split(strings.Trim(suffix, "/"), "/")
+	if len(parts) == 2 && parts[1] == "events" && r.Method == "GET" {
+		a.constructionStream(w, r, u, parts[0])
+		return true
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if suffix == "" && r.Method == "GET" {
@@ -191,6 +202,7 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			fail(w, 503, "storage_unavailable")
 			return true
 		}
+		a.signalConstruction()
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 		constructionControl.Lock()
 		constructionControl.cancel[b.ID] = cancel
@@ -230,6 +242,7 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 				fail(w, 503, "storage_unavailable")
 				return true
 			}
+			a.signalConstruction()
 			constructionControl.Lock()
 			cancel := constructionControl.cancel[b.ID]
 			constructionControl.Unlock()
