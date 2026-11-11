@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Conectar Google Agenda · Arkom</title>
+  <link rel="stylesheet" href="/conectar-agenda/connect.css">
+  <script type="module" src="/conectar-agenda/connect.js"></script>
+</head>
+<body>
+  <header class="top"><a class="brand" href="/conectar-agenda/" aria-label="Arkom, conexão de agendas">ARKOM<span class="brand-dot"></span></a><span class="top-label">Agenda dos vendedores</span></header>
+  <main>
+    <div class="intro"><div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 10h18m-14 5h3m4 0h3"/></svg></div><p class="eyebrow">SEU ACESSO, SUAS AGENDAS</p><h1>Conecte suas agendas.</h1><p class="subtitle">Entre com seu acesso individual ao SDR e conecte uma ou mais contas Google da sua rotina de reuniões.</p></div>
+    <section class="card" aria-labelledby="cardTitle">
+      <div class="steps" aria-label="Etapas da conexão"><span id="stepLogin" class="step active"><b>1</b> Seu acesso</span><span class="step-line"></span><span id="stepGoogle" class="step"><b>2</b> Google Agenda</span></div>
+      <div id="loginView"><h2 id="cardTitle">Acesse sua conta Arkom</h2><p class="muted">Use o mesmo usuário e senha do SDR.</p><form id="loginForm" method="post" action="/v1/management/auth/login"><label for="username">Usuário</label><input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="64" required placeholder="Seu usuário individual"><label for="password">Senha</label><input id="password" name="password" type="password" autocomplete="current-password" maxlength="256" required placeholder="Sua senha"><button class="primary" id="loginButton" type="submit" disabled>Continuar <span aria-hidden="true">→</span></button></form><p class="help">Ainda não tem um acesso individual? Peça ao administrador do SDR para criar seu usuário de vendedor.</p></div>
+      <div id="accountView" hidden>
+<div class="account"><div class="avatar" id="avatar" aria-hidden="true"></div><div><strong id="displayName"></strong><span class="muted small" id="displayUsername"></span></div><button class="text-button" id="logoutButton" type="button">Sair</button></div>
+<div class="divider"></div><h2 id="connectionTitle">Suas contas Google</h2><p class="muted">Adicione suas contas profissional e pessoal. Cada conta pode ter várias agendas e será mantida separadamente.</p>
+<div class="status"><span class="status-dot" id="statusDot"></span><span id="statusText">Verificando conexões…</span></div>
+<button class="primary" id="connectButton" type="button"><span aria-hidden="true">＋</span><span id="connectLabel">Adicionar conta Google</span><span aria-hidden="true">↗</span></button>
+<a id="continueLink" class="continue-link" target="_blank" rel="noopener noreferrer" hidden>Continuar autorização no Google ↗</a><p id="returnHelp" class="help" hidden>Conclua uma autorização por vez. Depois de autorizar no Google, volte aqui para conferir a conta adicionada.</p>
+<div id="accountCards"></div>
+<section id="schedulingView" class="scheduling" hidden><div class="divider"></div><h2>Reuniões pelo SDR</h2><p class="muted">Escolha onde a Bia criará as reuniões. As agendas marcadas abaixo serão consultadas para evitar conflitos.</p><p id="schedulingStatus" class="help" role="status"></p><button class="secondary" id="loadScheduling" type="button">Escolher agendas</button><form id="schedulingForm" method="post" action="/v1/management/integrations/google/scheduling" hidden><label for="destination">Agenda que recebe as reuniões</label><select id="destination" required><option value="">Selecione uma agenda</option></select><fieldset id="blockingCalendars"><legend>Agendas que bloqueiam horários</legend></fieldset><p class="help">A agenda de destino sempre bloqueia horários. Reuniões de 45 minutos, diariamente das 8h às 12h e das 14h às 20h, no horário de Cuiabá. A Bia prioriza o vendedor com menos reuniões futuras.</p><button class="primary" id="saveScheduling" type="submit">Ativar agendamento na minha agenda</button></form><button class="text-button danger" id="pauseScheduling" type="button" hidden>Pausar novos agendamentos</button></section>
+<div class="footer-actions"><button class="secondary" id="refreshButton" type="button">Atualizar conexões</button></div></div>
+<details id="createSeller" class="seller-admin" hidden><summary>Criar acesso de vendedor</summary><p class="help">Crie um acesso individual para cada pessoa da equipe. A permissão de vendedor inclui atendimento de leads no SDR.</p><form id="createSellerForm" method="post" action="/v1/management/users"><label for="sellerName">Nome do vendedor</label><input id="sellerName" maxlength="120" required autocomplete="off" placeholder="Nome e sobrenome"><label for="sellerUsername">Usuário de acesso</label><input id="sellerUsername" minlength="3" maxlength="64" pattern="[a-z0-9][a-z0-9._\-]{2,63}" required autocapitalize="none" spellcheck="false" autocomplete="off" placeholder="Ex.: gabriel.marcondes"><label for="sellerPassword">Senha inicial</label><input id="sellerPassword" type="password" minlength="12" maxlength="256" required autocomplete="new-password" placeholder="Pelo menos 12 caracteres"><button class="text-button" id="showSellerPassword" type="button">Mostrar senha</button><button class="primary" id="createSellerButton" type="submit">Criar acesso individual <span aria-hidden="true">→</span></button></form><p id="sellerMessage" class="message" role="status" aria-live="polite" hidden></p></details><p id="message" class="message" role="status" aria-live="polite" hidden></p>
+    </section>
+    <p class="bottom-note">As novas reservas são confirmadas no SDR e no Google Agenda.<br>Ative o recebimento de reuniões após conectar suas contas.</p>
+  </main>
+  <footer class="page-footer">Arkom · Bia SDR</footer>
+</body>
+</html>

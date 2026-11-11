@@ -1,0 +1,331 @@
+/* ARKOM visual identity — color-only final override.
+   Reversível: remova este arquivo e o import em src/main.tsx. */
+
+
+/* Tokens ARKOM mapeados para a API semantica shadcn existente. */
+:root,
+:root[data-theme="bos"],
+:root[data-theme="arkom"],
+:root[data-theme="light"],
+:root[data-theme="paper"],
+:root.dark,
+.dark,
+[data-theme="bos"],
+[data-theme="light"] {
+  --radius: 14px !important;
+
+  --background: 60 23% 97% !important;
+  --foreground: 0 0% 10% !important;
+
+  --card: 0 0% 100% !important;
+  --card-foreground: 0 0% 10% !important;
+
+  --popover: 0 0% 100% !important;
+  --popover-foreground: 0 0% 10% !important;
+
+  --muted: 60 11% 93% !important;
+  --muted-foreground: 60 2% 39% !important;
+
+  --primary: 34 40% 54% !important;
+  --primary-foreground: 0 0% 10% !important;
+
+  --secondary: 60 11% 93% !important;
+  --secondary-foreground: 205 100% 10% !important;
+
+  --accent: 34 40% 54% !important;
+  --accent-foreground: 0 0% 10% !important;
+  --ring: 210 84% 66% !important;
+
+  --border: 60 8% 88% !important;
+  --input: 60 8% 88% !important;
+
+  --destructive: 5 57% 54% !important;
+  --destructive-foreground: 0 0% 100% !important;
+
+  --sidebar-background: 0 0% 100% !important;
+  --sidebar-foreground: 205 100% 10% !important;
+  --sidebar-accent: 60 11% 93% !important;
+  --sidebar-accent-foreground: 205 100% 10% !important;
+  --sidebar-primary: 34 40% 54% !important;
+  --sidebar-primary-foreground: 0 0% 10% !important;
+  --sidebar-border: 60 8% 88% !important;
+  --sidebar-ring: 210 84% 66% !important;
+
+  --success: 148 71% 24% !important;
+  --warning: 42 81% 43% !important;
+  --danger: 5 57% 54% !important;
+
+  /* Tokens legados do bilhon-ds usados por bos-web/effects: realinhar ao tema light. */
+  --bl-accent: #B9915B !important;
+  --bl-accent-hover: #B8924A !important;
+  --bl-text-primary: #191919 !important;
+  --bl-text-secondary: #656562 !important;
+  --bl-bg: #FAFAF7 !important;
+  --bl-bg-elevated: #ffffff !important;
+  --bl-border: #E4E4DF !important;
+  --bl-glass-bg: rgba(255, 255, 255, 0.75) !important;
+  --bl-glass-bg-heavy: rgba(255, 255, 255, 0.9) !important;
+
+  --bos-paper: #ffffff !important;
+  --bos-paper-2: #ffffff !important;
+  --bos-hairline: rgba(0, 31, 53, 0.08) !important;
+  --bos-cobre: #B9915B !important;
+  --bos-shadow-card: 0 12px 34px -22px rgba(0, 31, 53, 0.2) !important;
+  --bos-shadow-card-hover: 0 14px 32px -14px rgba(185, 145, 91, 0.18) !important;
+}
+
+/* -------- Tipografia: Manrope global -------- */
+html, body, .bos-scope, .bos-scope * {
+  font-family: 'Manrope', ui-sans-serif, system-ui, -apple-system, sans-serif !important;
+}
+
+:root {
+  --font-body: 'Manrope' !important;
+  --font-heading: 'Manrope' !important;
+}
+
+h1, h2, h3, h4, h5, h6,
+.text-h1, .text-h2, .text-h3, .text-h4,
+.font-display {
+  font-family: 'Manrope', ui-sans-serif, system-ui, sans-serif !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* -------- Raio consistente -------- */
+.card, .card-premium, .panel, .stat-tile,
+.btn, .btn-bilhon, .btn-bilhon-outline, .btn-bilhon-ghost,
+input, select, textarea,
+.badge, .pill, .chip,
+[role="menu"], [role="listbox"], [role="dialog"] {
+  border-radius: 14px !important;
+}
+
+/* -------- Superfícies claras globais -------- */
+html, body, #root, .bos-scope {
+  background: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+/* -------- Cards: brancos planos, sombra sutil, sem glow -------- */
+.card-premium,
+.bos-scope .card-premium {
+  background: #ffffff !important;
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: 0 1px 2px rgba(15, 16, 20, 0.04), 0 4px 12px rgba(15, 16, 20, 0.05) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 14px !important;
+}
+.card-premium::before, .card-premium::after,
+.bos-scope .card-premium::before, .bos-scope .card-premium::after {
+  display: none !important;
+  content: none !important;
+  background: none !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+.card-premium:hover,
+.bos-scope .card-premium:hover {
+  transform: none !important;
+  border-color: hsl(var(--primary) / 0.45) !important;
+  box-shadow: 0 2px 6px rgba(15, 16, 20, 0.06), 0 12px 28px rgba(15, 16, 20, 0.08) !important;
+}
+
+/* -------- Mata glass / glow / shimmer legados -------- */
+.glass, .glass-strong,
+.bl-glass, .bl-glass-heavy {
+  background: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: 0 1px 2px rgba(15, 16, 20, 0.04), 0 4px 12px rgba(15, 16, 20, 0.05) !important;
+}
+.glass::before, .glass::after,
+.glass-strong::before, .glass-strong::after,
+.bl-glass::before, .bl-glass::after {
+  display: none !important;
+  content: none !important;
+}
+
+.stat-glow, .stat-glow::before,
+.glow-primary,
+.bl-glow-orb, .bl-glow-orb--green, .bl-glow-orb--purple {
+  box-shadow: none !important;
+  background: none !important;
+  filter: none !important;
+  animation: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.shimmer,
+.bl-animate-shimmer,
+.bl-text-shimmer,
+.bl-text-tech-glow,
+.bl-animate-glow-pulse,
+.bl-animate-tech-glow {
+  animation: none !important;
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  -webkit-text-fill-color: currentColor !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+/* Gradiente legado vira acento ARKOM solido. */
+.text-gradient-bilhon,
+.bos-scope .text-gradient-bilhon {
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  -webkit-text-fill-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary)) !important;
+  animation: none !important;
+  text-shadow: none !important;
+}
+
+/* Botões */
+.btn-bilhon {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-radius: 14px !important;
+}
+.btn-bilhon:hover { background: #B8924A !important; }
+/* btn-bilhon como botão-ícone (size sm: w-8/h-8/p-0 etc.): as dimensões grandes
+   do .btn-bilhon (height 56px, padding 0 2.5rem) esmagavam o ícone para largura 0,
+   deixando um quadrado dourado sem ícone. Respeita as utilidades de tamanho. */
+.btn-bilhon.p-0 { padding: 0 !important; }
+.btn-bilhon.h-8  { height: 2rem !important; }
+.btn-bilhon.w-8  { width: 2rem !important; min-width: 2rem !important; }
+.btn-bilhon.h-9  { height: 2.25rem !important; }
+.btn-bilhon.w-9  { width: 2.25rem !important; min-width: 2.25rem !important; }
+.btn-bilhon.h-10 { height: 2.5rem !important; }
+.btn-bilhon.w-10 { width: 2.5rem !important; min-width: 2.5rem !important; }
+.btn-bilhon svg { flex-shrink: 0; }
+.btn-bilhon-outline {
+  background: transparent !important;
+  color: hsl(var(--foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 14px !important;
+}
+.btn-bilhon-outline:hover {
+  background: hsl(var(--secondary)) !important;
+  color: hsl(var(--secondary-foreground)) !important;
+}
+
+/* Sidebar */
+[data-sidebar="sidebar"],
+aside[role="navigation"] {
+  background: hsl(var(--sidebar-background)) !important;
+  color: hsl(var(--sidebar-foreground)) !important;
+  border-right: 1px solid hsl(var(--sidebar-border)) !important;
+}
+
+/* Inputs */
+input, textarea, select {
+  background: #ffffff !important;
+  color: hsl(var(--foreground)) !important;
+  border: 1px solid hsl(var(--input)) !important;
+}
+
+*:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.75) !important;
+}
+
+.bl-bg-grid, .bl-bg-gradient, .bl-bg-noise {
+  background: hsl(var(--background)) !important;
+}
+
+::-webkit-scrollbar-thumb { background: rgba(185, 145, 91, 0.4) !important; }
+::-webkit-scrollbar-thumb:hover { background: rgba(185, 145, 91, 0.65) !important; }
+
+/* -------- Remapeia utilitários de texto branco herdados do dark -------- */
+.text-white,
+.text-white\/95,
+.text-white\/90,
+.text-white\/80,
+.text-white\/70,
+.text-white\/60,
+.text-white\/50,
+.text-white\/40,
+.text-white\/30,
+.text-white\/20 {
+  color: hsl(var(--foreground)) !important;
+}
+.text-white\/60,
+.text-white\/50,
+.text-white\/40,
+.text-white\/30,
+.text-white\/20 {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.text-slate-100,
+.text-slate-200,
+.text-slate-300,
+.text-slate-400,
+.text-neutral-200,
+.text-neutral-300,
+.text-neutral-400,
+.text-gray-200,
+.text-gray-300,
+.text-gray-400,
+.text-zinc-200,
+.text-zinc-300,
+.text-zinc-400 {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Hovers legados seguem o acento ARKOM. */
+.hover\:text-white:hover,
+.group:hover .group-hover\:text-white,
+[class*="group-hover/"]:hover [class*="group-hover"][class*=":text-white"] {
+  color: hsl(var(--primary)) !important;
+}
+
+/* Mantém branco APENAS onde o fundo é primário/escuro real */
+.bg-primary,
+.bg-primary *,
+.btn-bilhon,
+.btn-bilhon *,
+[data-state="active"].bg-primary,
+.bg-black, .bg-black *,
+.bg-neutral-900, .bg-neutral-900 *,
+.bg-zinc-900, .bg-zinc-900 *,
+.bg-slate-900, .bg-slate-900 * {
+  --tw-text-opacity: 1;
+}
+.bg-primary.text-white,
+.bg-primary .text-white,
+.btn-bilhon.text-white,
+.btn-bilhon .text-white,
+.bg-black .text-white,
+.bg-neutral-900 .text-white,
+.bg-zinc-900 .text-white,
+.bg-slate-900 .text-white {
+  color: #ffffff !important;
+}
+
+/* Placeholders */
+::placeholder { color: hsl(var(--muted-foreground)) !important; opacity: 1 !important; }
+
+/* -------- Scrollbar utilitária (.custom-scrollbar) --------
+   Usada em boards/listas (Funil, Conversas, Time etc.). Antes era uma classe
+   morta (nunca definida); agora dá uma barra fina, discreta e no ouro Arkom,
+   funcionando nos DOIS eixos (vertical e horizontal/lateral). */
+.custom-scrollbar {
+  scrollbar-width: thin;                                  /* Firefox */
+  scrollbar-color: rgba(185, 145, 91, 0.45) transparent;  /* thumb / trilho (Firefox) */
+}
+.custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(185, 145, 91, 0.4) !important;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(185, 145, 91, 0.7) !important; }
+.custom-scrollbar::-webkit-scrollbar-corner { background: transparent; }

@@ -1,0 +1,21 @@
+flowchart TD
+    SHELL["Shell.tsx\n(chrome comum: sidebar, toggles)"]
+    MAP["map/\n13 componentes"]
+    DASH["dash/\n14 componentes"]
+    CHART["chart/"]
+    BRAIN["brain/"]
+    HUB["hub/ · home/"]
+    TRAIN["trainings/ · mentorships/"]
+    ADMIN["admin-conteudo/ · admin-dados/"]
+    UI["ui/\n(primitives shadcn)"]
+
+    SHELL --> MAP
+    SHELL --> DASH
+    SHELL --> CHART
+    SHELL --> BRAIN
+    SHELL --> HUB
+    SHELL --> TRAIN
+    SHELL --> ADMIN
+    MAP -.-> UI
+    DASH -.-> UI
+    ADMIN -.-> UI

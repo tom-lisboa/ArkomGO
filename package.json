@@ -1,0 +1,12 @@
+{
+  "name": "arkomgo-docs",
+  "private": true,
+  "scripts": {
+    "diagrams:index": "python3 scripts/catalog_mermaid.py",
+    "diagrams:check": "node scripts/check-mermaid.mjs"
+  },
+  "devDependencies": {
+    "mermaid": "11.12.0",
+    "jsdom": "25.0.1"
+  }
+}

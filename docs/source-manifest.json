@@ -1,0 +1,40 @@
+{
+  "captured_at": "2026-11-11",
+  "projects": [
+    {
+      "directory": "apps/portal",
+      "source": "https://github.com/bilhon-business/arkom-dash.git",
+      "base_commit": "82d36ecfffd7ddb73c606c1ce2638e63f9b35325",
+      "snapshot": "working tree including local modifications, excluding runtime data and secrets",
+      "files": 545
+    },
+    {
+      "directory": "services/sdr",
+      "source": "https://github.com/tom-lisboa/sdr-next-platform.git",
+      "base_commit": "050f97faa707d058bc2c5dfc6f68bdb5730975c8",
+      "snapshot": "working tree including local modifications, excluding runtime data and secrets",
+      "files": 254
+    },
+    {
+      "directory": "services/crm",
+      "source": "https://github.com/tom-lisboa/CRMGO.git",
+      "base_commit": "996a6bd0e2b6055b92503153e9520e20920d2af8",
+      "snapshot": "working tree including local modifications, excluding runtime data and secrets",
+      "files": 33
+    },
+    {
+      "directory": "services/core",
+      "source": "https://github.com/tom-lisboa/ArkomSDR.git",
+      "base_commit": "68dc289428f5fc34635e4ed44c4829bfbce2cacb",
+      "snapshot": "working tree including local modifications, excluding runtime data and secrets",
+      "files": 490
+    },
+    {
+      "directory": "packages/deeph",
+      "source": "https://github.com/tom-lisboa/deepH.git",
+      "base_commit": "3ead037f3c4d340ef26617fbb112920cab8aa910",
+      "snapshot": "working tree including local modifications, excluding runtime data and secrets",
+      "files": 129
+    }
+  ]
+}

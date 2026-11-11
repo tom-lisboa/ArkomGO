@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant U as Usuário
+    participant API as /api/auth/login
+    participant SB as Supabase Auth
+    participant PG as Postgres
+
+    U->>API: credenciais
+    API->>SB: autentica
+    SB-->>API: identidade confirmada
+    API->>PG: resolve aluno (link auth_central) + session_version
+    API-->>U: cookie arkom_session (HMAC, httpOnly)

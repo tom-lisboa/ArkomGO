@@ -1,0 +1,524 @@
+package worker
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"hash/crc32"
+	"log/slog"
+	"strings"
+	"time"
+
+	"arkom/bia/internal/agent"
+	"arkom/bia/internal/conversation"
+	"arkom/bia/internal/domain"
+	"arkom/bia/internal/providers"
+	"arkom/bia/internal/quickreply"
+	"arkom/bia/internal/store"
+	"github.com/jackc/pgx/v5"
+)
+
+// CalendarReader keeps mutations out of the conversational executor.
+type CalendarReader interface {
+	Slots(context.Context, domain.State, time.Time) ([]domain.Slot, error)
+}
+type EffectHandler func(context.Context, store.Job, domain.State, domain.Effect, time.Time) (domain.State, []domain.Effect, any, error)
+type EffectSchedule func(domain.State, domain.Effect, time.Time) (time.Time, string)
+
+// SkipEffect records an expected policy outcome without claiming delivery or
+// handing the entire conversation over to a human.
+type SkipEffect struct{ Reason string }
+
+func (s *SkipEffect) Error() string { return s.Reason }
+
+type Worker struct {
+	Buttons       quickreply.Signer
+	IntroVideoURL string
+	VideoSender   interface {
+		SendVideo(context.Context, string, domain.State, string, string, time.Time) (providers.Receipt, error)
+	}
+	SMSSender interface {
+		SendSMS(context.Context, string, domain.State, string, time.Time, time.Time) (providers.Receipt, error)
+	}
+	AfterSend   func(domain.State, domain.Effect, time.Time) []domain.Effect
+	AudioSender interface {
+		SendAudio(context.Context, string, domain.State, string, time.Time) (providers.Receipt, error)
+	}
+	VoiceAutoRequest bool
+	VoiceSender      string
+	Queue            string
+	HandleEffect     EffectHandler
+	Schedule         EffectSchedule
+	OutreachGuard    func(context.Context, domain.State, domain.Effect) (string, error)
+	DB               *store.DB
+	Planner          agent.Planner
+	Messenger        providers.Messenger
+	Calendar         CalendarReader
+	PublicCalendar   CalendarReader
+	CRM              providers.CRM
+	Policy           domain.Policy
+	Live             bool
+	PerLeadDaily     int
+	GlobalHourly     int
+	Now              func() time.Time
+}
+
+func (w *Worker) Run(ctx context.Context) {
+	tick := time.NewTicker(250 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+			for i := 0; i < 20; i++ {
+				worked, err := w.Once(ctx)
+				if err != nil {
+					slog.Error("worker step failed", "queue", w.Queue, "error_type", errorType(err))
+					break
+				}
+				if !worked {
+					break
+				}
+			}
+		}
+	}
+}
+
+func errorType(e error) string {
+	if errors.Is(e, store.ErrLease) {
+		return "lease_lost"
+	}
+	return "storage_or_processing_error"
+}
+
+func (w *Worker) Once(parent context.Context) (bool, error) {
+	ctx, cancel := context.WithTimeout(parent, 50*time.Second)
+	defer cancel()
+	opCtx, stopOperations := context.WithTimeout(ctx, 40*time.Second)
+	defer stopOperations()
+	queue := w.Queue
+	if queue == "" {
+		queue = "execution"
+	}
+	j, s, err := w.DB.ClaimQueue(ctx, queue)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	now := time.Now().UTC()
+	if w.Now != nil {
+		now = w.Now()
+	}
+	if j.Kind == "event" {
+		var e domain.Event
+		if err = json.Unmarshal(j.Payload, &e); err != nil {
+			return true, w.DB.Fail(ctx, j, "invalid_event", false)
+		}
+		if e.Kind == "message.received" && !domain.IsOptOut(e.Text) {
+			active, err := w.DB.VoiceActive(ctx, s.ID)
+			if err != nil {
+				return true, err
+			}
+			if active {
+				return true, w.DB.DeferJob(ctx, j, now.Add(5*time.Second), "voice_session_active")
+			}
+		}
+		if e.Context != nil {
+			j.Run = &conversation.RunResult{ConversationID: e.Context.ConversationID, RunID: e.Context.RunID, Version: e.Context.Version}
+		}
+		inputAt := e.At
+		if e.Context != nil && !e.Context.ReceivedAt.IsZero() {
+			inputAt = e.Context.ReceivedAt
+		}
+		if e.Kind == "message.received" && !domain.IsOptOut(e.Text) && !s.AutomationSince.IsZero() && inputAt.Before(s.AutomationSince) {
+			return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": "operator_control_superseded_input"})
+		}
+		d, buttonHandled := w.Buttons.Resolve(s, &e, w.Policy, now)
+		var routedAgent string
+		var slots []domain.Slot
+		if e.Kind == "message.received" && !s.OptedOut && !s.Human && !domain.AutomaticReply(e.Text) && (e.Context == nil || !e.Context.MediaFailed) {
+			e.ClickMaxPublicBooking = w.Policy.ClickMaxPublicBooking
+			var calendarErr error
+			hasMeeting := domain.HasActiveMeeting(s, now)
+			needsPlan := !buttonHandled && domain.NeedsPlan(s, e, now)
+			if e.ClickMaxPublicBooking && (!hasMeeting || s.Booking.Provider == domain.ClickMaxPublicProvider) {
+				checkSlots := d.Action == "offer_slots" || (needsPlan && (!hasMeeting || domain.RescheduleRequested(e.Text) || s.Stage == "choosing_slot"))
+				if w.PublicCalendar != nil && checkSlots {
+					calendarCtx, cancelCalendar := context.WithTimeout(opCtx, 5*time.Second)
+					slots, calendarErr = w.PublicCalendar.Slots(calendarCtx, s, now)
+					cancelCalendar()
+					if calendarErr != nil {
+						slog.Warn("clickmax public availability unavailable", "error", calendarErr)
+					}
+				}
+			} else {
+				calendarCtx, cancelCalendar := context.WithTimeout(opCtx, 8*time.Second)
+				slots, calendarErr = w.Calendar.Slots(calendarCtx, s, now)
+				cancelCalendar()
+			}
+			e.CalendarUnavailable = calendarErr != nil
+			if needsPlan {
+				id := agent.Select(s, e)
+				var out agent.Outcome
+				out, err = agent.Execute(opCtx, w.Planner, s, e, slots, id)
+				d = out.Decision
+				routedAgent = out.Agent
+				if routedAgent == "" {
+					routedAgent = id
+				}
+				if out.Dialogue != nil {
+					s.Dialogue = out.Dialogue
+					j.GuardContext = true
+				}
+				if j.Run != nil {
+					j.Run.Agent = routedAgent
+					j.Run.PromptVersion = out.PromptVersion
+					j.Run.ResponseID = out.ResponseID
+					j.Run.InputTokens = out.InputTokens
+					j.Run.UsedPrevious = out.UsedPrevious
+				}
+			}
+			if err != nil {
+				d = domain.Decision{Action: "handoff", Reason: "model_unavailable"}
+			}
+			if calendarErr != nil && (d.Action == "offer_slots" || d.Action == "book" || d.Action == "reschedule") {
+				d = domain.Decision{Action: "offer_slots", Reason: "calendar_unavailable"}
+				slots = nil
+			}
+		}
+		r := domain.Reduce(s, e, d, slots, w.Policy, now)
+		if s.Dialogue != nil && j.GuardContext {
+			for i := range r.Effects {
+				fx := &r.Effects[i]
+				if fx.Kind == "send" && fx.Purpose == "reply" {
+					fx.Dialogue = &domain.DialogueDelivery{Agent: routedAgent, TurnID: e.ID}
+					if s.Dialogue.Objection != nil {
+						fx.Dialogue.ObjectionID = s.Dialogue.Objection.ID
+					}
+				}
+			}
+		}
+		return true, w.DB.Finish(ctx, j, r.State, r.Effects, "done", map[string]any{"decision": r.Decision, "effects": len(r.Effects), "agent": routedAgent, "dialogue": r.State.Dialogue})
+	}
+	var fx domain.Effect
+	if err = json.Unmarshal(j.Payload, &fx); err != nil {
+		return true, w.DB.Fail(ctx, j, "invalid_effect", false)
+	}
+	bookingConfirmation := fx.Purpose == "booking_confirmation"
+	if w.Policy.ClickMaxPublicBooking && fx.Kind == "send" && fx.OperatorID == "" &&
+		w.Policy.SchedulingURL != "" && strings.Contains(fx.Text, w.Policy.SchedulingURL) {
+		return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": "obsolete_booking_link"})
+	}
+	if fx.Kind != "crm" && fx.VoiceRequestID == "" {
+		active, e := w.DB.VoiceActive(ctx, s.ID)
+		if e != nil {
+			return true, e
+		}
+		if active {
+			return true, w.DB.DeferJob(ctx, j, now.Add(5*time.Second), "voice_session_active")
+		}
+	}
+	if fx.VoiceRequestID != "" {
+		var allowed bool
+		e := w.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM bia_go.voice_requests WHERE id=$1 AND lead_id=$2 AND mode=$3 AND revoked_at IS NULL AND (permanent OR permission_expires_at>now()) AND state IN ('dialing','queued','initiated','ringing','in-progress'))`, fx.VoiceRequestID, s.ID, j.Mode).Scan(&allowed)
+		if e != nil {
+			return true, e
+		}
+		if !allowed {
+			return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": "voice_authorization_ended"})
+		}
+	}
+	if ok, why := domain.Deliverable(s, fx, now); !ok {
+		return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": why})
+	}
+	if fx.Purpose == "form_contact" && fx.ExpectedClickMaxBookingID != "" {
+		if s.Booking == nil || s.Booking.ClickMaxID != fx.ExpectedClickMaxBookingID {
+			var cancelled bool
+			if err := w.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM bia_go.clickmax_public_bookings p
+ JOIN bia_go.bookings b ON b.id=p.booking_id
+ WHERE p.appointment_id::text=$1 AND p.lead_id=$2 AND b.cancelled_at IS NOT NULL)`, fx.ExpectedClickMaxBookingID, s.ID).Scan(&cancelled); err != nil {
+				return true, err
+			}
+			if cancelled || (s.PreviousBooking != nil && s.PreviousBooking.ClickMaxID == fx.ExpectedClickMaxBookingID) {
+				return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": "expected_booking_ended"})
+			}
+			return true, w.DB.DeferJob(ctx, j, now.Add(10*time.Second), "awaiting_clickmax_form_booking")
+		}
+		if !s.Booking.Start.After(now) || s.Booking.Outcome != "" {
+			return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": "meeting_not_upcoming"})
+		}
+		var confirmed bool
+		if err := w.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM bia_go.jobs WHERE lead_id=$1 AND kind='effect' AND status='done'
+ AND payload->>'purpose'='booking_confirmation' AND payload->>'booking_id'=$2 AND result->>'status'='sent')`, s.ID, s.Booking.ID).Scan(&confirmed); err != nil {
+			return true, err
+		}
+		if confirmed {
+			return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": "booking_already_confirmed"})
+		}
+	}
+	if bookingConfirmation {
+		var openingPending bool
+		clickMaxID := ""
+		if s.Booking != nil {
+			clickMaxID = s.Booking.ClickMaxID
+		}
+		if err := w.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM bia_go.jobs WHERE lead_id=$1 AND kind='effect' AND status IN ('pending','running') AND payload->>'purpose'='form_contact'
+ AND COALESCE(payload->>'expected_clickmax_booking_id',$2)=$2)`, s.ID, clickMaxID).Scan(&openingPending); err != nil {
+			return true, err
+		}
+		if openingPending {
+			return true, w.DB.DeferJob(ctx, j, now.Add(5*time.Second), "awaiting_form_opening")
+		}
+	}
+	if fx.Purpose == "form_contact" && w.DB.DualCalendar {
+		var bookingPending bool
+		if err := w.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM bia_go.jobs WHERE lead_id=$1 AND kind='effect' AND payload->>'purpose'='form_booking' AND status IN ('pending','running','uncertain'))`, s.ID).Scan(&bookingPending); err != nil {
+			return true, err
+		}
+		if bookingPending {
+			return true, w.DB.DeferJob(ctx, j, now.Add(2*time.Second), "awaiting_google_form_booking")
+		}
+	}
+	if fx.Purpose == "intro_video" {
+		var contextPending bool
+		if err := w.DB.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM bia_go.jobs WHERE lead_id=$1 AND kind='effect' AND status IN ('pending','running') AND payload->>'purpose'='form_context')`, s.ID).Scan(&contextPending); err != nil {
+			return true, err
+		}
+		if contextPending {
+			return true, w.DB.DeferJob(ctx, j, now.Add(2*time.Second), "awaiting_opening_context")
+		}
+	}
+	if fx.Kind != "crm" {
+		conv, version := fx.ConversationID, fx.ConversationVersion
+		if domain.IsMeetingReminder(fx) || domain.IsNoReply(fx.Purpose) || fx.Purpose == "intro_video" || bookingConfirmation {
+			conv, version = "", 0
+		}
+		pending, e := w.DB.HasNewInput(ctx, s.ID, conv, version)
+		if e != nil {
+			return true, e
+		}
+		if pending {
+			if domain.IsMeetingReminder(fx) || fx.Purpose == "intro_video" || fx.Purpose == "form_booking" || bookingConfirmation {
+				return true, w.DB.DeferJob(ctx, j, now.Add(5*time.Second), "new_input_pending")
+			}
+			return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": "new_input_superseded_run"})
+		}
+	}
+	if w.Schedule != nil {
+		due, why := w.Schedule(s, fx, now)
+		if why != "" {
+			return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": why})
+		}
+		if due.After(now) {
+			return true, w.DB.DeferJob(ctx, j, due, "outside_contact_hours")
+		}
+	}
+	// An effect created in shadow can never become live after a restart/cutover.
+	if j.Mode == "shadow" {
+		return true, w.DB.Finish(ctx, j, s, nil, "simulated", map[string]any{"effect": fx, "text": domain.Render(s, fx, w.Policy, now), "external_call": false})
+	}
+	if !w.Live || s.Owner != "go" {
+		return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": "go_does_not_own_contact"})
+	}
+	if w.OutreachGuard != nil {
+		why, err := w.OutreachGuard(opCtx, s, fx)
+		if err != nil {
+			return true, w.DB.DeferJob(ctx, j, now.Add(30*time.Second), "crm_outreach_verification_pending")
+		}
+		if why != "" {
+			return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": why})
+		}
+	}
+	if fx.Kind != "crm" {
+		pending, e := w.DB.PendingEvent(ctx, s.ID)
+		if e != nil {
+			return true, e
+		}
+		if pending {
+			if bookingConfirmation {
+				return true, w.DB.DeferJob(ctx, j, now.Add(5*time.Second), "new_event_pending")
+			}
+			return true, w.DB.Fail(ctx, j, "new_event_pending", true)
+		}
+	}
+	var result any
+	var follow []domain.Effect
+	switch fx.Kind {
+	case "send", "send_audio", "send_sms", "send_video":
+		if fx.Purpose == "form_context" && fx.AfterMessageID != "" {
+			if checker, ok := w.Messenger.(interface {
+				OpeningDelivered(context.Context, string, domain.State) error
+			}); ok {
+				if err := checker.OpeningDelivered(opCtx, fx.AfterMessageID, s); err != nil {
+					var deferred *providers.Deferred
+					if errors.As(err, &deferred) {
+						return true, w.DB.DeferJob(ctx, j, now.Add(deferred.After), deferred.Code)
+					}
+					return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": providers.Classify(err).Code})
+				}
+			}
+		}
+		lead, global, e := w.DB.Counts(ctx, s.ID)
+		if e != nil {
+			return true, e
+		}
+		if lead > w.PerLeadDaily || global > w.GlobalHourly {
+			if bookingConfirmation || fx.Purpose == "form_contact" {
+				due, err := w.DB.NextOutboundSendAt(ctx, s.ID, w.PerLeadDaily, w.GlobalHourly)
+				if err != nil {
+					return true, err
+				}
+				// Avoid waking the whole backlog at the same millisecond.
+				due = due.Add(time.Duration(crc32.ChecksumIEEE([]byte(j.ID))%2000) * time.Millisecond)
+				if !fx.Expires.IsZero() && due.After(fx.Expires) {
+					due = fx.Expires
+				}
+				return true, w.DB.DeferJob(ctx, j, due, "send_rate_limit")
+			}
+			return true, w.DB.Fail(ctx, j, "send_rate_limit", true)
+		}
+		text := domain.Render(s, fx, w.Policy, now)
+		if fx.Purpose == "reply" && fx.VoiceRequestID == "" && fx.ReplyPart == 0 {
+			parts := domain.SplitReply(text)
+			if len(parts) > 1 {
+				if lead+len(parts)-1 > w.PerLeadDaily || global+len(parts)-1 > w.GlobalHourly {
+					return true, w.DB.Fail(ctx, j, "send_rate_limit", true)
+				}
+				first := fx
+				first.ReplyRoot = j.ID
+				first.ReplyPart = 1
+				first.RemainingParts = parts[1:]
+				first.ID = j.ID + ":part:1"
+				first.Text = parts[0]
+				first.Due = now
+				return true, w.DB.Finish(ctx, j, s, []domain.Effect{first}, "done", map[string]any{"chunked": true, "parts": len(parts)})
+			}
+		}
+		var receipt providers.Receipt
+		if fx.Kind == "send_sms" {
+			if w.SMSSender == nil {
+				err = &providers.Failure{Code: "sms_not_enabled"}
+			} else {
+				receipt, err = w.SMSSender.SendSMS(opCtx, j.ID, s, text, now, fx.Expires)
+			}
+		} else if fx.Kind == "send_video" {
+			text = "[Vídeo case Camozzi enviado]"
+			if w.VideoSender == nil {
+				err = &providers.Failure{Code: "video_sender_not_configured"}
+			} else {
+				receipt, err = w.VideoSender.SendVideo(opCtx, j.ID, s, fx.MediaURL, fx.AfterMessageID, now)
+			}
+		} else if fx.Kind == "send_audio" {
+			text = "[Áudio de lembrete da reunião enviado]"
+			if w.AudioSender == nil {
+				err = &providers.Failure{Code: "audio_sender_not_configured"}
+			} else {
+				receipt, err = w.AudioSender.SendAudio(opCtx, j.ID, s, fx.MediaURL, now)
+			}
+		} else {
+			purpose := fx.Purpose
+			if purpose == "reply" && len(fx.RemainingParts) > 0 {
+				purpose = "reply_part"
+			}
+			receipt, err = w.Messenger.Send(opCtx, j.ID, s, text, purpose, now)
+		}
+		if err == nil {
+			result = receipt
+			sentAt := time.Now().UTC()
+			if w.Now != nil {
+				sentAt = w.Now()
+			}
+			if w.AfterSend != nil {
+				follow = append(follow, w.AfterSend(s, fx, sentAt)...)
+			}
+			if len(fx.RemainingParts) > 0 {
+				next := fx
+				next.ReplyPart++
+				next.ID = fmt.Sprintf("%s:part:%d", fx.ReplyRoot, next.ReplyPart)
+				next.Text = fx.RemainingParts[0]
+				next.RemainingParts = fx.RemainingParts[1:]
+				next.Due = sentAt.Add(domain.ReplyPause(next.Text))
+				follow = append(follow, next)
+				w.replyTyping(opCtx, s, fx.ConversationID)
+			}
+			now = sentAt
+			if fx.Kind == "send_sms" {
+				text = "[SMS enviado] " + text
+			}
+			j.Delivery = &conversation.Delivery{OperatorID: fx.OperatorID, ConversationID: fx.ConversationID, ProviderConversationID: s.Profile.ConversationID, ID: "outbound/" + j.ID, Text: text, At: now}
+			domain.AppendTurn(&s, "assistant", text, now)
+			domain.RecordDialogueDelivery(&s, fx, text, now)
+			if s.FirstContactAt == nil {
+				s.FirstContactAt = &now
+			}
+			if fx.Purpose == "welcome" {
+				s.Stage = "contacted"
+			}
+			if fx.Purpose == "followup" {
+				s.LastFollowup = &now
+			}
+			if fx.Purpose == "meeting_preparation" {
+				s.LastPreparationAt = &now
+			}
+			if fx.Purpose == "form_contact" {
+				s.LastFormContactAt = &now
+				s.LastFormBookingID = ""
+				if domain.ContactOpening(s, w.Policy, now).Kind != "unbooked" {
+					s.LastFormBookingID = s.Booking.ID
+				}
+				if w.Policy.MeetingPreparation {
+					follow = append(follow, domain.PreparationSequence(s, now)...)
+				}
+				follow = append(follow, domain.ContactContextSequence(s, j.ID, w.Policy, now)...)
+			}
+			if fx.Purpose == "form_contact" || fx.Purpose == "welcome" {
+				follow = append(follow, domain.IntroVideoSequence(s, j.ID, w.IntroVideoURL, now)...)
+			}
+		}
+	case "crm":
+		err = w.CRM.Record(opCtx, j.ID, s, fx)
+		result = map[string]bool{"recorded": err == nil}
+	default:
+		if w.HandleEffect == nil {
+			return true, w.DB.Fail(ctx, j, "unsupported_effect", false)
+		}
+		s, follow, result, err = w.HandleEffect(opCtx, j, s, fx, now)
+	}
+	if err != nil {
+		var deferred *providers.Deferred
+		if errors.As(err, &deferred) {
+			return true, w.DB.DeferJob(ctx, j, now.Add(deferred.After), deferred.Code)
+		}
+		var skip *SkipEffect
+		if errors.As(err, &skip) {
+			return true, w.DB.Finish(ctx, j, s, nil, "skipped", map[string]string{"reason": skip.Reason})
+		}
+		f := providers.Classify(err)
+		if f.Retryable && !f.Ambiguous {
+			return true, w.DB.Fail(ctx, j, f.Code, true)
+		}
+		status := "dead"
+		if f.Ambiguous {
+			status = "uncertain"
+		}
+		// Never fabricate a success message after a timeout or unknown response.
+		if fx.Kind != "crm" {
+			// Optional outreach failures must not take over the WhatsApp conversation.
+			if fx.Kind != "send_sms" && fx.Kind != "send_video" && !domain.IsProactive(fx.Purpose) && fx.Purpose != "meeting_start" && fx.Purpose != "form_context" {
+				s.Human = true
+			}
+			s.Reasons = append(s.Reasons, f.Code)
+			follow = []domain.Effect{{ID: j.ID + ":review", LeadID: s.ID, Kind: "crm", Purpose: "handoff", Text: "Revisar operação " + j.ID + ": " + f.Code, Due: now, Expires: now.Add(7 * 24 * time.Hour)}}
+		}
+		return true, w.DB.Finish(ctx, j, s, follow, status, map[string]string{"error_code": f.Code})
+	}
+	for i := range follow {
+		follow[i].ConversationID = fx.ConversationID
+		follow[i].ConversationVersion = fx.ConversationVersion
+	}
+	return true, w.DB.Finish(ctx, j, s, follow, "done", result)
+}

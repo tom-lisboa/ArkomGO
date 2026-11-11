@@ -1,0 +1,7 @@
+[Unit]
+Description=CLIPS Go homolog monitoring
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+[Install]
+WantedBy=timers.target

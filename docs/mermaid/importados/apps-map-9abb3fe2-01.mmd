@@ -1,0 +1,6 @@
+flowchart LR
+    A["Roda de departamentos\n(Node Zero no centro)"] -->|dive| B["Leque de jobs\n(FanLayer)"]
+    B -->|clique no job| C["JobDrawer"]
+    C --> D["SkillSatellites"]
+    D -->|clique no satélite| E["SkillFilePopup\n(SKILL.md)"]
+    A -->|clique no centro| F["Base de Conhecimento\n(Node Zero)"]

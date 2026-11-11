@@ -1,0 +1,14 @@
+flowchart TD
+    A["Abertura enviada pela execução"] --> B["Criar um job de vídeo por contato no Postgres"]
+    B --> C["Worker de mídia verifica contato e arquivo"]
+    C --> D{"Abertura entregue no WhatsApp?"}
+    D -->|Ainda não| E["Adiar o mesmo job até o limite de 15 minutos"]
+    E --> C
+    D -->|Falhou| F["Registrar falha opcional; conversa continua"]
+    D -->|Sim| G{"Sessão de atendimento recente?"}
+    G -->|Sim| H["Enviar MP4 por MediaUrl"]
+    G -->|Não| I{"Template de vídeo aprovado?"}
+    I -->|Não| E
+    I -->|Sim| J["Enviar ContentSid do template de vídeo"]
+    H --> K["Registrar SID e envio no histórico"]
+    J --> K

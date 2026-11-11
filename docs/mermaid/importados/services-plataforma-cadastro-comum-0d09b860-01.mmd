@@ -1,0 +1,12 @@
+flowchart TD
+    C[Cliente da plataforma] --> O[Uma ou mais organizações]
+    P[Pessoa verificada] --> M[Vínculo com a organização]
+    O --> M
+    O --> E[Produtos habilitados]
+    M --> G[Papel específico por produto]
+    E --> G
+    G --> B[Correspondência com IDs locais do backend]
+    B --> CL[CLIPS Go]
+    B --> SO[SOCIAL]
+    B --> FI[Finance]
+    B --> SD[BIA SDR novo]

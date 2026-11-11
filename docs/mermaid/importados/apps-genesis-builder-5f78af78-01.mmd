@@ -1,0 +1,8 @@
+flowchart TD
+    A["Ideia + respostas da entrevista"] --> B["Esqueleto da solução\n(título, descrição, resumo por etapa)"]
+    B --> C["Cascata de geração\numa etapa por vez"]
+    C --> D["Claim atômico da etapa"]
+    D -->|"claim obtido"| E["Chamada LLM com\nstructured output"]
+    D -->|"já em generating"| F["Join: polling leve até\na row sair de generating"]
+    E --> G[("builder_step_generations")]
+    F --> G

@@ -1,0 +1,152 @@
+/*
+ * Capacitações — rank number theming.
+ *
+ * The Top-9 giant numbers are gradient TEXT (bg-clip-text). Gradients don't
+ * transition natively, so the two gradient stops are registered as TYPED
+ * custom properties (@property syntax '<color>') — typed props interpolate,
+ * so flipping the theme crossfades the number smoothly instead of snapping.
+ *
+ * dark  → the original quiet dark gradient (ivory-alpha over the black bg)
+ * light → the department's /map palette (--dept is set inline per card)
+ */
+
+@property --rank-from {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+@property --rank-to {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+.cap-rank {
+  background-image: linear-gradient(24deg, var(--rank-from) 30%, var(--rank-to) 88%);
+  -webkit-text-fill-color: transparent;
+  transition:
+    --rank-from 0.5s ease,
+    --rank-to 0.5s ease;
+
+  /* dark (default): quiet dark gradient — same look as the original build */
+  --rank-from: color-mix(in srgb, var(--st-ivory) 5%, transparent);
+  --rank-to: color-mix(in srgb, var(--st-ivory) 16%, transparent);
+}
+
+[data-theme="light"] .cap-rank {
+  /* light: the department accent from the map (modules carry --st-ivory) */
+  --rank-from: color-mix(in srgb, var(--dept) 22%, transparent);
+  --rank-to: color-mix(in srgb, var(--dept) 78%, transparent);
+}
+
+/*
+ * Elevation relief — Continue Watching cards.
+ *
+ * The physics come straight from the source platform's CSS: resting depth is
+ * .featdrop's soft 60px shadow + .btn-p's inset top bevel (the "relevo"), and
+ * hover is .drop:hover — copper ring + 44px lift + surface step to card-2.
+ * All values live as --st-elev-* tokens in globals.css (theme-aware ring and
+ * bevel; shadow literals identical in both themes, like the source).
+ */
+.cap-elev {
+  box-shadow: var(--st-elev-bevel), var(--st-elev-rest);
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+.cap-elev:hover {
+  border-color: var(--st-elev-ring);
+  background-color: var(--st-card-2);
+  box-shadow:
+    var(--st-elev-bevel),
+    0 0 0 1px var(--st-elev-ring),
+    var(--st-elev-lift);
+}
+
+/* Small-surface variant — inner boxes (lesson thumbs, module cards, sidebar):
+   same physics, shorter throw, so nested boxes don't out-shadow the page. */
+.cap-elev-sm {
+  box-shadow: var(--st-elev-bevel), 0 10px 26px -14px #18181b66;
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+.cap-elev-sm:hover {
+  border-color: var(--st-elev-ring);
+  box-shadow:
+    var(--st-elev-bevel),
+    0 0 0 1px var(--st-elev-ring),
+    var(--st-elev-lift);
+}
+
+/* The source's primary-button relief (.btn-p, measured live): bevel + 10/26
+   shadow at rest, brightness lift on hover — the "Continuar" CTA physics. */
+.cap-btn-p {
+  box-shadow:
+    0 10px 26px -12px #18181bb3,
+    inset 0 1px 0 #ffffff4d;
+  transition:
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+}
+.cap-btn-p:hover {
+  filter: brightness(1.09);
+  box-shadow:
+    0 16px 38px -12px #18181bd9,
+    inset 0 1px 0 #ffffff59;
+}
+
+/* Sticky tab bar — the source's h-73 underline bar (temporada page identity),
+   tokenized for Arkom and shortened to sit under the Shell chrome. */
+.cap-tabbar {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  height: 64px;
+  border-bottom: 1px solid var(--st-line);
+  background: var(--st-bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.cap-tab {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--st-ink-3);
+  border-bottom: 1px solid transparent;
+}
+.cap-tab[data-active="true"] {
+  color: var(--st-ivory);
+  border-bottom-color: var(--st-ivory);
+}
+.cap-tab[data-disabled="true"] {
+  cursor: default;
+  opacity: 0.75;
+}
+
+/* Standard thin scrollbar — the layout's pattern (map .map-scroll: 4px,
+   transparent track, ivory-alpha thumb), tokenized so it themes: dark →
+   light thumb, light → ink thumb. Apply to every scrolling drawer/panel. */
+.cap-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--st-ivory) 18%, transparent) transparent;
+}
+.cap-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.cap-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cap-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--st-ivory) 18%, transparent);
+  border-radius: 2px;
+}

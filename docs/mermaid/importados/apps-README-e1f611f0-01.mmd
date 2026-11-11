@@ -1,0 +1,12 @@
+flowchart LR
+    A["🎤 Entrevista\n(texto ou voz)"] --> B["Whisper STT\n(edge central)"]
+    A --> C["Wizard de etapas"]
+    B --> C
+    C --> D{"Provedor LLM"}
+    D -->|openai| E["Edge Function central\nbai_builder-llm"]
+    D -->|anthropic| F["API Anthropic\ndireta"]
+    D -->|mock| G["Conteúdo determinístico\n(dev sem chave)"]
+    E --> H["📦 Solução em 8 etapas\nschema educacional"]
+    F --> H
+    G --> H
+    H --> I["🌌 Resultado sobre o mapa\n/genesis/solution/{id}"]

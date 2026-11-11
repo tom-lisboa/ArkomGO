@@ -1,0 +1,9 @@
+[Unit]
+Description=CLIPS Go homolog database and video backup
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/clips-go-homolog/current/backup.sh
+UMask=0077
+Nice=15
+IOSchedulingClass=idle

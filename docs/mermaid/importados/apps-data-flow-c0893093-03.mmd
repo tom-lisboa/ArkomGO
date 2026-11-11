@@ -1,0 +1,14 @@
+flowchart TD
+    A["Entrevista\n(texto ou voz)"] -->|voz| STT["bai_builder-stt\n(Whisper via edge)"]
+    STT --> B["Respostas consolidadas"]
+    A -->|texto| B
+    B --> C["Esqueleto da solução\n+ resumo por etapa"]
+    C --> D["Geração por etapa\n(claim atômico, uma por vez)"]
+    D --> E{"LLM_PROVIDER"}
+    E -->|openai| F["Edge bai_builder-llm"]
+    E -->|anthropic| G["API Anthropic"]
+    E -->|mock| H["Determinístico"]
+    F --> I[("builder_solutions\nbuilder_step_generations")]
+    G --> I
+    H --> I
+    I --> J["/genesis/solution/{id}\nresultado sobre o mapa"]

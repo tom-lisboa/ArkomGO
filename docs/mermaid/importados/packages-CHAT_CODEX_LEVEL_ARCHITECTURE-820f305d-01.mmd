@@ -1,0 +1,11 @@
+flowchart LR
+    A["stdin / slash input"] --> B["Parser"]
+    B --> C["ChatRouter"]
+    C --> D["SessionActor"]
+    D --> E["LocalReply"]
+    D --> F["DeephCommandBus"]
+    D --> G["TurnExecutor"]
+    G --> H["ContextBuilder"]
+    G --> I["Runtime / LLM"]
+    D --> J["Persistence"]
+    D --> K["Metrics / Coach"]

@@ -1,0 +1,276 @@
+.ark-albums {
+  --album-ink: #242722;
+  --album-muted: #55554b;
+  --album-accent: #785438;
+  --album-line: #d6ccbc;
+  --album-paper: #f9f5ed;
+  width: min(1160px, calc(100% - 72px));
+  margin: 0 auto;
+  padding: clamp(28px, 3vw, 44px) 0 64px;
+  color: var(--album-ink);
+}
+.ark-albums .ark-albums-kicker {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 14px;
+  color: var(--album-accent);
+  font-size: .69rem;
+  font-weight: 800;
+  letter-spacing: .15em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+.ark-albums h1,
+.ark-albums .ark-albums-cover-name {
+  font-family: Georgia, 'Times New Roman', serif !important;
+  font-weight: 400 !important;
+  letter-spacing: -.045em !important;
+}
+.ark-albums h1 {
+  margin: 0;
+  color: var(--album-ink);
+  font-size: clamp(2.65rem, 5.7vw, 5.05rem);
+  line-height: 1;
+}
+.ark-albums-heading > p:last-child,
+.ark-albums-project-heading > p:last-child {
+  max-width: 56ch;
+  margin: 14px 0 0;
+  color: var(--album-muted);
+  font-size: clamp(.95rem, 1.8vw, 1.1rem);
+  line-height: 1.5;
+}
+.ark-albums-shelf {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(16px, 2.7vw, 32px);
+  margin-top: 25px;
+}
+.ark-albums .ark-albums-cover {
+  --book-ink: #fcf3de;
+  --book-bg: #2b3830;
+  --book-edge: #b7aa84;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: clamp(20px, 3vw, 34px) clamp(22px, 3.3vw, 38px) 17px;
+  overflow: hidden;
+  border: 1px solid var(--book-edge);
+  border-radius: 4px 12px 12px 4px;
+  background: var(--book-bg);
+  color: var(--book-ink);
+  box-shadow: inset 8px 0 0 #24251b2c, inset 11px 0 0 #faf1d32b, 0 4px 0 -1px #ddd0bb, 0 8px 0 -2px #baaa91, 0 14px 24px #281e1517;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.ark-albums .ark-albums-cover.profissoes {
+  --book-ink: #4e3529;
+  --book-bg: #e8d8bc;
+  --book-edge: #c8b496;
+}
+.ark-albums .ark-albums-cover:hover {
+  transform: translateY(-4px);
+  box-shadow: inset 8px 0 0 #24251b2c, inset 11px 0 0 #faf1d32b, 0 4px 0 -1px #ddd0bb, 0 8px 0 -2px #baaa91, 0 18px 26px #281e1526;
+}
+.ark-albums-cover-index {
+  font-size: .68rem;
+  font-weight: 750;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.ark-albums-cover-name {
+  font-size: clamp(2.4rem, 5vw, 4.5rem);
+  line-height: 1;
+}
+.ark-albums-cover-art {
+  position: relative;
+  display: block;
+  height: clamp(140px, 16.5vw, 205px);
+  margin: 7px 0 2px;
+}
+.ark-albums-cover-art > span {
+  position: absolute;
+  display: block;
+  overflow: hidden;
+  padding: 5px 5px 13px;
+  background: #fffaf0;
+  box-shadow: 0 5px 15px #1c180f36;
+}
+.ark-albums-cover-art > span:first-child {
+  top: 2%;
+  bottom: 4%;
+  left: 5%;
+  width: 36%;
+  transform: rotate(-8deg);
+}
+.ark-albums-cover-art > span:last-child {
+  top: 16%;
+  right: 3%;
+  bottom: 7%;
+  width: 70%;
+  transform: rotate(4deg);
+}
+.ark-albums-cover-art img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+.ark-albums-cover-footer {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--book-edge);
+  font-size: .85rem;
+  font-weight: 700;
+}
+.ark-albums-note { color: var(--album-muted); font-size: .875rem; line-height: 1.55; }
+.ark-albums-trail, .ark-albums-turn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0 16px;
+  color: var(--album-accent);
+  font-size: .8rem;
+  font-weight: 700;
+}
+.ark-albums-trail { border-bottom: 1px solid var(--album-line); }
+.ark-albums-trail > span { color: var(--album-muted); font-variant-numeric: tabular-nums; }
+.ark-albums-trail > span > span { padding: 0 5px; }
+.ark-albums .ark-albums-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 5px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ark-albums .ark-albums-link:hover { text-decoration: underline; text-underline-offset: .2em; }
+.ark-albums-project-heading { margin: 18px 0 17px; }
+.ark-albums-project-heading h1 { font-size: clamp(2.55rem, 5.5vw, 4.8rem); }
+.ark-albums-book {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.14fr) minmax(0, .86fr);
+  border: 1px solid #cdbc9f;
+  border-radius: 12px;
+  background: var(--album-paper);
+  box-shadow: 0 4px 0 -1px #e1d7c7, 0 8px 0 -2px #cdbc9f, 0 14px 24px #281e1512;
+  animation: ark-albums-page-in 230ms ease-out;
+}
+@keyframes ark-albums-page-in {
+  from { opacity: .35; transform: perspective(1050px) rotateY(-3deg) translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.ark-albums-leaf { min-width: 0; padding: clamp(16px, 3.1vw, 34px); }
+.ark-albums-leaf-left { border-radius: 12px 0 0 12px; background: linear-gradient(to left, #ddd0bb 0, transparent 18px); }
+.ark-albums-leaf-right { border-radius: 0 12px 12px 0; background: linear-gradient(to right, #e3d8c5 0, transparent 18px); border-left: 1px solid #d1c1a8; }
+.ark-albums-photo { width: fit-content; max-width: 100%; margin: 4px auto 0; padding: clamp(6px, 1vw, 12px); border: 1px solid #ded5c6; background: #fffdf7; box-shadow: 0 3px 11px #47331b17; }
+.ark-albums-photo + .ark-albums-photo { margin-top: 16px; }
+.ark-albums .ark-albums-photo button {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: #fff;
+  cursor: zoom-in;
+}
+.ark-albums-photo img { display: block; width: auto; max-width: 100%; max-height: 290px; margin: 0 auto; object-fit: contain; }
+.ark-albums-photo button svg { position: absolute; right: 7px; bottom: 7px; box-sizing: content-box; padding: 5px; border-radius: 50%; background: #fcf9f1; color: var(--album-ink); box-shadow: 0 1px 4px #0002; }
+.ark-albums-photo figcaption { display: flex; gap: 8px; align-items: baseline; margin: 9px 0 0; color: var(--album-muted); font-size: .75rem; line-height: 1.35; }
+.ark-albums-photo figcaption a { color: inherit; text-decoration: underline; text-underline-offset: .18em; }
+.ark-albums-photo-number { color: var(--album-accent); font-variant-numeric: tabular-nums; font-weight: 800; }
+.ark-albums-turn { justify-content: flex-start; margin-top: 10px; }
+.ark-albums-turn:empty { display: none; }
+.ark-albums-turn .ark-albums-next { margin-left: auto; }
+.ark-albums-steps { display: grid; gap: 15px; margin: 0; padding: 0; list-style: none; }
+.ark-albums-steps li { padding-top: 12px; border-top: 1px solid var(--album-line); }
+.ark-albums-steps h2 { margin: 0 0 4px; font-size: .92rem; font-weight: 750; }
+.ark-albums-steps p { margin: 0; color: var(--album-muted); font-size: .87rem; line-height: 1.5; }
+.ark-albums-steps-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin-top: 26px; }
+.ark-albums-note { max-width: 86ch; margin: 21px 0 15px; }
+.ark-albums-index { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+.ark-albums-index button {
+  min-height: 40px;
+  padding: 5px 11px;
+  border: 1px solid var(--album-line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--album-muted);
+  cursor: pointer;
+  font-size: .82rem;
+}
+.ark-albums-index button[aria-current] { background: #efe6d6; color: var(--album-ink); font-weight: 750; }
+.ark-albums-request {
+  margin: 0 0 20px;
+  padding: 15px clamp(14px, 3vw, 22px) 8px;
+  border: 1px solid var(--album-line);
+  border-radius: 10px;
+  background: #efe8da;
+}
+.ark-albums-request-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.ark-albums-request h2 { margin: 0 0 5px; font-size: 1rem; }
+.ark-albums-request p { margin: 0; color: var(--album-muted); font-size: .875rem; }
+.ark-albums .ark-albums-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 1px solid #263930;
+  border-radius: 7px;
+  background: #263930;
+  color: #fffaf0;
+  font-weight: 750;
+  cursor: pointer;
+}
+.ark-albums .ark-albums-copy:hover { background: #364e41; }
+.ark-albums .ark-albums-copy-status:not(:empty) { margin-top: 8px; color: #263930; font-weight: 700; }
+.ark-albums-recipe summary { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; cursor: pointer; list-style: none; color: var(--album-accent); font-size: .82rem; font-weight: 750; }
+.ark-albums-recipe summary::-webkit-details-marker { display: none; }
+.ark-albums-recipe[open] summary svg { transform: rotate(180deg); }
+.ark-albums-recipe textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--album-line); background: #fffaf0; color: var(--album-ink); resize: vertical; font-size: .875rem; line-height: 1.5; }
+.ark-albums-lightbox {
+  position: fixed;
+  inset: 0;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 24px);
+  margin: auto;
+  padding: 0 14px 12px;
+  overflow: auto;
+  border: 0;
+  border-radius: 8px;
+  background: #fffaf0;
+  color: var(--album-ink);
+}
+.ark-albums-lightbox::backdrop { background: #20211dcb; }
+.ark-albums-lightbox form { display: flex; justify-content: flex-end; }
+.ark-albums .ark-albums-lightbox button { display: grid; place-items: center; width: 44px; height: 44px; border: 0; background: transparent; color: var(--album-ink); cursor: pointer; }
+.ark-albums-lightbox figure { margin: 0; }
+.ark-albums-lightbox img { display: block; max-width: 100%; max-height: 75vh; width: auto; object-fit: contain; margin: auto; }
+.ark-albums-lightbox figcaption { padding-top: 8px; font-size: .8rem; }
+.ark-albums :focus-visible { outline: 2px solid #8a6034; outline-offset: 3px; }
+@media (max-width: 680px) {
+  .ark-albums { width: calc(100% - 32px); padding-top: 26px; }
+  .ark-albums-shelf { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .ark-albums-cover-art { height: clamp(132px, 40vw, 220px); }
+  .ark-albums-book, .ark-albums-steps-grid { grid-template-columns: minmax(0, 1fr); }
+  .ark-albums-leaf-left { border-radius: 12px 12px 0 0; background: none; }
+  .ark-albums-leaf-right { border: 0; border-top: 1px solid #d1c1a8; border-radius: 0 0 12px 12px; background: linear-gradient(to bottom, #e3d8c5 0, transparent 12px); }
+  .ark-albums-photo img { max-height: 275px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ark-albums-book { animation: none; }
+  .ark-albums .ark-albums-cover { transition: none; }
+  .ark-albums .ark-albums-cover:hover { transform: none; }
+}

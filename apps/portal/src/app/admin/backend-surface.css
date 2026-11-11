@@ -1,0 +1,363 @@
+/* ============================================================================
+   ADMIN · Arkom DS (steel dark) — re-skin do /admin para o mesmo visual do
+   app do aluno (dark steel + dourado). O /admin usa utilities semânticas
+   (bg-surface, text-primary, …) + tokens shadcn (--card, --primary, …) que
+   ESTA folha remapeia com escopo em `.backend-surface`. Trocando os valores
+   aqui, TODO o /admin vira dark — sem tocar nos componentes.
+   Também sobrescrevemos as cores cruas do Tailwind (neutral/amber/red/green/
+   blue) que alguns managers/átomos hardcodam — senão texto preto some no dark.
+   Reversível: é uma camada de skin escopada. Paleta = tokens st e arkom.
+   ============================================================================ */
+
+.backend-surface {
+  --background: #0e0e0e;
+  --foreground: #ececee;
+  --card: #151517;
+  --card-foreground: #ececee;
+  --popover: #151517;
+  --popover-foreground: #ececee;
+  --primary: #ececee;
+  --primary-foreground: #14110c;
+  --secondary: #1c1c1f;
+  --secondary-foreground: #d4d4d8;
+  --muted: #1a1a1d;
+  --muted-foreground: #9a9aa0;
+  --accent: #dcc279;
+  --accent-foreground: #14110c;
+  --destructive: #c8433c;
+  --border: rgb(255 255 255 / 0.12);
+  --input: rgb(255 255 255 / 0.16);
+  --ring: #dcc279;
+
+  /* haze do aluno (body{background:var(--st-haze)}) — hardcodado dark p/ o admin
+     ficar steel independente do tema do aluno; fixed p/ não rolar com o conteúdo. */
+  background-color: #0e0e0e;
+  background-image: radial-gradient(
+    ellipse 120% 70% at 50% -8%,
+    #161616,
+    #0e0e0e 48%,
+    #080808
+  );
+  background-attachment: fixed;
+}
+
+.backend-modal-overlay {
+  min-height: 0;
+  color: var(--foreground);
+  background: rgb(6 6 8 / 0.72);
+}
+
+/* barra flutuante em glass (rail arredondado, inset 14px) — igual à do aluno:
+   var(--st-sidebar-glass) + blur + var(--st-shadow). Valores dark hardcodados. */
+.backend-sidebar {
+  position: fixed;
+  inset: 14px auto 14px 14px;
+  z-index: 30;
+  display: flex;
+  width: 212px;
+  flex-direction: column;
+  padding: 18px 14px;
+  border-radius: 18px;
+  border: 1px solid rgb(255 255 255 / 0.10);
+  background: rgb(26 28 31 / 0.64);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  box-shadow: 0 18px 55px -18px rgb(0 0 0 / 0.65), 0 2px 8px -2px rgb(0 0 0 / 0.5);
+}
+
+.backend-main {
+  min-height: 100vh;
+  margin-left: 240px;
+}
+
+.backend-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.15rem 0.35rem;
+  margin-bottom: 1.25rem;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.backend-brand a {
+  display: inline-flex;
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+/* o wordmark ARKOM é serifado (Marcellus), como no aluno — sobrepõe o
+   font-display=Jakarta que o resto do admin usa nos títulos. */
+.backend-brand .font-display {
+  font-family: var(--font-marcellus), serif;
+}
+
+.backend-brand-tag {
+  margin-left: auto;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #dcc279 40%, transparent);
+  color: #dcc279;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.backend-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+  color: #ececee;
+  font-weight: 750;
+}
+
+.backend-nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.13rem;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 0;
+}
+
+.backend-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.backend-nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 10px;
+  padding: 0 0.62rem;
+  height: 38px;
+  color: #9a9aa0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.backend-nav a:hover,
+.backend-nav a:focus-visible {
+  background: #ffffff09;
+  color: #ececee;
+  outline: none;
+}
+
+/* item ativo = pílula bg-st-card-2 + ivory + semibold (igual ao aluno) */
+.backend-nav a[aria-current="page"] {
+  background: #ffffff0e;
+  color: #ececee;
+  font-weight: 600;
+}
+
+.backend-user {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0.75rem 0 0;
+  padding: 0.5rem;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.04);
+}
+
+.backend-user strong {
+  font-size: 0.75rem;
+}
+
+.backend-user small {
+  margin-top: 0.12rem;
+  color: #8a8a90;
+  font-size: 0.68rem;
+}
+
+.backend-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+}
+
+.backend-logout {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  color: #8a8a90;
+}
+
+.backend-logout:hover,
+.backend-logout:focus-visible {
+  background: rgb(255 255 255 / 0.08);
+  color: #ececee;
+  outline: none;
+}
+
+/* ---- utilities semânticas (o token-bridge) → steel ---- */
+.backend-surface .text-primary { color: #ececee; }
+.backend-surface .text-secondary { color: #9a9aa0; }
+.backend-surface .text-tertiary { color: #74747b; }
+.backend-surface .text-accent,
+.backend-surface .text-text-accent { color: #dcc279; }
+.backend-surface .text-on-accent { color: #14110c; }
+.backend-surface .text-metric-kicker { color: #74747b; }
+.backend-surface .bg-surface { background-color: #151517; }
+.backend-surface .bg-surface-sunken { background-color: #0b0b0c; }
+.backend-surface .bg-surface-hover { background-color: #1c1c1f; }
+.backend-surface .bg-accent { background-color: #dcc279; }
+.backend-surface .bg-accent\/12 { background-color: rgb(220 194 121 / 14%); }
+.backend-surface .bg-accent-hover { background-color: #e6cf8c; }
+.backend-surface .bg-accent-subtle { background-color: rgb(220 194 121 / 12%); }
+.backend-surface .bg-navy-50 { background-color: rgb(255 255 255 / 6%); }
+.backend-surface .bg-navy-100 { background-color: rgb(255 255 255 / 10%); }
+.backend-surface .bg-navy-500 { background-color: #6b7f92; }
+.backend-surface .bg-navy-700 { background-color: #353c47; }
+.backend-surface .bg-navy-800 { background-color: #2b313b; }
+.backend-surface .bg-navy-950 { background-color: #070708; }
+.backend-surface .bg-navy-950\/60 { background-color: rgb(6 6 8 / 60%); }
+.backend-surface .bg-navy-950\/70 { background-color: rgb(6 6 8 / 70%); }
+.backend-surface .bg-gold-500 { background-color: #dcc279; }
+.backend-surface .bg-gold-500\/12 { background-color: rgb(220 194 121 / 14%); }
+.backend-surface .bg-gold-500\/20 { background-color: rgb(220 194 121 / 22%); }
+.backend-surface .bg-surface-inverse-panel { background-color: #101014; }
+.backend-surface .bg-success-subtle { background-color: rgb(87 201 138 / 14%); }
+.backend-surface .bg-warning-subtle { background-color: rgb(224 173 77 / 14%); }
+.backend-surface .bg-danger-subtle { background-color: rgb(229 97 91 / 14%); }
+.backend-surface .bg-info-subtle { background-color: rgb(111 179 232 / 14%); }
+.backend-surface .bg-input-bg { background-color: #111113; }
+.backend-surface .bg-danger { background-color: #c8433c; }
+.backend-surface .bg-warning { background-color: #c99433; }
+.backend-surface .bg-success { background-color: #1f9d5e; }
+.backend-surface .text-navy-700 { color: #b4bcc8; }
+.backend-surface .text-navy-800 { color: #c7ced9; }
+.backend-surface .text-gold-300 { color: #e6cfa2; }
+.backend-surface .text-gold-700,
+.backend-surface .text-gold-800,
+.backend-surface .text-link { color: #dcc279; }
+.backend-surface .text-code-text { color: #d3d8dd; }
+.backend-surface .text-success { color: #57c98a; }
+.backend-surface .text-danger { color: #e5615b; }
+.backend-surface .text-info,
+.backend-surface .text-info-text { color: #6fb3e8; }
+.backend-surface .text-disabled { color: #5c5c62; }
+.backend-surface .border-border-subtle { border-color: rgb(255 255 255 / 9%); }
+.backend-surface .border-border-input { border-color: rgb(255 255 255 / 14%); }
+.backend-surface .border-border-button,
+.backend-surface .border-border-strong,
+.backend-surface .border-input-border { border-color: rgb(255 255 255 / 18%); }
+.backend-surface .border-card-border { border-color: rgb(255 255 255 / 10%); }
+.backend-surface .border-danger { border-color: #c8433c; }
+.backend-surface .border-danger\/35 { border-color: rgb(229 97 91 / 40%); }
+.backend-surface .border-accent\/30,
+.backend-surface .border-gold-500\/30 { border-color: rgb(220 194 121 / 32%); }
+.backend-surface .border-l-gold-500 { border-left-color: #dcc279; }
+.backend-surface .border-strong { border-color: rgb(255 255 255 / 18%); }
+
+/* ---- cores cruas do Tailwind hardcodadas nos managers/átomos → steel ----
+   (sem isto, text-neutral-900 = preto some no dark; amber/red/green clareiam) */
+.backend-surface .text-neutral-900 { color: #ececee; }
+.backend-surface .text-neutral-800 { color: #d4d4d8; }
+.backend-surface .text-neutral-700 { color: #c2c2c8; }
+.backend-surface .text-neutral-600 { color: #a1a1a8; }
+.backend-surface .text-neutral-500 { color: #9a9aa0; }
+.backend-surface .text-neutral-400 { color: #74747b; }
+.backend-surface .text-neutral-200 { color: #3a3a3f; }
+.backend-surface .bg-neutral-400 { background-color: #6b6b72; }
+.backend-surface .bg-neutral-300 { background-color: rgb(255 255 255 / 14%); }
+.backend-surface .bg-neutral-200 { background-color: rgb(255 255 255 / 12%); }
+.backend-surface .bg-neutral-100 { background-color: rgb(255 255 255 / 8%); }
+.backend-surface .bg-neutral-50,
+.backend-surface .bg-neutral-50\/60 { background-color: rgb(255 255 255 / 4%); }
+.backend-surface .border-neutral-200 { border-color: rgb(255 255 255 / 10%); }
+.backend-surface .border-neutral-100 { border-color: rgb(255 255 255 / 8%); }
+.backend-surface .text-amber-900 { color: #f0c674; }
+.backend-surface .text-amber-800 { color: #e8ba5e; }
+.backend-surface .text-amber-700 { color: #e0ad4d; }
+.backend-surface .text-amber-600 { color: #e0ad4d; }
+.backend-surface .bg-amber-500 { background-color: #d8a13a; }
+.backend-surface .border-amber-400 { border-color: rgb(216 161 58 / 45%); }
+.backend-surface .border-amber-200 { border-color: rgb(216 161 58 / 30%); }
+.backend-surface .border-amber-100 { border-color: rgb(216 161 58 / 22%); }
+.backend-surface .text-red-700 { color: #e5615b; }
+.backend-surface .text-red-600 { color: #e5615b; }
+.backend-surface .bg-red-500 { background-color: #e5615b; }
+.backend-surface .bg-red-600 { background-color: #d8514b; }
+.backend-surface .border-red-400 { border-color: rgb(229 97 91 / 45%); }
+.backend-surface .text-green-800 { color: #57c98a; }
+.backend-surface .text-green-700 { color: #57c98a; }
+.backend-surface .text-green-600 { color: #57c98a; }
+.backend-surface .bg-green-500 { background-color: #3fbd77; }
+.backend-surface .border-green-300 { border-color: rgb(87 201 138 / 40%); }
+.backend-surface .border-green-200 { border-color: rgb(87 201 138 / 30%); }
+.backend-surface .bg-blue-500 { background-color: #5a9fe0; }
+
+.backend-surface .rounded-card { border-radius: 14px; }
+/* elevação do aluno (cap-elev): bevel de topo + sombra macia — só nos cards
+   RAISED (bg-surface), não nas caixas sunken. */
+.backend-surface .bg-surface.rounded-card {
+  box-shadow: inset 0 1px 0 #ffffff2e, 0 16px 42px -30px rgb(0 0 0 / 0.8);
+}
+.backend-surface .rounded-button { border-radius: 0.55rem; }
+.backend-surface .rounded-button-pill,
+.backend-surface .rounded-chip { border-radius: 999px; }
+.backend-surface .rounded-input { border-radius: 0.55rem; }
+.backend-surface .rounded-modal { border-radius: 0.9rem; }
+.backend-surface .rounded-table { border-radius: 0.75rem; }
+.backend-surface .tracking-display { letter-spacing: -0.025em; }
+.backend-surface .tracking-ultra { letter-spacing: 0.14em; }
+.backend-surface .text-2xs { font-size: 0.68rem; }
+.backend-surface .text-3xs { font-size: 0.61rem; }
+.backend-surface .font-display { font-family: var(--font-jakarta), sans-serif; }
+.backend-surface .shadow-card { box-shadow: 0 18px 44px -24px rgb(0 0 0 / 75%); }
+.backend-surface .shadow-card-sm { box-shadow: 0 10px 24px -18px rgb(0 0 0 / 60%); }
+.backend-surface .shadow-modal { box-shadow: 0 30px 80px -30px rgb(0 0 0 / 80%); }
+.backend-surface .shadow-focus,
+.backend-surface .shadow-ring-gold { box-shadow: 0 0 0 3px rgb(220 194 121 / 30%); }
+.backend-surface .shadow-glow-gold-strong { box-shadow: 0 10px 30px -14px rgb(220 194 121 / 55%); }
+
+@media (max-width: 860px) {
+  .backend-sidebar {
+    position: static;
+    inset: auto;
+    width: 100%;
+    min-height: auto;
+    border: 0;
+    border-radius: 0;
+    border-bottom: 1px solid rgb(255 255 255 / 0.08);
+    padding: 0.65rem 0.9rem;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .backend-brand {
+    margin-bottom: 0;
+    margin-right: 0.5rem;
+  }
+
+  .backend-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 0;
+  }
+
+  .backend-nav a {
+    flex: none;
+  }
+
+  .backend-user {
+    display: none;
+  }
+
+  .backend-main {
+    margin-left: 0;
+  }
+}

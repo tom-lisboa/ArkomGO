@@ -1,0 +1,48 @@
+/* ── Arkom — Custom Docs Styling (identidade Agência Lendária · paleta ouro Arkom) ── */
+
+/* Fonte de headings — Satoshi via Fontshare */
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@500,700&display=swap');
+
+/* Headings — Satoshi, peso forte, tracking apertado */
+h1, h2, h3, h4 {
+  font-family: 'Satoshi', 'Inter', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em;
+}
+
+/* LIGHT MODE (white) — fundo quase branco, toque ouro sutil */
+body,
+[data-theme="light"] body {
+  background:
+    radial-gradient(ellipse 70% 40% at 5% 0%, rgba(185, 145, 91, 0.10) 0%, transparent 65%),
+    #FAFAFA;
+  background-attachment: fixed;
+}
+
+/* DARK MODE (black) — preto profundo, toque ouro quase imperceptível */
+[data-theme="dark"] body,
+.dark body {
+  background:
+    radial-gradient(ellipse 70% 40% at 5% 0%, rgba(220, 194, 121, 0.05) 0%, transparent 55%),
+    #080808;
+  background-attachment: fixed;
+}
+
+/* Sidebar active item */
+[data-theme="light"] [data-active="true"],
+[data-theme="light"] .active-nav-item,
+[data-theme="light"] [aria-current="page"] {
+  background-color: rgba(185, 145, 91, 0.15) !important;
+}
+
+[data-theme="dark"] [data-active="true"],
+[data-theme="dark"] .active-nav-item,
+[data-theme="dark"] [aria-current="page"],
+.dark [aria-current="page"] {
+  background-color: rgba(220, 194, 121, 0.10) !important;
+}
+
+/* Smooth transition */
+body, html {
+  transition: background 0.3s ease;
+}

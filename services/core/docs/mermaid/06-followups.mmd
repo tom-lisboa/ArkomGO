@@ -1,0 +1,41 @@
+flowchart TD
+    OPEN["Abertura entregue e contexto salvo"] --> BOOK{"Já tem reunião?"}
+    OPEN --> CASE["Case Camozzi, uma vez"]
+    BOOK -->|Não| NR["Sem resposta: 15 min, 2h, 6h, dia seguinte, 2 e 3 dias"]
+    NR --> NG{"Ainda sem resposta, sem reserva e contato liberado?"}
+    NG -->|Não| STOP["Interromper retomadas"]
+    NG -->|Sim| HOURS["Respeitar 08h-20h e espaçar envios adiados"]
+    HOURS --> NBTN["Ver horários ou Quero conversar / Como funciona ou Tirar dúvida / Agora não"]
+    NBTN -->|Responde| CHAT["Mesma conversa e especialistas"]
+    NBTN -->|Agora não| PAUSE["Pausar contatos"]
+    CHAT -->|Agenda| BOOKED["Reserva no Postgres"]
+    BOOK -->|Sim| BOOKED
+    BOOKED --> SCH["Worker follow-up: reconciliação a cada 30 segundos"]
+    SCH --> PREP["15 min após abertura: preparação"]
+    SCH --> D1["24h antes: confirmar ou remarcar"]
+    SCH --> H2["2h antes: reforçar horário e confirmação"]
+    SCH --> H1["1h antes: manter horário, remarcar ou pedir ajuda"]
+    SCH --> A30["30 min antes: áudio pelo worker de mídia"]
+    SCH --> C15["15 min antes: texto com botões"]
+    C15 --> PERM["Após entrega: pedir permissão nativa de ligação"]
+    PERM -->|Permitiu| VOICE["Voz confere agenda e faz um lembrete"]
+    PERM -->|Não permitiu| NOVOICE["Não ligar"]
+    SCH --> W5["5 min antes: WhatsApp com botões"]
+    SCH --> SMS["5 min antes: SMS, com autorização própria"]
+    SCH --> T0["No início: WhatsApp com confirmação, remarcação e ajuda"]
+    SCH --> PLUS["7 min após início: oferecer ajuda"]
+    PLUS --> RECENT{"Houve resposta ou confirmação nos 15 min finais?"}
+    RECENT -->|Sim| SKIP["Pular aviso de ajuda"]
+    RECENT -->|Não| HELP["Oferecer ajuda sem afirmar ausência"]
+    D1 --> MB["Confirmar presença / Remarcar / Preciso de ajuda"]
+    H2 --> MB
+    H1 --> MB
+    W5 --> MB
+    T0 --> MB
+    HELP --> MB
+    MB --> CHAT
+    SCH --> VALID["Revalidar consentimento, humano, pausa, reserva e validade antes de enviar"]
+    VALID --> WINDOW{"Sessão recente de WhatsApp?"}
+    WINDOW -->|Não| TMPL["Usar modelo específico aprovado pela Meta"]
+    WINDOW -->|Sim| LIVE["Botões nativos de sessão"]
+    RESULT["Equipe informa compareceu ou faltou"] --> OUT["Atualizar memória e métricas; nunca inferir falta pelo relógio"]

@@ -1,0 +1,68 @@
+---
+title: "Mapa de Rotas"
+description: "Todas as rotas da aplicação — área do aluno, autenticação, conta e admin"
+---
+
+## Área do aluno — `(aluno)`
+
+| Rota | Experiência |
+|------|-------------|
+| `/home` | Página inicial reativa ao banco — progresso e próximos passos do aluno |
+| `/hub` | Busca, card "Comece aqui" (onboarding em 5 passos), módulos e drops da semana |
+| `/map` | Mapa radial: starfield, câmera pan/zoom/dive, 7 departamentos + Node Zero |
+| `/dash` | Centrais de comando em coverflow, com peek detalhado por painel |
+| `/chart` | Matriz de rollout: 137 jobs por estágio × nível de autonomia |
+| `/genesis` | Builder de soluções por IA (entrevista por texto ou voz) |
+| `/genesis/solution/{id}` | Resultado da solução, vivido sobre o mapa |
+| `/solutions` | Galeria das soluções geradas |
+| `/brain` | Segundo cérebro — entrevista que escreve o contexto dos agentes |
+| `/trainings` | Trilha de capacitações (cursos em vídeo) |
+| `/trainings/{courseId}` | Página do curso |
+| `/trainings/lesson/{aulaId}` | Player da aula, com progresso e comentários (feature-flag) |
+| `/mentorships` | Mentorias disponíveis |
+| `/modules` · `/modules/{slug}` | Trilha de aprendizado passo a passo |
+| `/tree` | Minha árvore — skills instaladas + catálogo |
+| `/apps` | Apps conectados |
+| `/drops` | Histórico de drops semanais |
+
+## Autenticação — `(auth)`
+
+| Rota | Fluxo |
+|------|-------|
+| `/login` | Login com sessão HMAC própria |
+| `/cadastro` | Cadastro por convite |
+| `/definir-senha` | Definição de senha no primeiro acesso |
+| `/recuperar-senha` | Recuperação de senha |
+
+## Conta — `(conta)`
+
+| Rota | Fluxo |
+|------|-------|
+| `/settings` | Preferências do usuário (tema, dados da conta) |
+
+## Painel administrativo — `/admin`
+
+<Note>
+  O admin usa o **mesmo design system do aluno** — glass rail, haze, bevel, steel dark — aplicado ao chrome de gestão.
+</Note>
+
+| Rota | Gestão |
+|------|--------|
+| `/admin` | Visão geral |
+| `/admin/students` · `/admin/students/{id}` | Alunos e perfil individual |
+| `/admin/invites` | Convites de acesso |
+| `/admin/provisioning` | Provisionamento de contas |
+| `/admin/trainings` · `/admin/trainings/{id}/lessons` | Cursos e aulas |
+| `/admin/solutions` | Soluções geradas pelo Genesis |
+| `/admin/mentorships` | Mentorias |
+| `/admin/apps` | Apps do ecossistema |
+| `/admin/media` | Biblioteca de mídia (bucket privado) |
+| `/admin/exports` | Exportação de dados |
+
+## Como as visões se conectam
+
+- `/map`, `/dash` e `/chart` compartilham a barra de abas **MAP / DASHBOARDS / CHART** — três visões do mesmo catálogo
+- Hub → Brain: o passo "Comece seu cérebro" abre `/brain`; concluir a entrevista marca o passo no card
+- Map: job → drawer → satélites (arquivos de skill) → popup da skill (`SKILL.md`); o centro abre a Base de Conhecimento
+- Tree: "Encontrar mais skills" → catálogo → instalar acende o tile em "Minha árvore"
+- Chart: célula → drawer do job (o que faz, por que continua humano, escada manual → autônomo)

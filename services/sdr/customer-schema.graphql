@@ -1,0 +1,15 @@
+scalar JSON
+scalar Time
+
+type Query { customer: Customer! }
+type Customer {
+  organizationId: ID!
+  collections: [String!]!
+  records(collection: String!, first: Int! = 50, after: String, conversationId: ID, from: Time, to: Time): DataPage!
+  workerUsage(days: Int! = 90): CustomerUsage!
+  exports: [DataExport!]!
+}
+type DataPage { items: [DataRecord!]!, nextCursor: String, hasMore: Boolean! }
+type DataRecord { id: ID!, conversationId: ID, recordedAt: Time, data: JSON! }
+type CustomerUsage { available: Boolean!, report: JSON, retentionDays: Int! }
+type DataExport { id: ID!, status: String!, createdAt: Time!, capturedAt: Time, expiresAt: Time!, downloadPath: String, errorCode: String }

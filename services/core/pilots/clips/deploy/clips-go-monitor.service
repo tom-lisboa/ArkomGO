@@ -1,0 +1,7 @@
+[Unit]
+Description=CLIPS Go homolog readiness, queue, backup and disk checks
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/clips-go-homolog/current/monitor.sh
+UMask=0077

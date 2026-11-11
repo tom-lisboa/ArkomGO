@@ -1,0 +1,10 @@
+flowchart LR
+    Pedido[Pedido do cliente] --> Contexto[Agente de contexto]
+    Empresa[Contexto publicado da empresa] --> Contexto
+    Contexto --> SDR[Especialista SDR]
+    Contexto --> CRM[Especialista CRM]
+    SDR --> Revisor[Agente revisor]
+    CRM --> Revisor
+    Revisor --> Plano[Plano apresentado ao cliente]
+    Plano -. próxima etapa .-> Previa[Prévia de uma alteração]
+    Previa -. próxima etapa .-> Aprovacao[Aprovação e execução controlada]

@@ -1,0 +1,194 @@
+diff --git a/clips-homolog.config.ts b/clips-homolog.config.ts
+new file mode 100644
+index 0000000..c02c81f
+--- /dev/null
++++ b/clips-homolog.config.ts
+@@ -0,0 +1,29 @@
++const CENTRAL_REF = "auytmefqnuzbktyzcled";
++
++export function homologConnection(env: Record<string, string>, allowLoopback: boolean) {
++  const url = env.VITE_CLIPS_HOMOLOG_URL;
++  const key = env.VITE_CLIPS_HOMOLOG_PUBLISHABLE_KEY;
++  const instanceId = env.VITE_CLIPS_HOMOLOG_INSTANCE_ID;
++  if (!url || !key || !instanceId) {
++    throw new Error("CLIPS homolog: configure URL, publishable key and test instance explicitly.");
++  }
++
++  const target = new URL(url);
++  if (target.username || target.password || target.pathname !== "/" || target.search || target.hash) {
++    throw new Error("CLIPS homolog: the backend must be a bare origin.");
++  }
++  const local = allowLoopback && target.protocol === "http:" && target.hostname === "127.0.0.1" && !!target.port;
++  const ref = env.VITE_CLIPS_HOMOLOG_PROJECT_REF;
++  const hosted = ref && /^[a-z0-9]{20}$/.test(ref) && ref !== CENTRAL_REF &&
++    target.origin === `https://${ref}.supabase.co`;
++  if (!local && !hosted) {
++    throw new Error("CLIPS homolog: use a separate Supabase project matching the test ref.");
++  }
++  if (!/^sb_publishable_[A-Za-z0-9_-]+$/.test(key)) {
++    throw new Error("CLIPS homolog: use the test project's publishable key.");
++  }
++  if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(instanceId)) {
++    throw new Error("CLIPS homolog: the test instance must be a UUID.");
++  }
++  return { url: target.origin, key, instanceId };
++}
+diff --git a/src/integrations/supabase/client.ts b/src/integrations/supabase/client.ts
+index b712488..5d2029e 100644
+--- a/src/integrations/supabase/client.ts
++++ b/src/integrations/supabase/client.ts
+@@ -2,14 +2,18 @@
+ import { createClient } from '@supabase/supabase-js';
+ import type { Database } from './types';
+ 
+-// O app fala SEMPRE com o banco central, nunca com o que vier das VITE_SUPABASE_*.
++// O build padrão usa o central mesmo com VITE_SUPABASE_* do remix. Homologação tem modo e configuração próprios.
+ // Em 18/09 o problema era o remix chegar com o .env vazio (8ddc761). Em 23/10 o remix do
+ // Jackson Ferreira (card 17tr6jh53bz) nasceu com o Lovable Cloud ligado: as variaveis vieram
+ // preenchidas com o banco do Lovable, o `||` nao caia no central e o login da Arkom falhava.
+ // Mesmo caso da Grow AI (arkom-grow-ai-17, PR #10). A chave e a publica (publishable): vai no
+ // bundle do navegador de qualquer jeito. Se o Lovable regenerar este arquivo, refazer estas linhas.
+-export const SUPABASE_URL = 'https://auytmefqnuzbktyzcled.supabase.co';
+-export const SUPABASE_PUBLISHABLE_KEY = 'REPLACE_WITH_YOUR_SUPABASE_PUBLIC_KEY';
++export const SUPABASE_URL = import.meta.env.MODE === "clips-homolog"
++  ? __CLIPS_HOMOLOG_URL__
++  : 'https://auytmefqnuzbktyzcled.supabase.co';
++export const SUPABASE_PUBLISHABLE_KEY = import.meta.env.MODE === "clips-homolog"
++  ? __CLIPS_HOMOLOG_KEY__
++  : 'REPLACE_WITH_YOUR_SUPABASE_PUBLIC_KEY';
+ 
+ 
+ function isNewSupabaseApiKey(value: string): boolean {
+diff --git a/src/lib/org.ts b/src/lib/org.ts
+index ab60553..7b29c55 100644
+--- a/src/lib/org.ts
++++ b/src/lib/org.ts
+@@ -18,32 +18,38 @@ import { supabase } from "@/integrations/supabase/client";
+  * no Arkom. A UI tem de tratar `null` como "peça acesso", jamais como falha técnica.
+  */
+ 
+-const INSTANCE_ID = import.meta.env.VITE_INSTANCE_ID as string | undefined;
++const homolog = import.meta.env.MODE === "clips-homolog";
++const INSTANCE_ID = homolog ? __CLIPS_HOMOLOG_INSTANCE__ : (import.meta.env.VITE_INSTANCE_ID as string | undefined);
+ const SOLUTION = "clips";
+ 
+ let emVoo: Promise<string | null> | null = null;
+ let cache: string | null = null;
+ 
+ async function resolver(): Promise<string | null> {
+-  const { data: { user } } = await supabase.auth.getUser();
++  const { data: { user }, error: authError } = await supabase.auth.getUser();
++  if (homolog && authError) throw authError;
+   if (!user) return null;
+ 
+   // 1) instância: o deploy foi provisionado para uma org específica
+   if (INSTANCE_ID) {
+-    const { data: existente } = await supabase
++    const { data: existente, error: lookupError } = await supabase
+       .schema("core").rpc("org_for_instance", { _instance_id: INSTANCE_ID });
++    if (homolog && lookupError) throw lookupError;
+     if (existente) return existente as string;
+ 
+-    const { data: reivindicada } = await supabase
++    const { data: reivindicada, error: claimError } = await supabase
+       .schema("core").rpc("claim_instance", {
+         _instance_id: INSTANCE_ID,
+         _solution: SOLUTION,
+         _deploy_url: window.location.origin,
+         _source_project_id: null,
+       });
++    if (homolog && claimError) throw claimError;
+     if (reivindicada) return reivindicada as string;
+   }
+ 
++  if (homolog) return null;
++
+   // 2) org pré-provisionada para este e-mail
+   const { data: porEmail } = await supabase
+     .schema("core").rpc("claim_by_email", { _solution: SOLUTION });
+diff --git a/src/test/arkom/homolog-connection.test.ts b/src/test/arkom/homolog-connection.test.ts
+new file mode 100644
+index 0000000..20dd4b8
+--- /dev/null
++++ b/src/test/arkom/homolog-connection.test.ts
+@@ -0,0 +1,36 @@
++import { describe, expect, it } from "vitest";
++import { homologConnection } from "../../../clips-homolog.config";
++
++const env = {
++  VITE_CLIPS_HOMOLOG_URL: "https://abcdefghijklmnopqrst.supabase.co",
++  VITE_CLIPS_HOMOLOG_PROJECT_REF: "abcdefghijklmnopqrst",
++  VITE_CLIPS_HOMOLOG_PUBLISHABLE_KEY: "sb_publishable_fixture",
++  VITE_CLIPS_HOMOLOG_INSTANCE_ID: "8d006a10-2194-40bd-b447-2ffb400ba066",
++};
++
++describe("isolamento do build CLIPS de homologação", () => {
++  it("aceita um projeto de teste explicitamente configurado", () => {
++    expect(homologConnection(env, false).url).toBe(env.VITE_CLIPS_HOMOLOG_URL);
++  });
++  it("recusa o projeto central mesmo com o ref correspondente", () => {
++    expect(() => homologConnection({ ...env,
++      VITE_CLIPS_HOMOLOG_URL: "https://auytmefqnuzbktyzcled.supabase.co",
++      VITE_CLIPS_HOMOLOG_PROJECT_REF: "auytmefqnuzbktyzcled",
++    }, false)).toThrow();
++  });
++  it("recusa ambiente ausente, ref diferente e chave privilegiada", () => {
++    expect(() => homologConnection({}, false)).toThrow();
++    expect(() => homologConnection({ ...env, VITE_CLIPS_HOMOLOG_PROJECT_REF: "incompatível" }, false)).toThrow();
++    expect(() => homologConnection({ ...env, VITE_CLIPS_HOMOLOG_PUBLISHABLE_KEY: "sb_secret_fixture" }, false)).toThrow();
++  });
++  it("recusa URL remota com caminho e instância sem UUID", () => {
++    expect(() => homologConnection({ ...env, VITE_CLIPS_HOMOLOG_URL: env.VITE_CLIPS_HOMOLOG_URL+"/other" }, false)).toThrow();
++    expect(() => homologConnection({ ...env, VITE_CLIPS_HOMOLOG_INSTANCE_ID: "" }, false)).toThrow();
++  });
++  it("habilita localhost somente por decisão explícita do processo de teste", () => {
++    const local = { ...env, VITE_CLIPS_HOMOLOG_URL: "http://127.0.0.1:18084" };
++    expect(() => homologConnection(local, false)).toThrow();
++    expect(homologConnection(local, true).url).toBe(local.VITE_CLIPS_HOMOLOG_URL);
++    expect(() => homologConnection({ ...local, VITE_CLIPS_HOMOLOG_URL: "http://192.168.0.1:18084" }, true)).toThrow();
++  });
++});
+diff --git a/src/vite-env.d.ts b/src/vite-env.d.ts
+index 11f02fe..e4ca669 100644
+--- a/src/vite-env.d.ts
++++ b/src/vite-env.d.ts
+@@ -1 +1,5 @@
+ /// <reference types="vite/client" />
++
++declare const __CLIPS_HOMOLOG_URL__: string;
++declare const __CLIPS_HOMOLOG_KEY__: string;
++declare const __CLIPS_HOMOLOG_INSTANCE__: string;
+diff --git a/vite.config.ts b/vite.config.ts
+index de984ce..cc9b9ae 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -1,10 +1,20 @@
+-import { defineConfig } from "vite";
++import { defineConfig, loadEnv } from "vite";
+ import react from "@vitejs/plugin-react-swc";
+ import path from "path";
+ import { componentTagger } from "lovable-tagger";
++import { homologConnection } from "./clips-homolog.config";
+ 
+ // https://vitejs.dev/config/
+-export default defineConfig(({ mode }) => ({
++export default defineConfig(({ mode }) => {
++  const homolog = mode === "clips-homolog"
++    ? homologConnection(loadEnv(mode, process.cwd(), "VITE_"), process.env.CLIPS_ALLOW_LOOPBACK_AUTH === "1")
++    : undefined;
++  return {
++  define: {
++    __CLIPS_HOMOLOG_URL__: JSON.stringify(homolog?.url ?? ""),
++    __CLIPS_HOMOLOG_KEY__: JSON.stringify(homolog?.key ?? ""),
++    __CLIPS_HOMOLOG_INSTANCE__: JSON.stringify(homolog?.instanceId ?? ""),
++  },
+   server: {
+     host: "::",
+     port: 8080,
+@@ -26,4 +36,5 @@ export default defineConfig(({ mode }) => ({
+   optimizeDeps: {
+     exclude: ["@ffmpeg/ffmpeg", "@ffmpeg/core"],
+   },
+-}));
++  };
++});

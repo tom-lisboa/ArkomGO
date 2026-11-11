@@ -1,0 +1,33 @@
+flowchart TD
+    A["Cliente preenche o formulário de diagnóstico"]
+    A --> B["Lead entra no CRM do ClickMax"]
+    A --> C["Cliente abre a agenda do formulário"]
+    B --> D["Evento do pipeline SDR · ARKOM"]
+    C --> E{"Cliente concluiu a reserva no site?"}
+    E -->|Sim| F["ClickMax reserva e atribui o vendedor"]
+    E -->|Ainda não| G["Pode continuar pelo WhatsApp após receber a abertura"]
+    F --> H["Evento de reserva do ClickMax"]
+    D --> I["Webhook da Bia Go"]
+    H --> I
+    I --> J{"Entrada válida e WhatsApp autorizado?"}
+    J -->|Não| K["Registra o motivo e encerra a entrada"]
+    J -->|Sim| L["Grava o evento uma vez no PostgreSQL"]
+    L --> Z{"Evento aponta para reserva ainda não importada?"}
+    Z -->|Sim| W["Worker aguarda a reserva verificada no ClickMax"]
+    Z -->|Não| M{"Há uma reserva ativa vinculada?"}
+    W -->|Importada| M
+    W -->|Cancelada| X["Encerra a abertura ligada àquela reserva"]
+    M -->|Sim| N["Confirma data e hora no WhatsApp"]
+    M -->|Ainda não| O["Abertura com Ver horários e Tirar dúvida"]
+    O --> G
+    G -->|Toca em Ver horários| P["Bia consulta a agenda do ClickMax e oferece até dois horários"]
+    P --> Q{"Cliente escolheu um horário?"}
+    Q -->|Sim| R["Worker de agenda revalida e solicita a reserva"]
+    Q -->|Ainda não| S["Conversa segue ou entra na régua sem resposta se elegível"]
+    R --> T{"ClickMax confirmou?"}
+    T -->|Sim| N
+    T -->|Vaga ocupada| P
+    T -->|Resultado incerto| U["Worker confere a operação no ClickMax"]
+    U -->|Reserva confirmada| N
+    U -->|Permanece incerto| Y["Encaminha para revisão"]
+    N --> V["Worker de follow-up executa os lembretes elegíveis"]

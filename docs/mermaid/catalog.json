@@ -1,0 +1,327 @@
+[
+  {
+    "source": "docs/mermaid/06-runtime-local.mmd",
+    "diagram": "docs/mermaid/06-runtime-local.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/05-jornada-produto-proposta.mmd",
+    "diagram": "docs/mermaid/05-jornada-produto-proposta.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/04-autonomia-proposta.mmd",
+    "diagram": "docs/mermaid/04-autonomia-proposta.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/03-sdr-crm.mmd",
+    "diagram": "docs/mermaid/03-sdr-crm.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/02-genesis-multiagentes.mmd",
+    "diagram": "docs/mermaid/02-genesis-multiagentes.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/01-demo-integrada.mmd",
+    "diagram": "docs/mermaid/01-demo-integrada.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/README.md",
+    "diagram": "docs/mermaid/importados/apps-README-e1f611f0-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/README.md",
+    "diagram": "docs/mermaid/importados/apps-README-e1f611f0-02.mmd",
+    "block": 2
+  },
+  {
+    "source": "apps/portal/docs/ARQUITETURA-DASH-UNIFICADO.md",
+    "diagram": "docs/mermaid/importados/apps-ARQUITETURA-DASH-UNIFICADO-3ba080d0-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/documentacao/architecture/data-flow.mdx",
+    "diagram": "docs/mermaid/importados/apps-data-flow-c0893093-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/documentacao/architecture/data-flow.mdx",
+    "diagram": "docs/mermaid/importados/apps-data-flow-c0893093-02.mmd",
+    "block": 2
+  },
+  {
+    "source": "apps/portal/documentacao/architecture/data-flow.mdx",
+    "diagram": "docs/mermaid/importados/apps-data-flow-c0893093-03.mmd",
+    "block": 3
+  },
+  {
+    "source": "apps/portal/documentacao/architecture/overview.mdx",
+    "diagram": "docs/mermaid/importados/apps-overview-c6f73b5f-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/documentacao/components/dash.mdx",
+    "diagram": "docs/mermaid/importados/apps-dash-4fe2e4d9-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/documentacao/components/map.mdx",
+    "diagram": "docs/mermaid/importados/apps-map-9abb3fe2-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/documentacao/components/overview.mdx",
+    "diagram": "docs/mermaid/importados/apps-overview-0d3e4ca6-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/documentacao/database/overview.mdx",
+    "diagram": "docs/mermaid/importados/apps-overview-1bdfe75c-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/documentacao/endpoints/overview.mdx",
+    "diagram": "docs/mermaid/importados/apps-overview-b1e01525-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/documentacao/logic/auth-sessao.mdx",
+    "diagram": "docs/mermaid/importados/apps-auth-sessao-b42412fa-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/documentacao/logic/genesis-builder.mdx",
+    "diagram": "docs/mermaid/importados/apps-genesis-builder-5f78af78-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/documentacao/prompts/overview.mdx",
+    "diagram": "docs/mermaid/importados/apps-overview-f7a125a6-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "apps/portal/documentacao/testing/e2e.mdx",
+    "diagram": "docs/mermaid/importados/apps-e2e-ea17455f-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/clips-go-integracao-backends.md",
+    "diagram": "docs/mermaid/importados/services-clips-go-integracao-backends-3196c877-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/clips-go-interface-homologacao.md",
+    "diagram": "docs/mermaid/importados/services-clips-go-interface-homologacao-892c56d1-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-02.mmd",
+    "block": 2
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-03.mmd",
+    "block": 3
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-04.mmd",
+    "block": 4
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-05.mmd",
+    "block": 5
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-06.mmd",
+    "block": 6
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-07.mmd",
+    "block": 7
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-08.mmd",
+    "block": 8
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-09.mmd",
+    "block": 9
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-10.mmd",
+    "block": 10
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-11.mmd",
+    "block": 11
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-12.mmd",
+    "block": 12
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-13.mmd",
+    "block": 13
+  },
+  {
+    "source": "services/core/docs/fluxo-cliente-mermaid.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-14.mmd",
+    "block": 14
+  },
+  {
+    "source": "services/core/docs/fluxo-formulario-agenda-bia.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-formulario-agenda-bia-a62bc0e6-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/fluxo-formulario-agenda-bia.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-formulario-agenda-bia-a62bc0e6-02.mmd",
+    "block": 2
+  },
+  {
+    "source": "services/core/docs/fluxo-formulario-agenda-bia.md",
+    "diagram": "docs/mermaid/importados/services-fluxo-formulario-agenda-bia-a62bc0e6-03.mmd",
+    "block": 3
+  },
+  {
+    "source": "services/core/docs/genesis-plano-construcao.md",
+    "diagram": "docs/mermaid/importados/services-genesis-plano-construcao-7b15aca6-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/intro-video.md",
+    "diagram": "docs/mermaid/importados/services-intro-video-10014d12-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/management-backend.md",
+    "diagram": "docs/mermaid/importados/services-management-backend-f077dcba-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/01-visao-geral.mmd",
+    "diagram": "services/core/docs/mermaid/01-visao-geral.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/02-formulario-e-abertura.mmd",
+    "diagram": "services/core/docs/mermaid/02-formulario-e-abertura.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/03-contexto-e-midias.mmd",
+    "diagram": "services/core/docs/mermaid/03-contexto-e-midias.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/04-agentes-e-decisoes.mmd",
+    "diagram": "services/core/docs/mermaid/04-agentes-e-decisoes.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/05-agenda.mmd",
+    "diagram": "services/core/docs/mermaid/05-agenda.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/06-followups.mmd",
+    "diagram": "services/core/docs/mermaid/06-followups.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/07-permissao-e-chamada.mmd",
+    "diagram": "services/core/docs/mermaid/07-permissao-e-chamada.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/08-conversa-na-ligacao.mmd",
+    "diagram": "services/core/docs/mermaid/08-conversa-na-ligacao.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/09-controle-e-pos-reuniao.mmd",
+    "diagram": "services/core/docs/mermaid/09-controle-e-pos-reuniao.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/10-bloqueios-e-falhas.mmd",
+    "diagram": "services/core/docs/mermaid/10-bloqueios-e-falhas.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/11-botoes-de-demonstracao.mmd",
+    "diagram": "services/core/docs/mermaid/11-botoes-de-demonstracao.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/12-arquitetura-dos-workers.mmd",
+    "diagram": "services/core/docs/mermaid/12-arquitetura-dos-workers.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/mermaid/13-ciclo-de-evolucao-proposto.mmd",
+    "diagram": "services/core/docs/mermaid/13-ciclo-de-evolucao-proposto.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/n8n-analysis.md",
+    "diagram": "docs/mermaid/importados/services-n8n-analysis-2fb22a2b-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/orquestracao-agentes-proposta.md",
+    "diagram": "docs/mermaid/importados/services-orquestracao-agentes-proposta-32606ec3-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/plataforma-cadastro-comum.md",
+    "diagram": "docs/mermaid/importados/services-plataforma-cadastro-comum-0d09b860-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/plataforma-entrada-remix.md",
+    "diagram": "docs/mermaid/importados/services-plataforma-entrada-remix-0c930bbc-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/specialists.md",
+    "diagram": "docs/mermaid/importados/services-specialists-eebdeda4-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/docs/workers.md",
+    "diagram": "docs/mermaid/importados/services-workers-7423f93b-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "services/core/pilots/clips/README.md",
+    "diagram": "docs/mermaid/importados/services-README-938ad1eb-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "packages/deeph/docs/CHAT_CODEX_LEVEL_ARCHITECTURE.md",
+    "diagram": "docs/mermaid/importados/packages-CHAT_CODEX_LEVEL_ARCHITECTURE-820f305d-01.mmd",
+    "block": 1
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "name": "crmgo-interface",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {"check": "tsc --noEmit"},
+  "dependencies": {"react": "18.3.1"},
+  "devDependencies": {"@types/react": "18.3.18", "typescript": "5.6.3"}
+}

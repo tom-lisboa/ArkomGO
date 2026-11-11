@@ -1,0 +1,15 @@
+flowchart TD
+    Empresa[Cliente informa sua empresa] --> Objetivo[Descreve o que precisa]
+    Objetivo --> Genesis[Genesis entende e propõe]
+    Genesis --> Catalogo[Consulta capacidades do ecossistema Arkom]
+    Catalogo --> Existente{Uma solução existente atende?}
+    Existente -->|Sim| Instalar[Configura para a empresa]
+    Existente -->|Não| Construir[Constrói aplicação usando capacidades existentes]
+    Instalar --> Previa[Cliente experimenta uma prévia]
+    Construir --> Previa
+    Previa --> Usar[Cliente usa dentro da Arkom]
+    Usar --> Mudar[Pede melhorias por conversa]
+    Mudar --> Genesis
+    Usar -. opcional e futuro .-> Remix[Personaliza a interface no Lovable]
+    Remix --> Backend[Backend e permissões da Arkom]
+    Usar --> Backend

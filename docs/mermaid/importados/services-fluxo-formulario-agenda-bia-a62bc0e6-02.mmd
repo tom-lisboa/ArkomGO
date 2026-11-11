@@ -1,0 +1,34 @@
+flowchart LR
+    subgraph SITE["Site do diagnóstico"]
+        FORM["Formulário em diagnostico.bilhon.com"]
+        PAGE["Páginas /agendar-reuniao e /agendar-clickmax"]
+        FORM --> PAGE
+    end
+    subgraph CM["ClickMax · workspace Arkom"]
+        CRM["CRM · pipeline SDR · ARKOM"]
+        AV["Agenda de 45 min · 12 vendedores"]
+        G["Calendários conectados e rodízio do time"]
+        AV <--> G
+    end
+    subgraph GO["Backend Bia Go"]
+        API["POST /webhooks/bia/leads"]
+        DB[("PostgreSQL · leads, reservas e filas")]
+        AG["Worker de agenda"]
+        EX["Workers de contexto e execução"]
+        FU["Worker de follow-up"]
+        API --> DB
+        DB <--> AG
+        DB <--> EX
+        DB --> FU
+        EX -->|Consulta e pedidos de agenda| AG
+    end
+    FORM -->|Cadastro chega ao CRM| CRM
+    PAGE -->|Consulta e reserva no site| AV
+    CRM -->|IDs do card, contato e etapa| API
+    AV -->|Evento com ID da reserva| API
+    API -->|Confere contato, card e consentimento| CRM
+    API -->|Confere a reserva informada| AV
+    AG <-->|Consulta, cria, remarca e cancela| AV
+    EX --> WA["Twilio · WhatsApp da Bia +55 11 93624-6321"]
+    FU --> WA
+    WA -->|Resposta ou botão do cliente| EX

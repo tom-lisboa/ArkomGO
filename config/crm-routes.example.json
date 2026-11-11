@@ -1,0 +1,9 @@
+{
+  "org_demo_alfa": {
+    "origin": "http://127.0.0.1:8098",
+    "organization_id": "REPLACE_WITH_DEV_ORGANIZATION_UUID",
+    "bia_installation_id": "REPLACE_WITH_DEV_INSTALLATION_UUID",
+    "token": "REPLACE_WITH_PRIVATE_SERVICE_CREDENTIAL",
+    "contacts": {}
+  }
+}

@@ -1,0 +1,8 @@
+[Unit]
+Description=CLIPS Go homolog backup every six hours
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=6h
+Persistent=true
+[Install]
+WantedBy=timers.target

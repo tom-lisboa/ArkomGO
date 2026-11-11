@@ -1,0 +1,6 @@
+flowchart LR
+    A["Checkout"] --> B["Setup Node 24\n(cache npm)"]
+    B --> C["npm ci"]
+    C --> D["Lint"]
+    D --> E["Type check"]
+    E --> F["Build"]

@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+.next/
+out/
+build/
+dist/
+
+# Environment (secrets never committed; .env.example IS tracked as the template)
+.env
+.env.*
+!.env.example
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel
+.vercel
+
+# Local settings (not project config)
+.claude/settings.local.json
+
+# User-specific skills (not part of the template)
+.claude/skills/customize/
+.claude/skills/release/
+
+# Local temp files
+temp/
+
+# Playwright e2e (artifacts = vídeos/traces/screenshots; nunca commitados).
+# As credenciais do e2e ficam em e2e/.env.e2e, já coberto por .env.* acima.
+test-results/
+test-results-prod/
+playwright-report/
+playwright/.cache/
+e2e/artifacts/
+e2e/videos/
+e2e-evidencias/
+.mintlify
+
+# Videos das jornadas E2E gravadas (credit-system) — artefato local
+e2e-videos/
+e2e-videos-v2/

@@ -1,0 +1,68 @@
+---
+title: "Variáveis de Ambiente"
+description: "Todas as variáveis de ambiente do Arkom — runtime, banco, mídia, Genesis e IA"
+---
+
+<Note>
+  **Tudo é opcional para a demo front-end.** A interface roda com dados mock sem nenhuma env. Configure apenas o que o cenário exigir.
+</Note>
+
+## URLs da aplicação
+
+| Variável | Descrição | Default |
+|----------|-----------|---------|
+| `APP_URL` · `NEXT_PUBLIC_APP_URL` | Domínio canônico; em dev, sobrescreva com `http://localhost:3000` | `https://app.arkom.ai` |
+
+## Feature flags
+
+| Variável | Descrição | Default |
+|----------|-----------|---------|
+| `NEXT_PUBLIC_ARKOM_ENABLE_DEMO_PLAN` | Pill Free/Pro de demonstração | `false` |
+| `NEXT_PUBLIC_ARKOM_ENABLE_COMMENTS` | Espaço de Networking (comentários) na aula — flag client-side, ligar exige rebuild | `false` |
+
+## Supabase e banco
+
+| Variável | Descrição |
+|----------|-----------|
+| `NEXT_PUBLIC_SUPABASE_URL` · `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Cliente público da UI |
+| `CENTRAL_SUPABASE_URL` · `CENTRAL_SUPABASE_ANON_KEY` · `CENTRAL_SUPABASE_SERVICE_ROLE_KEY` | Central server-only (Auth, core, Storage, edges) |
+| `ARKOM_RUNTIME_SCHEMA` | `app_arkom` (demo, default) ou `educacional` (dados reais) |
+| `ARKOM_DATABASE_URL` | Postgres do runtime — role restrita, `search_path` fixo, pooler Session + SSL |
+| `ARKOM_MIGRATION_DATABASE_URL` | **Somente estação do operador** — nunca no deploy |
+| `ARKOM_AUTO_SEED` | Seed de demo; falha fechado fora de development/test |
+| `ARKOM_SESSION_SECRET` | **Obrigatório** — segredo HMAC da sessão (48 bytes aleatórios) |
+
+## Mídia
+
+| Variável | Valores aceitos | Descrição |
+|----------|-----------------|-----------|
+| `MEDIA_BUCKET` | `arkom-media` (default) · `bilhon-media` | Qualquer outro valor é rejeitado |
+| `MEDIA_STORAGE_AUTH_MODE` | `rls` (recomendado) · `service` | `service` para `arkom-media` só em dev/test; para `bilhon-media` é permitido em produção |
+
+## Genesis e IA
+
+| Variável | Descrição | Default |
+|----------|-----------|---------|
+| `EDUCACIONAL_DATABASE_URL` | Conexão dedicada das tabelas do builder | — |
+| `LLM_PROVIDER` | `openai` · `anthropic` · `mock` · vazio (auto) | auto |
+| `AI_MODEL_OPENAI` | Modelo usado pela edge central | `gpt-4.1` |
+| `ANTHROPIC_API_KEY` · `AI_MODEL` | Anthropic direto (opcional) | `claude-sonnet-5` |
+| `OPENAI_API_KEY` | **Apenas override** para chamar a OpenAI direto (dev sem edge) | — |
+| `STT_MODEL` | Modelo de transcrição de voz | `whisper-1` |
+
+## O quarteto do modo educacional
+
+Para rodar sobre os dados reais do bilhon-ai:
+
+```bash
+ARKOM_RUNTIME_SCHEMA=educacional
+ARKOM_DATABASE_URL=<url do educacional, role educacional_app>
+MEDIA_BUCKET=bilhon-media
+MEDIA_STORAGE_AUTH_MODE=service
+```
+
+Pré-requisito: migration `0008-central-parity.sql` aplicada. O flip é reversível — basta reverter as envs.
+
+<Warning>
+  Nunca commite `.env.local`, chaves, URLs Postgres com senha ou dados reais. O `.env.example` existe como manual — copie e preencha somente no ambiente autorizado.
+</Warning>

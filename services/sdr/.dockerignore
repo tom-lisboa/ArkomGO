@@ -1,0 +1,7 @@
+*
+!Dockerfile
+!sdr-next
+!frontend/
+frontend/*
+!frontend/dist/
+!frontend/dist/**

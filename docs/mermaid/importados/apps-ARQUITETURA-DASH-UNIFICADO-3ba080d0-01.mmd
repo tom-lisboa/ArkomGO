@@ -1,0 +1,15 @@
+flowchart LR
+  subgraph SAT["Supabases satélites (6)"]
+    PIPE[PIPE] & ONB[ONBOARDING] & ATL[ATLAS] & CS[CS AI] & HARV[HARVEY] & HOL[HOLLY]
+  end
+  subgraph CENTRAL["Supabase central (solutions)"]
+    direction TB
+    APPS["app_social · app_sdr · app_atendimento\napp_ad_manager · app_financeai\n(escrita ao vivo pelos 5 apps repointados)"]
+    AC["analytics_core\nkpi_daily (fatos diários)\nevents (append-only)\nviews dash_*_v1"]
+    CORE["core (orgs, memberships, instances)"]
+    APPS -- "pg_cron rollup (5-15min)" --> AC
+    CORE --- AC
+  end
+  SAT -- "Fase C: repoint (canônico)\nou ETL edge function (tático)" --> AC
+  AC -- "PostgREST accept-profile: analytics_core\n(centralSelect, service_role, server-only)" --> DASH["arkom-dash\n/api/dash/[center]?range="]
+  DASH --> UI["DashView → Coverflow → DashboardBody\n(shape Center inalterado)"]

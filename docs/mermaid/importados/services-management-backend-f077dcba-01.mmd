@@ -1,0 +1,16 @@
+flowchart LR
+    F[Frontend futuro] -->|Login e sessão por usuário| M[API de gestão em Go]
+    M --> R[Leitura de fila, histórico e indicadores]
+    R --> P[(Postgres do SDR)]
+    M --> A[Ações humanas com auditoria e idempotência]
+    A --> C[Controle do lead e invalidação de rascunhos]
+    C --> P
+    A --> O[Outbox existente]
+    O --> E[Worker de execução: resposta humana]
+    O --> V[Worker de voz: encerramento solicitado]
+    E --> W[Twilio / WhatsApp]
+    V --> W
+    A --> T[Resultado de reunião]
+    T --> P
+    P --> I[Contexto de texto e ligação]
+    I --> S[SDR conhece o resultado registrado]

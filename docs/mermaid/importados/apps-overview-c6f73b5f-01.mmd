@@ -1,0 +1,18 @@
+flowchart TD
+    USR(["Usuário"])
+    FRONT["Next.js 16 · React 19\nTailwind v4 · shadcn/ui"]
+    API["API Routes\nauth · media · map · brain · remix"]
+    GEN["Genesis API\netapa · transcrever"]
+    PG[("Postgres central\napp_arkom | educacional")]
+    ST["Supabase Storage\nbuckets privados"]
+    EDGE["Edge Functions centrais\nbai_builder-llm · bai_builder-stt"]
+    LLM["OpenAI / Anthropic"]
+
+    USR --> FRONT
+    FRONT --> API
+    FRONT --> GEN
+    API --> PG
+    API --> ST
+    GEN --> PG
+    GEN --> EDGE
+    EDGE --> LLM

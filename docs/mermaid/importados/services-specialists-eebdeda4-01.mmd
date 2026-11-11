@@ -1,0 +1,28 @@
+flowchart TD
+    IN["Texto, áudios transcritos e imagens lidas"] --> C["Contexto congela uma Run com versão e histórico"]
+    C --> G{"Ação determinística ou precisa interpretar?"}
+    G -->|Saída, seleção estruturada, cancelamento ou presença explícitos| CODE["Domínio Go aplica a regra"]
+    G -->|Interpretar| D["Decisions: intenção, objeção, disposição, progresso e motivo"]
+    D --> N["Go resolve contradições e preserva condições pendentes"]
+    D -->|Falha, recusa ou resposta inválida| FB["Fallback conservador; indisponibilidade fica registrada"]
+    N --> R["Roteador escolhe um especialista"]
+    FB --> R
+    R --> O["Objeções"]
+    R --> P["Conexão e persuasão"]
+    R --> S["Agendamento"]
+    R --> A["Comparecimento"]
+    R --> REC["Recuperação após falta informada"]
+    O --> RESP["Responses produz a decisão com prompt próprio e ações limitadas"]
+    P --> RESP
+    S --> RESP
+    A --> RESP
+    REC --> RESP
+    RESP --> Q["Revisão de qualidade; no máximo uma regeneração"]
+    Q --> V["Go valida ação, estado e evidência"]
+    CODE --> V
+    V --> NEW{"Chegou nova entrada durante a Run interpretada?"}
+    NEW -->|Sim| SKIP["Descartar rascunho e avaliação antiga; liberar próxima Run"]
+    NEW -->|Não| OUT["Persistir avaliação e publicar efeitos"]
+    OUT --> SEND["Enviar pelo mesmo canal da Bia"]
+    SEND --> MEM["Registrar argumento efetivamente enviado e retornar ao contexto"]
+    MEM --> IN

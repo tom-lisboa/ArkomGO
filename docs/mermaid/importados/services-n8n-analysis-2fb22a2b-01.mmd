@@ -1,0 +1,13 @@
+flowchart TD
+  S[Schedule: 60 segundos] --> D[DataCrazy: conversas e mensagens]
+  S --> C[ClickMax: pendências no banco]
+  S --> F[Verificação de follow-up a cada 10 minutos]
+  S --> A[Avisos de resultado de reservas]
+  D --> P[Preparar e deduplicar]
+  C --> P
+  P --> G[Guardas e perfil do lead]
+  G --> R[Resposta por regra ou Claude]
+  R --> V[Validar e ajustar ação]
+  V --> E[Enviar pelo canal]
+  V --> B[Agendar, cancelar ou remarcar]
+  V --> Q[Flags, notas e tarefas no CRM]

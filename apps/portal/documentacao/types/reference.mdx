@@ -1,0 +1,66 @@
+---
+title: "Referência de Tipos"
+description: "STEP_ORDER, StepKey, BuilderSolution e os tipos centrais do builder"
+---
+
+## Tipos do builder
+
+Vivem em `src/lib/builder-types.ts` — **puros**, sem dependência de banco, seguros para importar em Client Components.
+
+```typescript
+// src/lib/builder-types.ts
+
+export const STEP_ORDER = [
+  "knowledge_base",
+  "framework",
+  "architecture",
+  "tools",
+  "action_plan",
+  "prompt_lovable",
+  "content",
+  "savings",
+] as const;
+
+export type StepKey = (typeof STEP_ORDER)[number];
+
+export const STEP_META: Record<StepKey, { label: string; hint: string }>;
+
+export type Answer = { question: string; answer: string };
+
+export type AnalyzeResult = {
+  questions: {
+    category: string;
+    question: string;
+    why_important: string;
+  }[];
+  viability: {
+    level: "high" | "moderate" | "low";
+    score: number;
+    reason: string;
+    suggestions: string[];
+  };
+};
+
+export type BuilderSolution = {
+  id: number;
+  user_id: number;
+  original_idea: string;
+  title: string | null;
+  short_description: string | null;
+  tags: string[];
+  // ... step_summaries: Record<string, string> e metadados
+};
+```
+
+## Onde cada camada de tipos vive
+
+| Arquivo | Conteúdo |
+|---------|----------|
+| `src/lib/builder-types.ts` | Constantes e tipos puros do builder (client-safe) |
+| `src/lib/builder-schema.ts` | Contratos JSON Schema das etapas (structured output) |
+| `src/lib/builder.ts` | Tipos das rows (`system_prompt`, `step_key`, status) acoplados ao DB |
+| `src/types/` | Tipos compartilhados da aplicação |
+
+<Note>
+  A separação `builder-types.ts` × `builder.ts` é intencional: componentes client importam apenas os tipos puros e nunca puxam o driver `postgres` para o bundle.
+</Note>

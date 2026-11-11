@@ -1,0 +1,11 @@
+flowchart TD
+    Cliente[Cliente] --> Genesis[Genesis · conversa e prévia]
+    Genesis --> Controle[Gestão de aplicativos e versões]
+    Controle --> Construcao[Worker de construção com deepH]
+    Construcao --> Teste[Ambiente de teste do aplicativo]
+    Teste --> Publicacao[Serviço de publicação]
+    Publicacao --> App[Aplicativo publicado na Arkon]
+    App --> Backend[Backend e dados próprios do aplicativo]
+    Backend --> Servicos[APIs das soluções Arkon autorizadas]
+    Genesis --> Remix[Remix no Lovable]
+    Remix --> Backend

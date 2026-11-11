@@ -1,0 +1,23 @@
+flowchart TD
+    IN["Texto, áudios e imagens agrupados"] --> CTX["Contexto atual no Postgres: perfil, histórico e reserva"]
+    CTX --> CTRL{"Controle do contato permite automação?"}
+    CTRL -->|Não| STOP["Aplicar saída, pausa ou atendimento humano"]
+    CTRL -->|Sim| READ["Decisions API: intenção, objeção e disposição"]
+    READ --> ROUTE["Coordenador Go aplica prioridades e escolhe um especialista"]
+    ROUTE -->|Pedido operacional claro| AG["Agendamento"]
+    ROUTE -->|Barreira ao próximo passo| OBJ["Objeções"]
+    ROUTE -->|Reserva futura e dúvida sobre a reunião| ATT["Comparecimento"]
+    ROUTE -->|Nova conversa após falta registrada| REC["Recuperação"]
+    ROUTE -->|Valor ou interesse inicial| PER["Conexão e persuasão"]
+    AG --> CHECK["Validar decisão, fatos, limites e atualidade da conversa"]
+    OBJ --> CHECK
+    ATT --> CHECK
+    REC --> CHECK
+    PER --> CHECK
+    CHECK --> OK{"Decisão válida?"}
+    OK -->|Sim| OUT["Publicar ação ou resposta da Bia na fila existente"]
+    OK -->|Não| FIX["Correção limitada; dúvida necessária ou revisão humana conforme o motivo"]
+    FIX --> OUT
+    OUT --> LEDGER["Salvar decisão, especialista, motivo e avaliação com a versão da Run"]
+    LEDGER --> NEXT["Próxima fala atualiza a leitura; pode trocar de especialista"]
+    NEXT --> IN

@@ -1,0 +1,36 @@
+// Exercise the actual operations dashboard without a browser or network access.
+import fs from 'node:fs';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import assert from 'node:assert/strict';
+const root=path.resolve(import.meta.dirname,'..'),require=createRequire(path.join(root,'frontend/package.json'));
+const {JSDOM}=require('jsdom');
+const html=fs.readFileSync(path.join(root,'internal/metricsworker/dashboard.html'),'utf8');
+const script=fs.readFileSync(path.join(root,'internal/metricsworker/dashboard.js'),'utf8');
+const dom=new JSDOM(html,{url:'https://24.199.100.186/sdr-next/v1/ops/metrics',runScripts:'outside-only'}),w=dom.window;
+w.AbortSignal=globalThis.AbortSignal;
+let calls=[];
+const counter=(id,starts)=>({id,starts,jobs:starts,completed:starts,failed:0,cancelled:0,expired:0,running:0,waiting_download:0,uncertain:0,last_at:Date.now()});
+function report(beta){return{generated_at:new Date().toISOString(),organizations:['org_demo_alfa','org_demo_beta'],workers:[counter('context',beta?2:4),counter('media',beta?0:3)].filter(c=>c.starts),clients:beta?[counter('org_demo_beta',2)]:[counter('org_demo_alfa',5),counter('org_demo_beta',2)],heat:beta?[{organization_id:'org_demo_beta',worker:'context',starts:2}]:[{organization_id:'org_demo_alfa',worker:'context',starts:2},{organization_id:'org_demo_alfa',worker:'media',starts:3},{organization_id:'org_demo_beta',worker:'context',starts:2}],chains:[{workers:['media','context'],count:beta?1:2,partial:false}],monitor:{collected_since:new Date().toISOString(),gaps:0,last_poll:Date.now()/1000,batches:2,events:14,errors:0}}}
+w.fetch=async(url,options)=>{calls.push({url:String(url),options});if(String(url).endsWith('/login'))return{ok:true,json:async()=>({access_token:'fixture-ops-session'})};assert(options.headers.Authorization==='Bearer fixture-ops-session');return{ok:true,json:async()=>report(new URL(String(url),w.location.href).searchParams.get('organization')==='org_demo_beta')}};
+w.eval(script);
+assert.equal(calls.length,0,'A public dashboard page requested data before login');
+w.document.getElementById('code').value='fixture-admin-access-code';
+w.document.getElementById('login').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+const settle=()=>new Promise(resolve=>setTimeout(resolve,30));await settle();
+assert.equal(w.document.getElementById('total').textContent,'7');
+assert.equal(w.document.querySelectorAll('#heat tbody tr').length,2);
+assert.equal(w.document.querySelectorAll('#heat tbody td').length,4);
+assert.match(w.document.getElementById('chains').textContent,/Mídia → Contexto/);
+assert.equal(w.document.getElementById('code').value,'','The admin secret remained in the form');
+const company=w.document.getElementById('organization');company.value='org_demo_beta';company.dispatchEvent(new w.Event('change'));await settle();
+assert.equal(w.document.getElementById('total').textContent,'2');
+assert.equal(w.document.querySelectorAll('#heat tbody td').length,1);
+assert(!w.document.getElementById('client-rows').textContent.includes('Alfa'));
+w.document.getElementById('mode').value='real';w.document.getElementById('mode').dispatchEvent(new w.Event('change'));await settle();
+assert(new URL(calls.at(-1).url,w.location.href).searchParams.get('mode')==='real');
+w.document.getElementById('logout').click();assert(w.document.getElementById('dashboard').hidden);
+assert.equal(w.localStorage.length,0,'A credential was persisted in browser storage');
+assert(calls.every(c=>c.url.startsWith('/sdr-next/v1/ops/metrics/')),'Dashboard accessed an outside service');
+w.close();
+console.log(JSON.stringify({passed:true,real_dashboard_script:true,heatmap_values_checked:true,client_filter_checked:true,mode_filter_checked:true,credentials_not_persisted:true,network_requests:0,browser_visual_verified:false}));

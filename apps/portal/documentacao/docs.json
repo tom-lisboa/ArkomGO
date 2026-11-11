@@ -1,0 +1,101 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "appearance": { "default": "dark", "strict": false },
+  "name": "Arkom",
+  "colors": {
+    "primary": "#B9915B",
+    "light": "#DCC279",
+    "dark": "#B9915B"
+  },
+  "favicon": "/logos/favicon.svg",
+  "logo": {
+    "light": "/logos/logo-black.svg",
+    "dark": "/logos/logo-white.svg",
+    "href": "https://app.arkom.ai"
+  },
+  "background": {
+    "color": {
+      "light": "#FAFAFA",
+      "dark": "#080808"
+    }
+  },
+  "navbar": {
+    "links": [
+      { "label": "Arkom", "href": "https://app.arkom.ai" },
+      { "label": "GitHub", "href": "https://github.com/thiagofinch/arkom-dash" }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "website": "https://app.arkom.ai",
+      "github": "https://github.com/thiagofinch/arkom-dash"
+    }
+  },
+  "navigation": {
+    "anchors": [
+      {
+        "anchor": "Documentação",
+        "icon": "book-open",
+        "groups": [
+          {
+            "group": "Início",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Arquitetura",
+            "pages": [
+              "architecture/overview",
+              "architecture/data-flow",
+              "architecture/rotas"
+            ]
+          },
+          {
+            "group": "Componentes",
+            "pages": [
+              "components/overview",
+              "components/map",
+              "components/dash"
+            ]
+          },
+          {
+            "group": "Lógica de negócio",
+            "pages": [
+              "logic/genesis-builder",
+              "logic/auth-sessao",
+              "logic/i18n-tema"
+            ]
+          },
+          {
+            "group": "Prompts",
+            "pages": [
+              "prompts/overview",
+              "prompts/genesis-etapas"
+            ]
+          },
+          {
+            "group": "Banco de dados",
+            "pages": ["database/overview"]
+          },
+          {
+            "group": "API",
+            "pages": ["endpoints/overview"]
+          },
+          {
+            "group": "Referência",
+            "pages": [
+              "types/reference",
+              "environment/setup",
+              "testing/e2e"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "css": "/custom.css",
+  "fonts": {
+    "heading": { "family": "Satoshi" },
+    "body": { "family": "Inter" }
+  }
+}

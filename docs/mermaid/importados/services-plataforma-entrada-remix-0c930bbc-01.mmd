@@ -1,0 +1,17 @@
+sequenceDiagram
+    participant E as Equipe ou integrador confiável
+    participant D as Diretório comum
+    participant R as Remix do cliente
+    participant G as CLIPS Go
+    E->>D: Registrar cliente, permissões e IDs locais verificados
+    E->>D: Registrar projeto, domínio e backend da instalação
+    D-->>E: Identificador da instalação
+    E-->>R: Interface oficial com API e instalação preenchidas
+    R->>G: Consultar instalação no domínio autorizado
+    R->>G: Preparar entrada com estado e prova PKCE
+    G-->>R: Endereço do login oficial
+    R->>G: Navegar para o login oficial
+    G->>G: Autenticar e verificar o vínculo da conta
+    G-->>R: Retornar ao domínio registrado com código de uso único
+    R->>G: Trocar código e prova por sessão da instalação
+    R->>G: Usar projetos e arquivos com sessão privada

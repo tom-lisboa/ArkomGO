@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant U as Usuário
+    participant L as /login
+    participant A as /api/auth/login
+    participant SB as Supabase Auth
+    participant PG as Postgres (runtime)
+
+    U->>L: e-mail + senha
+    L->>A: POST credenciais
+    A->>SB: valida identidade
+    SB-->>A: usuário autenticado
+    A->>PG: resolve aluno + versão de sessão
+    A-->>U: Set-Cookie arkom_session (HMAC)
+    Note over U,A: Toda rota protegida valida o cookie<br/>e a versão de sessão a cada request

@@ -1,0 +1,63 @@
+# Executar a demo local
+
+## Requisitos
+
+- Node.js 24 ou superior e npm.
+- Go 1.26 ou superior; os módulos mantêm seus próprios `go.mod`.
+- Python 3.9 ou superior para os scripts.
+- Acesso à API OpenAI e um modelo autorizado.
+- Para o CRM: PostgreSQL DEV provisionado, workspace Clickmax DEV e credenciais privadas.
+
+As portas 3007, 8080, 8081, 8098 e 8099 devem estar livres. O launcher recusa iniciar por cima de uma instância existente. Ele não modifica nem encerra a demo que já esteja rodando em outro checkout.
+
+## Preparar
+
+```sh
+git clone https://github.com/tom-lisboa/ArkomGO.git
+cd ArkomGO
+cp .env.example .env
+python3 scripts/build-demo.py
+```
+
+Preencha `OPENAI_API_KEY` no `.env`, sem publicá-lo. O modelo deve ser válido para sua conta. O script de build gera somente binários locais e instala dependências do portal; não inicia chamadas de IA.
+
+```sh
+python3 scripts/demo.py
+```
+
+Abra http://127.0.0.1:3007/demo . Use Ctrl+C para encerrar os processos iniciados pelo launcher. Logs, credenciais geradas, SQLite e relatórios ficam sob `.local/runtime`, ignorada pelo Git.
+
+Sem configuração CRM, é possível iniciar Genesis e SDR. As telas que dependem do CRM mostrarão indisponibilidade até que ele seja configurado. O Genesis somente chama o provedor quando você solicita um plano. Mensagens enviadas para o atendimento com IA também podem gerar consumo da API.
+
+## Configurar o CRM real de desenvolvimento
+
+Esta publicação **não inclui** a base PostgreSQL, o token de instalação, a chave Clickmax nem o arquivo privado de rotas usados no computador de origem.
+
+1. Siga [o contrato CRMGO](../services/crm/INTEGRACAO.md) para provisionar o diretório/instalação e a rota em `arkom_crm.routes` no PostgreSQL DEV. O worker cria seu schema, mas não cria sozinho o vínculo comercial completo.
+2. Copie [crm-routes.example.json](../config/crm-routes.example.json) para `.local/crm-routes.json` e preencha organização, instalação e credencial privada. Use a organização fictícia do SDR como chave, e os UUIDs centrais nos campos da rota.
+3. Configure `SDR_CRM_ROUTES_FILE=.local/crm-routes.json`, `ARKOM_CRM_DATABASE_URL` e `ARKOM_CRM_CLICKMAX_PUBLIC_DEV_WORKSPACE` em `.env`. Para API dedicada de testes, siga a alternativa `ARKOM_CRM_CLICKMAX_DEV_URL` do contrato.
+4. A variável da chave deve ter exatamente o nome de `key_env` cadastrado na rota. Para criação de contatos, a variável de captura usa esse nome seguido de `_CAPTURE_URL`.
+5. Use apenas dados fictícios e o workspace DEV autorizado. Reinicie o launcher e consulte CRM pelo portal.
+
+A base `services/core` registra diretório, identidade e barramento em refatoração. Não é iniciada pelo launcher nem substitui automaticamente o provisionamento do CRMGO.
+
+## Verificar
+
+```sh
+cd apps/portal
+npx tsc --noEmit
+node --test scripts/test-demo-session.cjs scripts/test-demo-proxy.cjs
+cd ../..
+(cd services/sdr && go test ./...)
+(cd services/crm && go test ./...)
+(cd packages/deeph && go test ./...)
+python3 scripts/catalog_mermaid.py
+npm ci --ignore-scripts
+npm run diagrams:check
+```
+
+Os testes CRM que exigem PostgreSQL só exercitam esse caminho quando `ARKOM_CRM_TEST_DATABASE_URL` aponta para uma base **vazia e descartável**; não use o banco de operação. Consulte os READMEs de cada componente para verificações adicionais. Scripts antigos que mencionam caminhos absolutos ou serviços de produção são referências históricas, não o procedimento desta demo.
+
+## Limites operacionais
+
+Esta é uma demo local, não um pacote pronto para produção. O login Alfa simplificado depende de flags explícitas e loopback. Um produto público exige sessão comercial, provisionamento por empresa, gestão de credenciais, domínio, limites, auditoria e operação contínua. Publicar este repositório no GitHub não publica a aplicação na internet.

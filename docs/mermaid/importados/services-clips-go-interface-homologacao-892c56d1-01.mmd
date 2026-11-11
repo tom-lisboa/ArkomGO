@@ -1,0 +1,7 @@
+flowchart LR
+    UI[Interface oficial ARKOM] -->|Somente autenticação| AUTH[Supabase Auth central]
+    UI -->|Sessão privada e projetos novos| API[API Go de homologação]
+    API --> DB[(PostgreSQL exclusivo)]
+    DB --> WORKER[Worker Go e FFmpeg]
+    WORKER -->|MP4 vertical| DB
+    DB -->|Arquivos com acesso por conta| API

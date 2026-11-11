@@ -1,0 +1,57 @@
+{
+  "name": "rebuild",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Visual operating surface for an AI workforce — a radial skill map, command centers, and an autonomy rollout chart.",
+  "author": "Thiago Finch",
+  "license": "UNLICENSED",
+  "keywords": [
+    "arkom",
+    "ai-workforce",
+    "skill-map",
+    "command-center",
+    "nextjs",
+    "tailwindcss",
+    "shadcn-ui"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck && npm run build",
+    "documentacao": "cd documentacao && mintlify dev --port 3001",
+    "postinstall": "git config core.hooksPath .githooks || true"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.3.0",
+    "@supabase/supabase-js": "^2.110.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
+    "lucide-react": "^1.6.0",
+    "next": "16.2.1",
+    "postgres": "^3.4.9",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-easy-crop": "^6.2.2",
+    "shadcn": "^4.1.0",
+    "tailwind-merge": "^3.5.0",
+    "tw-animate-css": "^1.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

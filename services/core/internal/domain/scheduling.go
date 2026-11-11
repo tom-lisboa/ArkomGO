@@ -1,0 +1,268 @@
+package domain
+
+import (
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
+
+var weekdays = []string{"domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"}
+
+func SlotLabel(slot Slot, zone *time.Location) string {
+	t := slot.Start.In(zone)
+	hour := fmt.Sprintf("%dh", t.Hour())
+	if t.Minute() != 0 {
+		hour += fmt.Sprintf("%02d", t.Minute())
+	}
+	return weekdays[t.Weekday()] + ", " + t.Format("02/01") + ", às " + hour
+}
+
+// MeetingTime labels the commercial calendar's reference time in customer messages.
+func MeetingTime(b Booking, p Policy, s State) string {
+	zone := p.Zone(s)
+	value := b.Start.In(zone).Format("02/01 às 15:04")
+	if b.Provider == ClickMaxPublicProvider && zone.String() == "America/Sao_Paulo" {
+		value += " (horário de Brasília)"
+	}
+	return value
+}
+
+var choiceClock = regexp.MustCompile(`\b([01]?\d|2[0-3])(?:[:h]([0-5]\d)|h\b| horas?\b)`)
+var choiceDate = regexp.MustCompile(`\b([0-3]?\d)/([01]?\d)(?:/(20\d\d))?\b`)
+var negativeChoice = regexp.MustCompile(`\b(nao|talvez|ainda|depois eu|vou ver|vou olhar|qual|quais)\b`)
+var ordinalFirst = regexp.MustCompile(`\b(primeir[oa]|opcao 1|1a opcao|1ª opcao|1º horario)\b`)
+var ordinalSecond = regexp.MustCompile(`\b(segundo|segunda opcao|segunda alternativa|opcao 2|2a opcao|2ª opcao|2º horario)\b|^a segunda[.! ]*$`)
+var withdrawnPriceCondition = regexp.MustCompile(`\bnao precisa ser (gratuit[oa]|gratis|de graca|pag[oa])\b`)
+var keepBookingRE = regexp.MustCompile(`(?:^|[.!;,\n]\s*)(?:por favor[, ]*)?(?:mantenha|pode manter|vamos manter|deixe|pode deixar) (?:o |a |meu |minha )?(?:horario|reserva|reuniao) (?:original|atual|como esta)\b`)
+var hardAvailabilityRE = regexp.MustCompile(`\b(so (consigo|posso|tenho)|somente|apenas)\b`)
+var requestedStartRE = regexp.MustCompile(`^(?:\[audio\]\s*)?(?:eu )?(?:quero|prefiro|pode ser|posso) as (.+?)[.! ]*$`)
+var numericStartRE = regexp.MustCompile(`^([01]?\d|2[0-3])(?:[:h]([0-5]\d)|h| horas?)?$`)
+
+func KeepBookingRequested(text string) bool { return keepBookingRE.MatchString(normalizedChoice(text)) }
+
+// A narrow literal match keeps a requested time separate from a choice among
+// earlier offers. Audio transcripts often spell out the hour.
+func requestedStart(text string) (int, bool) {
+	match := requestedStartRE.FindStringSubmatch(normalizedChoice(text))
+	if match == nil {
+		return 0, false
+	}
+	if parts := numericStartRE.FindStringSubmatch(match[1]); parts != nil {
+		hour, _ := strconv.Atoi(parts[1])
+		minute, _ := strconv.Atoi(parts[2])
+		return hour*60 + minute, true
+	}
+	spoken := strings.TrimSuffix(match[1], " horas")
+	minute := 0
+	for _, part := range []struct {
+		suffix string
+		minute int
+	}{{" e quarenta e cinco", 45}, {" e trinta", 30}, {" e meia", 30}, {" e quinze", 15}} {
+		if strings.HasSuffix(spoken, part.suffix) {
+			spoken = strings.TrimSuffix(spoken, part.suffix)
+			minute = part.minute
+			break
+		}
+	}
+	if spoken == "uma" {
+		spoken = "um"
+	} else if spoken == "duas" {
+		spoken = "dois"
+	}
+	for hour, name := range []string{"zero", "um", "dois", "tres", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez", "onze", "doze", "treze", "catorze", "quinze", "dezesseis", "dezessete", "dezoito", "dezenove", "vinte", "vinte e um", "vinte e dois", "vinte e tres"} {
+		if spoken == name {
+			return hour*60 + minute, true
+		}
+	}
+	return 0, false
+}
+
+// Explicit availability limits filter real slots before offers are rendered.
+// This does not infer a constraint from a vague preference or a model label.
+func constrainedAvailability(text string, slots []Slot, zone *time.Location, now time.Time) []Slot {
+	if minute, exact := requestedStart(text); exact {
+		var matching []Slot
+		for _, slot := range slots {
+			start := slot.Start.In(zone)
+			if start.Hour()*60+start.Minute() == minute {
+				matching = append(matching, slot)
+			}
+		}
+		return matching
+	}
+	t := normalizedChoice(text)
+	constraint := hardAvailabilityRE.FindStringIndex(t)
+	if constraint == nil {
+		return slots
+	}
+	t = t[constraint[0]:]
+	clocks := choiceClock.FindAllStringSubmatch(t, -1)
+	morning, afternoon, night := strings.Contains(t, "manha") && !strings.Contains(t, "amanha"), strings.Contains(t, "tarde"), strings.Contains(t, "noite")
+	// "amanhã de manhã" also contains the literal period.
+	morning = morning || strings.Contains(t, "de manha") || strings.Contains(t, "pela manha")
+	periods := 0
+	for _, v := range []bool{morning, afternoon, night} {
+		if v {
+			periods++
+		}
+	}
+	result := []Slot{}
+	for _, slot := range slots {
+		local := slot.Start.In(zone)
+		end := slot.End.In(zone)
+		minute := local.Hour()*60 + local.Minute()
+		if strings.Contains(t, "amanha") && local.Format("2006-01-02") != now.In(zone).AddDate(0, 0, 1).Format("2006-01-02") {
+			continue
+		}
+		if strings.Contains(t, "hoje") && local.Format("2006-01-02") != now.In(zone).Format("2006-01-02") {
+			continue
+		}
+		if periods == 1 && ((morning && minute >= 12*60) || (afternoon && (minute < 12*60 || minute >= 18*60)) || (night && minute < 18*60)) {
+			continue
+		}
+		if len(clocks) == 1 {
+			h, _ := strconv.Atoi(clocks[0][1])
+			m, _ := strconv.Atoi(clocks[0][2])
+			bound := h*60 + m
+			if strings.Contains(t, "depois") || strings.Contains(t, "a partir") {
+				if minute < bound {
+					continue
+				}
+			} else if strings.Contains(t, "antes") || strings.Contains(t, "ate") {
+				if minute >= bound || (slot.End.After(slot.Start) && (end.YearDay() != local.YearDay() || end.Hour()*60+end.Minute() > bound)) {
+					continue
+				}
+			} else if minute != bound {
+				continue
+			}
+		}
+		result = append(result, slot)
+	}
+	return result
+}
+
+// ResolveOfferedSelection shares the independent, literal choice check with the
+// planner. It is never authority to skip pending conditions or booking guards.
+func ResolveOfferedSelection(text string, offered []Slot, zone *time.Location, now time.Time) (string, bool) {
+	return selectedOffer(text, offered, zone, now)
+}
+
+func normalizedChoice(text string) string {
+	return strings.NewReplacer("á", "a", "à", "a", "ã", "a", "â", "a", "é", "e", "ê", "e", "í", "i", "ó", "o", "õ", "o", "ô", "o", "ú", "u", "ç", "c").Replace(strings.ToLower(strings.TrimSpace(text)))
+}
+
+// Selection must independently resolve to exactly one of the delivered offers.
+// The model's chosen ID alone is never authorization to reserve a meeting.
+func selectedOffer(text string, offered []Slot, zone *time.Location, now time.Time) (string, bool) {
+	t := normalizedChoice(text)
+	// Removing a price condition is not a negation of the following choice.
+	// Keep all other negations, including "não quero o primeiro", intact.
+	t = withdrawnPriceCondition.ReplaceAllString(t, "")
+	if negativeChoice.MatchString(t) {
+		return "", false
+	}
+	ordinal := -1
+	if ordinalFirst.MatchString(t) {
+		ordinal = 0
+	}
+	if ordinalSecond.MatchString(t) {
+		if ordinal >= 0 {
+			return "", false
+		}
+		ordinal = 1
+	}
+	clocks := choiceClock.FindAllStringSubmatch(t, -1)
+	requestedMinute, exact := requestedStart(t)
+	dates := choiceDate.FindAllStringSubmatch(t, -1)
+	if len(clocks) > 1 || len(dates) > 1 {
+		return "", false
+	}
+	day := -1
+	if ordinal < 0 {
+		for i, word := range []string{"domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"} {
+			if strings.Contains(t, word) {
+				if day >= 0 {
+					return "", false
+				}
+				day = i
+			}
+		}
+	}
+	var relative string
+	if strings.Contains(t, "amanha") {
+		relative = now.In(zone).AddDate(0, 0, 1).Format("2006-01-02")
+	}
+	if strings.Contains(t, "hoje") {
+		if relative != "" {
+			return "", false
+		}
+		relative = now.In(zone).Format("2006-01-02")
+	}
+	explicitID := ""
+	for _, slot := range offered {
+		for _, word := range strings.Fields(text) {
+			if strings.EqualFold(strings.Trim(word, ",.!?()"), slot.ID) {
+				if explicitID != "" && explicitID != slot.ID {
+					return "", false
+				}
+				explicitID = slot.ID
+			}
+		}
+	}
+	selected := ""
+	for i, slot := range offered {
+		local := slot.Start.In(zone)
+		directID := explicitID == slot.ID
+		if explicitID != "" && !directID {
+			continue
+		}
+		if !directID && ordinal < 0 && len(clocks) == 0 && !exact && len(dates) == 0 && day < 0 && relative == "" {
+			continue
+		}
+		if exact && local.Hour()*60+local.Minute() != requestedMinute {
+			continue
+		}
+		if ordinal >= 0 && ordinal != i {
+			continue
+		}
+		if day >= 0 && int(local.Weekday()) != day {
+			continue
+		}
+		if relative != "" && local.Format("2006-01-02") != relative {
+			continue
+		}
+		if len(clocks) == 1 {
+			h, _ := strconv.Atoi(clocks[0][1])
+			m, _ := strconv.Atoi(clocks[0][2])
+			if local.Hour() != h || local.Minute() != m {
+				continue
+			}
+		}
+		if len(dates) == 1 {
+			d, _ := strconv.Atoi(dates[0][1])
+			m, _ := strconv.Atoi(dates[0][2])
+			y, _ := strconv.Atoi(dates[0][3])
+			if local.Day() != d || int(local.Month()) != m || (y != 0 && local.Year() != y) {
+				continue
+			}
+		}
+		if selected != "" {
+			return "", false
+		}
+		selected = slot.ID
+	}
+	return selected, selected != ""
+}
+
+// Only an expressed wish to change the meeting opens a new availability offer.
+func RescheduleRequested(text string) bool {
+	t := normalizedChoice(text)
+	for _, phrase := range []string{"remarc", "reagend", "outro horario", "outros horarios", "outra data", "outro dia", "mudar o horario", "mudar a reuniao", "trocar o horario", "trocar a reuniao", "nao posso nesse", "nao posso neste", "nao consigo nesse", "nao consigo neste"} {
+		if strings.Contains(t, phrase) {
+			return true
+		}
+	}
+	return false
+}

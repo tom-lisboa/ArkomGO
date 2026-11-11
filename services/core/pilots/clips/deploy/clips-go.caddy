@@ -1,0 +1,9 @@
+clipsgo-homolog.24-199-100-186.sslip.io {
+    encode zstd gzip
+    request_body {
+        max_size 8MB
+    }
+    header X-Content-Type-Options nosniff
+    header Cache-Control no-store
+    reverse_proxy 127.0.0.1:18102
+}

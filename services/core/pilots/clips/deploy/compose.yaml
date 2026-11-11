@@ -1,0 +1,120 @@
+name: clips-go-homolog
+
+x-runtime: &runtime
+  image: clips-go-homolog:${CLIPS_RELEASE:?set CLIPS_RELEASE}
+  init: true
+  restart: unless-stopped
+  read_only: true
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+  pids_limit: 64
+  environment: {GOMEMLIMIT: 110MiB}
+  networks: [clips]
+  secrets: [db_password]
+  logging:
+    driver: local
+    options: {max-size: 5m, max-file: "3"}
+  depends_on:
+    postgres: {condition: service_healthy}
+
+services:
+  postgres:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: clips_go_homolog
+      POSTGRES_USER: clips_go
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    networks: [clips]
+    volumes: [clips_pg:/var/lib/postgresql/data]
+    mem_limit: 160m
+    shm_size: 32m
+    cpus: 0.30
+    command: [postgres, -c, shared_buffers=32MB, -c, max_connections=20, -c, work_mem=2MB]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U clips_go -d clips_go_homolog"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging:
+      driver: local
+      options: {max-size: 5m, max-file: "3"}
+  migrate:
+    <<: *runtime
+    profiles: [tools]
+    restart: "no"
+    mem_limit: 128m
+    command: [-hosted-role, migrate]
+  api:
+    <<: *runtime
+    environment:
+      GOMEMLIMIT: 110MiB
+      CLIPS_GIF_SEAL_FILE: /run/clips-gifs/seal
+      CLIPS_DIRECTORY_ENABLED: ${CLIPS_DIRECTORY_ENABLED:-0}
+      CLIPS_DIRECTORY_BACKEND: ${CLIPS_DIRECTORY_BACKEND:-}
+      CLIPS_REMIX_ENABLED: ${CLIPS_REMIX_ENABLED:-0}
+      CLIPS_REMIX_BACKEND: ${CLIPS_REMIX_BACKEND:-}
+    command: [-hosted-role, api]
+    mem_limit: 160m
+    cpus: 0.20
+    secrets: [db_password, api_token]
+    volumes:
+      - /etc/clips-go-homolog/source-publishable-key:/run/config/source_publishable_key:ro
+      - /etc/clips-go-homolog/gif-shared:/run/clips-gifs:ro
+    networks: [clips, ingress]
+    ports: ["127.0.0.1:18102:8080"]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --max-time, "3", http://127.0.0.1:8080/healthz]
+      interval: 15s
+      timeout: 4s
+      retries: 4
+      start_period: 20s
+  worker:
+    <<: *runtime
+    command: [-hosted-role, worker]
+    environment:
+      GOMEMLIMIT: 110MiB
+      CLIPS_GIF_SEAL_FILE: /run/clips-gifs/seal
+      CLIPS_GIF_OPENAI_FILE: /run/clips-gif-provider/openai
+    volumes:
+      - /etc/clips-go-homolog/gif-shared:/run/clips-gifs:ro
+      - /etc/clips-go-homolog/gif-provider:/run/clips-gif-provider:ro
+    networks: [clips, gif_egress]
+    mem_limit: 320m
+    cpus: 0.50
+    tmpfs: ["/tmp:size=160m,mode=1777"]
+    stop_grace_period: 15s
+  connectors:
+    <<: *runtime
+    profiles: [integration]
+    command: [-hosted-role, connectors]
+    environment: {GOMEMLIMIT: 72MiB}
+    mem_limit: 96m
+    cpus: 0.10
+    networks: [clips, ingress]
+    secrets: [connector_db_password, connector_services]
+    healthcheck:
+      test: [CMD, /usr/local/bin/clips-go, -hosted-role, connectors-health]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+networks:
+  clips:
+    internal: true
+  ingress:
+  gif_egress:
+volumes:
+  clips_pg:
+secrets:
+  db_password:
+    file: /etc/clips-go-homolog/db-password
+  api_token:
+    file: /etc/clips-go-homolog/api-token
+  connector_db_password:
+    file: /etc/clips-go-homolog/connector-db-password
+  connector_services:
+    file: /etc/clips-go-homolog/connector-services

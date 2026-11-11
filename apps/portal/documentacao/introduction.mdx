@@ -1,0 +1,60 @@
+---
+title: "Arkom"
+description: "A superfície visual de operação de uma força de trabalho de IA — 137 funções em 7 departamentos, navegáveis como um mapa"
+---
+
+## O que é
+
+Toda empresa tem um catálogo de trabalho que pode ser feito por IA — do totalmente autônomo ao conduzido por humano. O **Arkom** torna esse catálogo **navegável como um mapa espacial**, ensina como construir cada peça e acompanha o que já está no ar.
+
+A aplicação tem três superfícies:
+
+- **Área do aluno** — mapa radial, centrais de comando, matriz de rollout, Genesis (builder de soluções por IA), trainings, segundo cérebro e árvore de skills
+- **Autenticação** — login por convite com sessão própria (cookie HMAC)
+- **Painel admin** — gestão de alunos, convites, conteúdo, mídia, soluções e mentorias
+
+## Stack
+
+<CardGroup cols={2}>
+  <Card title="Frontend" icon="react">
+    Next.js 16 (App Router) · React 19 · TypeScript strict · Tailwind CSS v4 · shadcn/ui
+  </Card>
+  <Card title="Backend" icon="database">
+    Supabase central (Postgres, Auth, Storage, Edge Functions) · driver `postgres` · sessão HMAC própria
+  </Card>
+  <Card title="IA" icon="sparkles">
+    OpenAI via edge central · Anthropic direto · mock determinístico · Whisper para voz
+  </Card>
+  <Card title="Qualidade" icon="circle-check">
+    Playwright (5 suítes E2E) · ESLint 9 · tsc strict · CI GitHub Actions · Docker → Railway
+  </Card>
+</CardGroup>
+
+## Números do projeto
+
+| Métrica | Valor |
+|---------|-------|
+| Arquivos TS/TSX | 240 |
+| Linhas de código | ~54.000 |
+| Componentes React | 99 |
+| Rotas (aluno + auth + admin) | 24 |
+| Endpoints de API | 8 grupos |
+| Migrations SQL | 7 versionadas |
+| Jobs catalogados | 137 em 7 departamentos |
+
+## Navegação rápida
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Rode o projeto em minutos — funciona sem backend
+  </Card>
+  <Card title="Arquitetura" icon="code-branch" href="/architecture/overview">
+    Camadas, modos de runtime e decisões
+  </Card>
+  <Card title="Genesis" icon="wand-magic-sparkles" href="/logic/genesis-builder">
+    O builder de soluções por IA, etapa por etapa
+  </Card>
+  <Card title="Banco de dados" icon="database" href="/database/overview">
+    Schemas, migrations e storage privado
+  </Card>
+</CardGroup>

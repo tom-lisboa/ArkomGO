@@ -1,0 +1,20 @@
+stateDiagram-v2
+    [*] --> Pedido
+    Pedido --> Plano: Genesis e capacidades disponíveis
+    Plano --> Previa: Validar escopo e permissões
+    Previa --> AguardandoAprovacao: Política exige revisão
+    Previa --> Executando: Política permite execução
+    AguardandoAprovacao --> Executando: Cliente aprova
+    AguardandoAprovacao --> Cancelado: Cliente recusa
+    Executando --> Verificando
+    Verificando --> Publicado: Efeito confirmado
+    Verificando --> Revisao: Falha ou resultado incerto
+    Publicado --> NovaVersao: Cliente pede melhoria
+    NovaVersao --> Plano
+    Revisao --> Recuperacao: Recuperar versão quando possível
+    Recuperacao --> Plano
+    Cancelado --> [*]
+    note right of Plano
+        Ciclo proposto para Genesis.
+        Ainda não implementado de ponta a ponta.
+    end note

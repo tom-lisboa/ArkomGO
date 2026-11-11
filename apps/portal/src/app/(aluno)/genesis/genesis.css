@@ -1,0 +1,588 @@
+/* Genesis (builder) — escopo de tema, no NOSSO DS (tema escuro do aluno · st-*).
+   IMPORTANTE: o globals usa `@theme inline`, então as utilities inlinam a VAR BASE
+   (ex.: text-secondary → color: var(--secondary)). Por isso reajustamos as vars
+   BASE aqui (não os --color-*), garantindo contraste (nada de preto-no-preto). */
+
+.genesis-scope {
+  /* superfície */
+  --background: var(--st-bg);
+  --foreground: var(--st-ivory);
+  --card: var(--st-card);
+  --card-foreground: var(--st-ivory);
+  --popover: #14161a;
+  --popover-foreground: var(--st-ivory);
+
+  /* texto: primary = tinta principal (ivory) · secondary/muted = tinta legível */
+  --primary: var(--st-ivory);
+  --primary-foreground: var(--st-copper-ink);
+  --secondary: var(--st-ink-2);
+  --secondary-foreground: var(--st-ivory);
+  --muted: var(--st-card-2);
+  --muted-foreground: var(--st-ink-2);
+
+  /* accent = cobre quente do DS (visível no escuro; texto escuro por cima) */
+  --accent: #c58b5f;
+  --accent-foreground: #161616;
+
+  /* linhas + estados */
+  --border: var(--st-line);
+  --input: var(--st-line-2);
+  --ring: #c58b5f;
+  --destructive: #e5484d;
+
+  color: var(--st-ivory);
+}
+
+/* TEMA CLARO — o escopo acima foi escrito só para o escuro e deixou 4 valores
+   CRUS (não-tokens) vazando no claro. Aqui eles viram o par claro do DS:
+   · --popover era #14161a fixo → caixa preta com tinta preta (st-ivory=#18181b);
+   · --accent/--ring era o cobre do escuro → o ouro claro do ARKOM é #b9915b;
+   · --st-copper-ink (o `text-on-accent` do Button) vira BRANCO no claro → texto
+     branco sobre ouro = 2.9:1. O ouro é meio-tom: a tinta é escura nos DOIS
+     temas (é o que o escuro já faz com #161616) → 6.1:1;
+   · --st-ink-3 #8a8a93 sobre o creme = 3.0:1 → o `text-tertiary` (contadores,
+     "Suas soluções", dicas) sumia. #6b6b74 = 4.9:1, mesma família. */
+:root[data-theme="light"] .genesis-scope {
+  --popover: #ffffff;
+  --accent: #b9915b;
+  --ring: #b9915b;
+  --st-copper-ink: #191919;
+  --st-ink-3: #6b6b74;
+}
+/* O ouro serve de PREENCHIMENTO (botão, barra, pontos) e de TINTA (as tarjas
+   mono de 9px: "ETAPA 1 DE 8", "PROBLEMA", "PÚBLICO-ALVO"…). Como fundo ele
+   funciona claro; como tinta sobre branco dá 2,9:1 — o menor texto da tela no
+   pior contraste. O par do DS para tinta dourada no claro é o cobre do mapa
+   (--map-copper #9a6535) = 4,9:1. Só o texto muda; o preenchimento continua ouro. */
+:root[data-theme="light"] .genesis-scope :is(.text-accent, .text-gold-700, .text-gold-800) {
+  color: #9a6535;
+}
+
+/* Hero = a logo do Genesis. A área do aluno é ESCURA por padrão (logo-dark);
+   o tema claro do arkom é [data-theme="light"] → logo-light. */
+.genesis-logo-light { display: none; }
+.genesis-logo-dark { display: block; }
+:root[data-theme="light"] .genesis-logo-light { display: block; }
+:root[data-theme="light"] .genesis-logo-dark { display: none; }
+
+@keyframes genesis-reveal-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.genesis-scope .reveal {
+  opacity: 0;
+  animation: genesis-reveal-up 0.62s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .genesis-scope .reveal { opacity: 1; animation: none; }
+}
+
+/* ============================================================
+   Onda 1 — linguagem "espaço" do /map portada pro Genesis.
+   Starfield + haze radial + painel em glass + stagger, todos
+   escopados sob .genesis-scope (o overlay do wizard também é
+   descendente dela). Tokens herdados do DS (--st-*, accent=cobre).
+   ============================================================ */
+
+/* --- campo de estrelas (cópia escopada do .mapview .star) ---
+   .gx-space         → contido (overlay): absolute atrás do conteúdo (z 0, conteúdo z 10)
+   .gx-space--page   → full-bleed atrás de TUDO na página (fixed, z -1: acima do haze do
+                        body, abaixo do conteúdo do Shell) */
+.genesis-scope .gx-space {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.genesis-scope .gx-space--page {
+  position: fixed;
+  z-index: -1;
+  /* glow radial suave no topo (profundidade de "espaço", como o haze do mapa) —
+     atrás das estrelas, some antes de chegar no conteúdo */
+  background: radial-gradient(
+    ellipse 85% 55% at 50% -8%,
+    rgba(120, 138, 190, 0.12) 0%,
+    rgba(120, 138, 190, 0.04) 32%,
+    transparent 60%
+  );
+}
+:root[data-theme="light"] .genesis-scope .gx-space--page {
+  background: radial-gradient(
+    ellipse 85% 55% at 50% -8%,
+    rgba(90, 110, 160, 0.1) 0%,
+    transparent 58%
+  );
+}
+.genesis-scope .starfield {
+  position: absolute;
+  inset: 0;
+}
+.genesis-scope .star {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--st-ivory, #ececee);
+  animation: gx-twinkle 6s ease-in-out infinite;
+}
+:root[data-theme="light"] .genesis-scope .star {
+  background: #c0c4cc;
+}
+@keyframes gx-twinkle {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.08;
+  }
+}
+
+/* --- haze radial de "espaço" (fundo dos overlays em tela cheia) --- */
+.genesis-scope .gx-overlay {
+  background: radial-gradient(
+    ellipse 92% 72% at 50% 32%,
+    #161c2b 0%,
+    var(--st-bg, #0e0e0e) 56%,
+    #08090d 100%
+  );
+}
+:root[data-theme="light"] .genesis-scope .gx-overlay {
+  background: radial-gradient(
+    ellipse 92% 72% at 50% 32%,
+    #f2f3f5 0%,
+    #e9ebee 56%,
+    #dfe1e6 100%
+  );
+}
+
+/* --- painel em glass (mesma casca do drawer do mapa) --- */
+.genesis-scope .gx-glass {
+  background: var(--st-sidebar-glass, rgba(26, 28, 31, 0.62));
+  backdrop-filter: blur(16px) saturate(1.25);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  border-color: var(--st-line-2, rgba(255, 255, 255, 0.14));
+}
+
+/* --- entrada do painel (drawerIn do mapa) --- */
+@keyframes gx-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.genesis-scope .gx-drawer-in {
+  animation: gx-drawer-in 0.36s cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+
+/* --- stagger (popfade + --d, sem tocar cada filho) --- */
+@keyframes gx-rise {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.genesis-scope .gx-stagger > * {
+  opacity: 0;
+  animation: gx-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.genesis-scope .gx-stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.genesis-scope .gx-stagger > *:nth-child(2) { animation-delay: 0.1s; }
+.genesis-scope .gx-stagger > *:nth-child(3) { animation-delay: 0.16s; }
+.genesis-scope .gx-stagger > *:nth-child(4) { animation-delay: 0.22s; }
+.genesis-scope .gx-stagger > *:nth-child(5) { animation-delay: 0.28s; }
+.genesis-scope .gx-stagger > *:nth-child(6) { animation-delay: 0.34s; }
+.genesis-scope .gx-stagger > *:nth-child(n + 7) { animation-delay: 0.4s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .genesis-scope .star {
+    animation: none;
+  }
+  .genesis-scope .gx-drawer-in,
+  .genesis-scope .gx-stagger > * {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+/* ============================================================
+   Onda 2 — a solução como OVERVIEW do /map (componente REAL
+   RadialGraph). .gx-solwheel = escopo .mapview NEUTRALIZADO
+   (sem o position:fixed do mapa cheio) pra virar uma seção
+   emoldurada; mantém o fundo "espaço" e todas as classes/
+   animações do /map. Escondemos só o rótulo/hit do centro de
+   conhecimento (o cérebro fica como visual).
+   ============================================================ */
+.genesis-scope .gx-solwheel.mapview {
+  position: relative;
+  inset: auto;
+  left: auto;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  height: min(720px, 78vh);
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid var(--st-line-2, rgba(255, 255, 255, 0.14));
+}
+@media (min-width: 640px) {
+  .genesis-scope .gx-solwheel.mapview {
+    left: auto;
+  }
+}
+.genesis-scope .gx-solwheel .gx-solwheel-space {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+/* sem o "centro de conhecimento" textual (pedido do dono) — cérebro fica só visual */
+.genesis-scope .gx-solwheel .hub-name,
+.genesis-scope .gx-solwheel .hub-hit {
+  display: none;
+}
+
+/* --- drawer sobreposto na roda: OPACO (nada de transparência que deixa a roda
+   vazar) + conteúdo empilhado em 1 COLUNA (as grades densas do StepContent
+   estouravam em scroll horizontal no drawer estreito → viravam bagunça). --- */
+.genesis-scope .gx-canvas-drawer {
+  background: rgba(17, 18, 22, 0.97);
+  backdrop-filter: blur(24px) saturate(1.25);
+  -webkit-backdrop-filter: blur(24px) saturate(1.25);
+  border-color: var(--st-line-2, rgba(255, 255, 255, 0.14));
+}
+/* branco puro no claro: o campo e as pílulas de sugestão usam bg-canvas
+   (--st-bg #f6f6f7); contra um painel #fafafb a diferença era ~1,5% e o
+   textarea sumia dentro do card. Branco devolve o degrau de superfície. */
+:root[data-theme="light"] .genesis-scope .gx-canvas-drawer {
+  background: rgba(255, 255, 255, 0.98);
+}
+/* ...e com o painel branco, o que é RECUADO precisa recuar de verdade: no claro
+   bg-canvas resolve #f6f6f7 e bg-surface resolve #ffffff (branco no branco —
+   o campo da resposta virava só uma linha de 10%). Ambos passam a --st-card-2,
+   o degrau de superfície do DS. Só dentro do painel: os cards do histórico
+   ficam de fora e continuam brancos sobre a página. */
+:root[data-theme="light"] .genesis-scope .gx-canvas-drawer
+  :is(textarea, input, .bg-surface, .bg-canvas) {
+  background-color: var(--st-card-2);
+}
+/* tudo que era multi-coluna vira 1 coluna dentro do drawer → sem scroll horizontal */
+.genesis-scope .gx-canvas-drawer .grid {
+  grid-template-columns: 1fr !important;
+}
+/* popover em meia tela → conteúdo uma escala acima (pedido do dono): o zoom
+   escala texto E espaçamentos juntos, sem caçar cada classe text-* dentro. */
+.genesis-scope .gx-canvas-drawer .gx-scroll {
+  zoom: 1.15;
+}
+.genesis-scope .gx-canvas-drawer h2 {
+  font-size: 22px;
+}
+
+/* --- scrollbar fina (mesmo espírito do .map-scroll do /map) --- */
+.genesis-scope .gx-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(233, 228, 214, 0.22) transparent;
+}
+.genesis-scope .gx-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.genesis-scope .gx-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.genesis-scope .gx-scroll::-webkit-scrollbar-thumb {
+  background: rgba(233, 228, 214, 0.22);
+  border-radius: 3px;
+}
+.genesis-scope .gx-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(233, 228, 214, 0.38);
+}
+:root[data-theme="light"] .genesis-scope .gx-scroll {
+  scrollbar-color: rgba(27, 30, 38, 0.24) transparent;
+}
+:root[data-theme="light"] .genesis-scope .gx-scroll::-webkit-scrollbar-thumb {
+  background: rgba(27, 30, 38, 0.24);
+}
+
+/* --- TRILHAS ligando conforme processadas: quando uma etapa conclui, os galhos
+   (mini-edge) se DESENHAM e os pontinhos (jdot) BROTAM. Escopado só ao Genesis
+   (não toca no /map). Como cada etapa completa em tempos diferentes durante a
+   geração, cada árvore "liga" no seu momento. --- */
+.genesis-scope .gx-solwheel .mini-edge {
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  animation: gx-mini-draw 0.5s ease forwards;
+  animation-delay: var(--d, 0s);
+}
+@keyframes gx-mini-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.genesis-scope .gx-solwheel .jdot {
+  animation: gx-jdot-in 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+  /* +0.16s após a linha começar a traçar → a linha CONECTA, aí o pontinho acende */
+  animation-delay: calc(var(--d, 0s) + 0.16s);
+}
+@keyframes gx-jdot-in {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* o "acender pontinho por pontinho" é a estrela do resultado (pedido do dono),
+     então MANTEMOS o trace mesmo sob reduce-motion — re-forçando duração + delay
+     contra o reset do map.css (.mapview *{animation-duration:.001ms !important}). */
+  .genesis-scope .gx-solwheel .mini-edge {
+    animation: gx-mini-draw 0.5s ease forwards !important;
+    animation-delay: var(--d, 0s) !important;
+  }
+  .genesis-scope .gx-solwheel .jdot {
+    animation: gx-jdot-in 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.4) both !important;
+    animation-delay: calc(var(--d, 0s) + 0.16s) !important;
+  }
+}
+
+/* ============================================================
+   Jornada sobre o mapa — a RODA como palco fixo do Genesis:
+   fill = ocupa o pai inteiro (fundo), sem moldura; a jornada
+   (composer/análise/perguntas/ready) renderiza por cima com um
+   scrim pra ler. Durante análise/geração a roda "pulsa".
+   ============================================================ */
+.genesis-scope .gx-solwheel--fill.mapview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+.genesis-scope .gx-journey {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  overflow: hidden;
+}
+/* libera a barra lateral do Shell no desktop (a jornada ocupa a área de conteúdo) */
+@media (min-width: 640px) {
+  .genesis-scope .gx-journey {
+    left: 232px;
+  }
+}
+.genesis-scope .gx-journey-wheel {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transition: left 0.45s cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+/* popover aberto (metade esquerda) → a CAIXA da roda vira a metade DIREITA:
+   o SolutionWheel re-centraliza e re-escala sozinho nela (ResizeObserver),
+   então nenhum rótulo fica tampado pelo popover nem sobra vão à direita.
+   Os rótulos ganham quebra de linha pra encostar na borda sem cortar letra. */
+.genesis-scope .gx-wheel--pushed {
+  left: 50%;
+}
+.genesis-scope .gx-wheel--pushed .mini-label {
+  white-space: normal;
+  max-width: 300px;
+}
+/* scrim pra o conteúdo ler sobre a roda (a roda fica viva atrás) */
+.genesis-scope .gx-journey-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(
+    ellipse 62% 58% at 50% 46%,
+    rgba(8, 9, 13, 0.72) 0%,
+    rgba(8, 9, 13, 0.52) 55%,
+    rgba(8, 9, 13, 0.34) 100%
+  );
+  pointer-events: none;
+}
+/* no claro o scrim INVERTE: um véu escuro sobre a roda clara transformava a
+   área de conteúdo inteira num cinza-lama (era a "UX cagada" do modo claro).
+   Véu claro = mesmo papel (a roda recua, o texto lê) na tinta certa. */
+:root[data-theme="light"] .genesis-scope .gx-journey-scrim {
+  background: radial-gradient(
+    ellipse 62% 58% at 50% 46%,
+    rgba(246, 247, 248, 0.82) 0%,
+    rgba(246, 247, 248, 0.62) 55%,
+    rgba(246, 247, 248, 0.44) 100%
+  );
+}
+/* o CONTEÚDO rola numa camada própria (absolute) — a roda + scrim ficam fixos
+   atrás, então o céu estrelado nunca "corta" ao rolar. */
+.genesis-scope .gx-journey-content {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* pulso na análise/geração (sigilos) */
+.genesis-scope .gx-journey.is-busy .sigil-badge {
+  animation: gx-busy-pulse 1.5s ease-in-out infinite !important;
+}
+@keyframes gx-busy-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.14);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .genesis-scope .gx-journey.is-busy .sigil-badge {
+    animation: none !important;
+  }
+}
+
+/* --- resultado: a roda cobre a seção toda (como o /map). Barra superior em
+   gradiente sobre a roda (voltar + título + progresso); sem scrim pesado — a
+   roda é o conteúdo principal aqui. --- */
+.genesis-scope .gx-result-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: linear-gradient(
+    to bottom,
+    rgba(8, 9, 13, 0.92) 0%,
+    rgba(8, 9, 13, 0.55) 60%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+/* mesma inversão na barra do resultado: a faixa escura ficava sob o título e o
+   "voltar", que são tinta ESCURA no claro → preto no preto (1,03:1). */
+:root[data-theme="light"] .genesis-scope .gx-result-top {
+  background: linear-gradient(
+    to bottom,
+    rgba(246, 247, 248, 0.94) 0%,
+    rgba(246, 247, 248, 0.6) 60%,
+    transparent 100%
+  );
+}
+.genesis-scope .gx-result-top > * {
+  pointer-events: auto;
+}
+
+/* ---- Guia lateral (indicador digitado no DS do mapa) ---- */
+.genesis-scope .gx-guide {
+  /* deixa a roda clicável nas áreas vazias entre as linhas do guia */
+  pointer-events: none;
+}
+.genesis-scope .gx-guide-intro,
+.genesis-scope .gx-guide-step {
+  pointer-events: auto;
+}
+.genesis-scope .gx-guide-intro {
+  margin: 0;
+  font-family: var(--font-marcellus), Georgia, serif;
+  font-size: 13.5px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  color: var(--st-ink-2);
+}
+.genesis-scope .gx-guide-lead {
+  margin-bottom: 2px;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  color: var(--st-ivory);
+}
+.genesis-scope .gx-guide-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 5px 6px 5px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+.genesis-scope .gx-guide-step:first-of-type {
+  margin-top: 14px;
+}
+.genesis-scope .gx-guide-step.is-typing {
+  cursor: default;
+}
+.genesis-scope button.gx-guide-step:hover {
+  transform: translateX(3px);
+}
+.genesis-scope .gx-guide-n {
+  flex-shrink: 0;
+  padding-top: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #c58b5f;
+  opacity: 0.85;
+}
+.genesis-scope .gx-guide-tx {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--st-ink-2);
+}
+.genesis-scope .gx-guide-lbl {
+  font-family: var(--font-marcellus), Georgia, serif;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--st-ivory);
+  transition: color 0.18s ease;
+}
+.genesis-scope button.gx-guide-step:hover .gx-guide-lbl {
+  color: #dcc279;
+}
+.genesis-scope .gx-guide-expl {
+  color: var(--st-ink-3);
+}
+.genesis-scope .gx-guide-caret {
+  margin-left: 1px;
+  color: #c58b5f;
+  animation: gx-caret 1s steps(1) infinite;
+}
+/* o cobre do escuro (#c58b5f) e o ouro de hover (#dcc279) apagam sobre o claro;
+   no claro o par do DS é o cobre do mapa (--map-copper #9a6535). */
+:root[data-theme="light"] .genesis-scope .gx-guide-n,
+:root[data-theme="light"] .genesis-scope .gx-guide-caret,
+:root[data-theme="light"] .genesis-scope button.gx-guide-step:hover .gx-guide-lbl {
+  color: #9a6535;
+}
+@keyframes gx-caret {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}

@@ -1,0 +1,52 @@
+flowchart TD
+    F0["Enviar formulário"] --> F1{"Campos, telefone, consentimento e chave válidos?"}
+    F1 -->|Não| FERR["HTTP 400 ou 422; corrigir o pedido"]
+    F1 -->|Sim| F2{"Mesma Idempotency-Key já existe?"}
+    F2 -->|Mesmo conteúdo| FDUP["Reutilizar submissão; não duplicar contato"]
+    F2 -->|Conteúdo diferente| F409["HTTP 409: conflito de idempotência"]
+    F2 -->|Não| F3["Salvar nome, empresa, receita, objetivo, fuso e consentimentos"]
+    F3 --> F4["Resolver telefone e variação brasileira com ou sem nono dígito"]
+    F4 --> F5["Reutilizar contato existente sem remover bloqueios"]
+    F5 --> F6{"Veio slot_id no mesmo pedido?"}
+    F6 -->|Sim| FAT["Ativação e reserva na mesma transação"]
+    FAT --> F7{"Reserva aceita?"}
+    F7 -->|Não| FBE["Retornar conflito ou indisponibilidade; não inventar confirmação"]
+    F7 -->|Sim| F8["Publicar cadastro e evento de reserva"]
+    F6 -->|Não| F8
+    F8 --> F9["Enfileirar abertura para daqui a 10 segundos"]
+    F9 --> F10["Se a página enviar a reserva depois, processá-la antes da abertura"]
+    F10 --> F11{"Pode contatar agora?"}
+    F11 -->|Pausa, saída, humano ou sem responsabilidade Go| FSTOP["Ação bloqueada ou descartada"]
+    F11 -->|Abertura enviada há menos de 15 minutos| FCOOL["Descartar duplicação pelo intervalo mínimo"]
+    F11 -->|Sim| F12{"Há reunião futura no estado atual?"}
+    F12 -->|Não| FUN["Abertura sem reserva: convidar a escolher horário"]
+    F12 -->|Sim, com objetivo| FGO["Confirmação curta: data, hora local e duração"]
+    F12 -->|Sim, sem objetivo| FQ["Mesma confirmação curta da reunião"]
+    FUN --> FSEND["Enviar pelo WhatsApp"]
+    FGO --> FSEND
+    FQ --> FSEND
+    FSEND --> FT{"Janela de conversa aberta?"}
+    FT -->|Sim| FTXT["Enviar texto livre"]
+    FT -->|Não| FTM["Usar template correspondente aprovado"]
+    FTM --> FAP{"Template disponível e aprovado?"}
+    FAP -->|Não| FWAIT["Adiar o mesmo job até aprovação ou expiração"]
+    FAP -->|Sim| FTXT
+    FTXT --> FOK["Registrar envio e horário da abertura"]
+    FOK --> FCTX["Com reserva: segunda mensagem curta em 2 segundos; objetivo ou pergunta de preparação"]
+    FCTX --> FCTCHECK{"Reserva e contato continuam válidos, sem nova resposta?"}
+    FCTCHECK -->|Não| FCTSKIP["Descartar continuação antiga"]
+    FCTCHECK -->|Sim| FCTSEND["Enviar contexto: texto na sessão ou template próprio aprovado fora dela"]
+    FOK --> FPREP["Se houver reunião, avaliar preparação em mais 15 minutos"]
+    FOK --> FV["Criar job de vídeo único por contato, elegível em 2 segundos"]
+    FV --> FCTWAIT{"Segunda mensagem ainda pendente?"}
+    FCTWAIT -->|Sim| FCTHOLD["Adiar vídeo enquanto a abertura termina"]
+    FCTHOLD --> FCTWAIT
+    FCTWAIT -->|Não| FVD{"Abertura entregue ou lida?"}
+    FVD -->|Ainda não| FVW["Adiar; vídeo expira após 15 minutos"]
+    FVW --> FVD
+    FVD -->|Falhou| FVF["Registrar falha opcional; manter conversa"]
+    FVD -->|Sim| FVWIN{"Sessão recente de WhatsApp?"}
+    FVWIN -->|Sim| FVS["Worker de mídia envia MP4"]
+    FVWIN -->|Não| FVT{"Template de vídeo aprovado?"}
+    FVT -->|Não| FVW
+    FVT -->|Sim| FVS

@@ -1,0 +1,35 @@
+.env
+.env.*
+!.env.example
+.local/
+bin/
+/bia
+coverage.out
+*.test
+*.log
+.DS_Store
+
+# Local operational evidence, media, databases and private keys
+docs/*result.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
+*.backup
+*.sqlite*
+*.tar.gz
+*.mp3
+*.wav
+*.ogg
+*.opus
+*.m4a
+__pycache__/
+*.pyc
+
+# Documentation portal build outputs
+/docs-portal/node_modules/
+/docs-portal/dist/
+/docs-portal/src/lib/content.generated.json
+/docs-portal/public/openapi.json
+/docs-portal/public/guia-integracao.md

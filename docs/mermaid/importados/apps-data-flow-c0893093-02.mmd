@@ -1,0 +1,10 @@
+sequenceDiagram
+    participant C as Cliente
+    participant M as /api/media/[...path]
+    participant ST as Supabase Storage (bucket privado)
+
+    C->>M: GET media (com cookie de sessão)
+    M->>M: valida sessão HMAC
+    M->>ST: busca objeto (modo rls ou service)
+    ST-->>M: arquivo
+    M-->>C: stream com headers corretos

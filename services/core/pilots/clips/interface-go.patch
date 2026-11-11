@@ -1,0 +1,1302 @@
+diff --git a/src/App.tsx b/src/App.tsx
+index 8705e69..3f6e9e1 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,3 +1,5 @@
++import { GO_MODE } from "@/lib/go-mode";
++import Gifs from "./pages/Gifs";
+ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+ import { BrowserRouter, Route, Routes } from "react-router-dom";
+ import { Toaster as Sonner } from "@/components/ui/sonner";
+@@ -42,6 +44,7 @@ const App = () => (
+             <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+             <Route path="/new-project" element={<Protected><NewProject /></Protected>} />
+             <Route path="/project/:id" element={<Protected><ProjectDetail /></Protected>} />
++            {GO_MODE && <Route path="/gifs" element={<Protected><Gifs /></Protected>} />}
+             <Route path="/settings" element={<Protected><Settings /></Protected>} />
+             {/* Videoteca de QA — fora do <Protected> de propósito: ela tem gate PRÓPRIO por
+                 papel de admin. Envolvê-la no AppLayout colocaria um item de auditoria no menu
+diff --git a/src/components/AppLayout.tsx b/src/components/AppLayout.tsx
+index c0f5eab..2302b42 100644
+--- a/src/components/AppLayout.tsx
++++ b/src/components/AppLayout.tsx
+@@ -1,7 +1,8 @@
++import { GO_MODE } from "@/lib/go-mode";
+ import { ReactNode, useState } from "react";
+ import { NavLink, useLocation } from "react-router-dom";
+ import { useAuth } from "@/hooks/useAuth";
+-import { LayoutGrid, Plus, Settings as SettingsIcon, LogOut, Menu } from "lucide-react";
++import { LayoutGrid, Plus, ImagePlay, Settings as SettingsIcon, LogOut, Menu } from "lucide-react";
+ import { Button } from "@/components/ui/button";
+ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+ import { cn } from "@/lib/utils";
+@@ -22,6 +23,7 @@ interface AppLayoutProps {
+ const NAV_ITEMS = [
+   { to: "/dashboard", label: "Meus Vídeos", icon: LayoutGrid },
+   { to: "/new-project", label: "Novo vídeo", icon: Plus },
++  ...(GO_MODE ? [{ to: "/gifs", label: "Gerar GIFs", icon: ImagePlay }] : []),
+   { to: "/settings", label: "Configurações", icon: SettingsIcon },
+ ];
+ 
+@@ -132,7 +134,10 @@ export function AppLayout({ children }: AppLayoutProps) {
+       </header>
+ 
+       {/* CONTEUDO — wrapper em div: o landmark main pertence a cada pagina */}
+-      <div className="min-w-0 flex-1 pt-14 md:pt-0">{children}</div>
++      <div className="min-w-0 flex-1 pt-14 md:pt-0">
++        {GO_MODE && <p role="status" className="border-b border-border bg-secondary px-6 py-3 text-sm text-muted-foreground">Homologação CLIPS Go · Projetos novos e separados. Upload MP4 até 7 MiB e corte vertical até 30 s. Histórico, transcrição e análise automática ainda não migrados.</p>}
++        {children}
++      </div>
+     </div>
+   );
+ }
+diff --git a/src/pages/Gifs.tsx b/src/pages/Gifs.tsx
+new file mode 100644
+index 0000000..d8fd3f3
+--- /dev/null
++++ b/src/pages/Gifs.tsx
+@@ -0,0 +1,168 @@
++import { useEffect, useState } from "react";
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++import { REMIX_MODE } from "@/lib/go-mode";
++import { remixFetch } from "@/lib/go-remix";
++
++type Job = { id: string; status: "queued" | "running" | "done" | "failed" };
++type Status = { has_key: boolean; gift_remaining: number; gift_expires_at: string | null; jobs: Job[] };
++
++const labels = { queued: "Na fila", running: "Gerando", done: "Pronto", failed: "Falhou" };
++
++async function gifRequest(path = "", method = "GET", body?: object) {
++  const response = await (REMIX_MODE ? remixFetch : fetch)("/app/gifs" + path, {
++    method,
++    headers: body ? { "Content-Type": "application/json" } : undefined,
++    body: body ? JSON.stringify(body) : undefined,
++  });
++  if (!response.ok) {
++    const { error } = await response.json().catch(() => ({}));
++    const messages: Record<string, string> = {
++      gif_unavailable: "A geração de GIFs está indisponível.",
++      invalid_openai_key: "Confira a chave da OpenAI.",
++      invalid_gif_prompt: "Descreva a animação em um texto mais curto.",
++      gif_credential_unavailable: "Configure sua chave ou confira o saldo do brinde.",
++      gif_capacity: "A fila de GIFs está cheia. Tente novamente em instantes.",
++      gif_already_pending: "Aguarde a geração em andamento.",
++    };
++    throw new Error(messages[error] ?? "Não foi possível concluir a operação.");
++  }
++  return response.status === 204 ? undefined : response.json();
++}
++
++function GifPreview({ path }: { path: string }) {
++  const [requested, setRequested] = useState(false);
++  const [preview, setPreview] = useState(REMIX_MODE ? "" : path);
++  const [error, setError] = useState(false);
++
++  useEffect(() => {
++    if (!requested) return;
++    const controller = new AbortController();
++    let objectURL: string | undefined;
++    async function load() {
++      try {
++        const response = await remixFetch(path, { signal: controller.signal });
++        if (!response.ok || response.headers.get("Content-Type") !== "image/gif" ||
++            Number(response.headers.get("Content-Length")) > 8 * 1024 * 1024) throw new Error();
++        const blob = await response.blob();
++        if (blob.size > 8 * 1024 * 1024) throw new Error();
++        if (controller.signal.aborted) return;
++        objectURL = URL.createObjectURL(blob);
++        setPreview(objectURL);
++      } catch {
++        if (!controller.signal.aborted) {
++          setError(true);
++          setRequested(false);
++        }
++      }
++    }
++    void load();
++    return () => {
++      controller.abort();
++      if (objectURL) URL.revokeObjectURL(objectURL);
++    };
++  }, [path, requested]);
++
++  if (!preview) return <>
++    <Button variant="outline" disabled={requested} onClick={() => { setError(false); setRequested(true); }}>
++      {requested ? "Carregando GIF…" : "Ver GIF"}
++    </Button>
++    {error && <p role="alert">Não foi possível carregar o GIF.</p>}
++  </>;
++  return <>
++    <img className="w-full rounded-lg" src={preview} alt="GIF gerado" loading="lazy" />
++    <a className="inline-block underline" href={preview} download="clips.gif">Baixar GIF</a>
++  </>;
++}
++
++export default function Gifs() {
++  const [status, setStatus] = useState<Status>();
++  const [key, setKey] = useState("");
++  const [prompt, setPrompt] = useState("");
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState("");
++  const pending = status?.jobs.some(job => job.status === "queued" || job.status === "running");
++
++  useEffect(() => {
++    let active = true;
++    const refresh = async () => {
++      try {
++        const next = await gifRequest();
++        if (active) setStatus(next);
++      } catch (err) {
++        if (active) setError((err as Error).message);
++      }
++    };
++    void refresh();
++    const timer = pending ? window.setInterval(refresh, 3000) : undefined;
++    return () => { active = false; window.clearInterval(timer); };
++  }, [pending]);
++
++  async function act(action: () => Promise<void>) {
++    setBusy(true);
++    setError("");
++    try {
++      await action();
++      setStatus(await gifRequest());
++    } catch (err) {
++      setError((err as Error).message);
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  const gift = status?.gift_remaining ?? 0;
++  return (
++    <main className="mx-auto max-w-3xl space-y-8 p-6 md:p-10">
++      <header>
++        <h1 className="text-3xl font-semibold">Gerar GIFs</h1>
++        <p className="mt-2 text-muted-foreground">Descreva uma animação curta e baixe o GIF quando estiver pronto.</p>
++      </header>
++      {error && <p role="alert" className="text-destructive">{error}</p>}
++      {status && <>
++        <form className="space-y-3 rounded-xl border p-4" onSubmit={event => {
++          event.preventDefault();
++          void act(async () => { await gifRequest("/key", "PUT", { key }); setKey(""); });
++        }}>
++          <label className="block font-medium" htmlFor="gif-key">Sua chave da OpenAI</label>
++          <Input id="gif-key" type="password" autoComplete="off" maxLength={1024} value={key}
++            onChange={event => setKey(event.target.value)} placeholder={status.has_key ? "Chave salva" : "sk-…"} />
++          <div className="flex flex-wrap gap-2">
++            <Button type="submit" disabled={busy || !key.trim()}>Salvar chave</Button>
++            {status.has_key && <Button type="button" variant="outline" disabled={busy} onClick={() => void act(async () => {
++              await gifRequest("/key", "DELETE");
++              setKey("");
++            })}>Remover chave</Button>}
++          </div>
++        </form>
++        {gift > 0 && status.gift_expires_at && <p className="rounded-xl bg-accent p-4">
++          Gerações de brinde disponíveis <strong>{gift}</strong>. Válidas até{" "}
++          {new Date(status.gift_expires_at).toLocaleString("pt-BR")}.
++        </p>}
++        <section className="space-y-3">
++          <label className="block font-medium" htmlFor="gif-prompt">O que deve acontecer no GIF?</label>
++          <textarea className="block min-h-24 w-full rounded-md border bg-background p-3" id="gif-prompt" value={prompt} maxLength={1500} onChange={event => setPrompt(event.target.value)}
++            placeholder="Um mascote robô acena e volta à pose inicial, com a câmera fixa." />
++          <div className="flex flex-wrap gap-2">
++            {gift > 0 && <Button disabled={busy || pending || !prompt.trim()} onClick={() =>
++              void act(async () => { await gifRequest("", "POST", { prompt, gift: true }); })}>Gerar com brinde</Button>}
++            {status.has_key && <Button variant={gift ? "outline" : "default"} disabled={busy || pending || !prompt.trim()} onClick={() =>
++              void act(async () => { await gifRequest("", "POST", { prompt, gift: false }); })}>Gerar com minha chave</Button>}
++          </div>
++        </section>
++        {status.jobs.length > 0 && <section className="space-y-3">
++          <h2 className="text-xl font-semibold">Gerações recentes</h2>
++          <ul className="grid gap-4 sm:grid-cols-2">
++            {status.jobs.map(job => {
++              const url = "/app/gifs/" + job.id + "/image";
++              return <li key={job.id} className="space-y-2 rounded-xl border p-3">
++                <p role="status">{labels[job.status]}</p>
++                {job.status === "done" && <GifPreview path={url} />}
++              </li>;
++            })}
++          </ul>
++        </section>}
++      </>}
++    </main>
++  );
++}
+diff --git a/src/components/ClipCard.tsx b/src/components/ClipCard.tsx
+index 5fd57ae..827fdd6 100644
+--- a/src/components/ClipCard.tsx
++++ b/src/components/ClipCard.tsx
+@@ -1,3 +1,4 @@
++import { GO_MODE } from "@/lib/go-mode";
+ import { useState } from "react";
+ import { Button } from "@/components/ui/button";
+ import { Progress } from "@/components/ui/progress";
+@@ -60,12 +61,12 @@ export function ClipCard({ clip, index, project, rankMode, viralLabel }: ClipCar
+       <div
+         className={`${rankMode ? "space-y-2" : "card-surface p-5 hover:border-primary/30 transition-all animate-slide-up"} cursor-pointer`}
+         style={!rankMode ? { animationDelay: `${index * 50}ms` } : undefined}
+-        onClick={() => setSheetOpen(true)}
+-        role="button"
+-        tabIndex={0}
++        onClick={() => { if (!GO_MODE) setSheetOpen(true); }}
++        role={GO_MODE ? undefined : "button"}
++        tabIndex={GO_MODE ? -1 : 0}
+         aria-label={`Abrir detalhes do corte ${clip.title}`}
+         onKeyDown={(e) => {
+-          if (e.target !== e.currentTarget) return;
++          if (GO_MODE || e.target !== e.currentTarget) return;
+           if (e.key === "Enter" || e.key === " ") {
+             e.preventDefault();
+             setSheetOpen(true);
+@@ -138,7 +139,7 @@ export function ClipCard({ clip, index, project, rankMode, viralLabel }: ClipCar
+                 ClipVideoPreview), e nao existia NENHUM alvo nomeado. A unica dica era o
+                 cursor sobre o cartao, que nao aparece no celular. Um botao com verbo
+                 resolve as duas coisas e ainda serve de rota de teclado. */}
+-            <Button
++            {!GO_MODE && <Button
+               size="sm"
+               variant="outline"
+               onClick={(e) => { e.stopPropagation(); setSheetOpen(true); }}
+@@ -146,7 +147,7 @@ export function ClipCard({ clip, index, project, rankMode, viralLabel }: ClipCar
+             >
+               <Maximize2 aria-hidden="true" className="mr-1.5" />
+               Abrir editor
+-            </Button>
++            </Button>}
+ 
+             {canExport && (
+               <Button
+diff --git a/src/components/ClipRankingBoard.tsx b/src/components/ClipRankingBoard.tsx
+index 2584525..169b0af 100644
+--- a/src/components/ClipRankingBoard.tsx
++++ b/src/components/ClipRankingBoard.tsx
+@@ -1,3 +1,4 @@
++import { GO_MODE } from "@/lib/go-mode";
+ import { useState } from "react";
+ import { Trophy, Flame, TrendingUp, BarChart3, Layers, Crown, List, LayoutGrid } from "lucide-react";
+ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+@@ -35,6 +36,8 @@ export function ClipRankingBoard({ clips, project }: ClipRankingBoardProps) {
+   const [filtro, setFiltro] = useState<"ativos" | "favoritos" | "descartados">("ativos");
+   const [view, setView] = useState<"list" | "grid">("list");
+ 
++  if (GO_MODE) return <div className="space-y-4">{clips.map((clip, index) => <ClipCard key={clip.id} clip={clip} project={project} index={index} />)}</div>;
++
+   const avgScore = clips.length
+     ? (clips.reduce((sum, c) => sum + (c.score || 0), 0) / clips.length).toFixed(1)
+     : "0";
+diff --git a/src/components/ClipVideoPreview.tsx b/src/components/ClipVideoPreview.tsx
+index 089dd8e..f2cd50b 100644
+--- a/src/components/ClipVideoPreview.tsx
++++ b/src/components/ClipVideoPreview.tsx
+@@ -1,3 +1,5 @@
++import { GO_MODE, REMIX_MODE } from "@/lib/go-mode";
++import { remixBlob } from "@/lib/go-remix";
+ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+ import { Clock, Loader2, Pause, Play } from "lucide-react";
+ import { supabase } from "@/integrations/supabase/client";
+@@ -30,6 +32,8 @@ const TARGET_ASPECTS: Record<string, number> = {
+ const urlCache = new Map<string, { url: string; expires: number }>();
+ 
+ async function getVideoUrl(project: Tables<"projects">): Promise<string | null> {
++  if (REMIX_MODE) return remixBlob(`/storage/v1/object/sign/clips-videos/exports/${encodeURIComponent(project.id)}.mp4`);
++  if (GO_MODE) return `/storage/v1/object/sign/clips-videos/exports/${encodeURIComponent(project.id)}.mp4`;
+   if (!project.storage_path) return null;
+ 
+   const cached = urlCache.get(project.storage_path);
+@@ -76,6 +80,8 @@ interface ClipVideoPreviewProps {
+ }
+ 
+ export function ClipVideoPreview({ clip, project, compact, paused, showControls, onTimeUpdate: onTimeUpdateProp, includeEmojis, emojiPosition, onEmojiPositionChange, segments }: ClipVideoPreviewProps) {
++  const playbackStart = GO_MODE ? 0 : clip.start_time;
++  const playbackEnd = GO_MODE ? clip.end_time - clip.start_time : clip.end_time;
+   const [playing, setPlaying] = useState(false);
+   const [visible, setVisible] = useState(false);
+   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+@@ -163,25 +169,25 @@ export function ClipVideoPreview({ clip, project, compact, paused, showControls,
+     const tick = () => {
+       const v = videoRef.current;
+       if (v && !v.paused) {
+-        applyPositionForTime(v.currentTime - clip.start_time);
++        applyPositionForTime(v.currentTime - playbackStart);
+       }
+       frameId = requestAnimationFrame(tick);
+     };
+     frameId = requestAnimationFrame(tick);
+     return () => cancelAnimationFrame(frameId);
+-  }, [playing, applyPositionForTime, clip.start_time]);
++  }, [playing, applyPositionForTime, playbackStart]);
+ 
+   // Compute active emoji for current time
+   const activeEmoji = useMemo(() => {
+     if (!includeEmojis || !segments || segments.length === 0) return null;
+-    const events = detectEmojis(segments, clip.start_time, clip.end_time);
++    const events = detectEmojis(segments, playbackStart, playbackEnd);
+     for (const ev of events) {
+       if (currentTime >= ev.startTime && currentTime <= ev.startTime + ev.duration) {
+         return ev.emoji;
+       }
+     }
+     return null;
+-  }, [includeEmojis, segments, clip.start_time, clip.end_time, currentTime]);
++  }, [includeEmojis, segments, playbackStart, playbackEnd, currentTime]);
+ 
+   const handleEmojiPointerDown = useCallback((e: React.PointerEvent) => {
+     if (!onEmojiPositionChange) return;
+@@ -232,7 +238,7 @@ export function ClipVideoPreview({ clip, project, compact, paused, showControls,
+     });
+   }, [onEmojiPositionChange, emojiPosition]);
+ 
+-  const clipDuration = Math.max(0, clip.end_time - clip.start_time);
++  const clipDuration = Math.max(0, playbackEnd - playbackStart);
+ 
+   // Fetch signed URL
+   useEffect(() => {
+@@ -248,7 +254,7 @@ export function ClipVideoPreview({ clip, project, compact, paused, showControls,
+     return () => { cancelled = true; };
+   }, [project.storage_path]);
+ 
+-  const videoSrc = videoUrl ? `${videoUrl}#t=${clip.start_time}` : null;
++  const videoSrc = videoUrl ? `${videoUrl}#t=${playbackStart}` : null;
+ 
+   // Lazy load: only render video when in viewport
+   useEffect(() => {
+@@ -335,11 +341,11 @@ export function ClipVideoPreview({ clip, project, compact, paused, showControls,
+     }
+ 
+     // If at end, restart
+-    if (player.currentTime >= clip.end_time || player.currentTime < clip.start_time) {
+-      player.currentTime = clip.start_time;
++    if (player.currentTime >= playbackEnd || player.currentTime < playbackStart) {
++      player.currentTime = playbackStart;
+     }
+     player.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+-  }, [clip.start_time, clip.end_time, playing, videoSrc]);
++  }, [playbackStart, playbackEnd, playing, videoSrc]);
+ 
+   const handleTimeUpdate = useCallback(() => {
+     const player = videoRef.current;
+@@ -350,29 +356,29 @@ export function ClipVideoPreview({ clip, project, compact, paused, showControls,
+     if (!videoDims && player.videoWidth && player.videoHeight) {
+       setVideoDims({ w: player.videoWidth, h: player.videoHeight });
+     }
+-    if (player.currentTime >= clip.end_time) {
++    if (player.currentTime >= playbackEnd) {
+       player.pause();
+-      player.currentTime = clip.start_time;
++      player.currentTime = playbackStart;
+       setPlaying(false);
+       setCurrentTime(0);
+       onTimeUpdateProp?.(0);
+       return;
+     }
+ 
+-    const relativeTime = player.currentTime - clip.start_time;
++    const relativeTime = player.currentTime - playbackStart;
+     setCurrentTime(Math.max(0, relativeTime));
+ 
+     // Update object-position based on track data from DB
+     applyPositionForTime(Math.max(0, relativeTime));
+ 
+     onTimeUpdateProp?.(relativeTime);
+-  }, [clip.end_time, clip.start_time, onTimeUpdateProp, applyPositionForTime, videoDims]);
++  }, [playbackEnd, playbackStart, onTimeUpdateProp, applyPositionForTime, videoDims]);
+ 
+   const handleSeek = useCallback((value: number[]) => {
+     const player = videoRef.current;
+     if (!player) return;
+     seekingRef.current = true;
+-    const seekTo = clip.start_time + value[0];
++    const seekTo = playbackStart + value[0];
+     player.currentTime = seekTo;
+     setCurrentTime(value[0]);
+ 
+@@ -380,7 +386,7 @@ export function ClipVideoPreview({ clip, project, compact, paused, showControls,
+ 
+     onTimeUpdateProp?.(value[0]);
+     requestAnimationFrame(() => { seekingRef.current = false; });
+-  }, [clip.start_time, onTimeUpdateProp, applyPositionForTime]);
++  }, [playbackStart, onTimeUpdateProp, applyPositionForTime]);
+ 
+   if (!videoUrl) {
+     return (
+@@ -441,7 +447,7 @@ export function ClipVideoPreview({ clip, project, compact, paused, showControls,
+           }}
+           onTimeUpdate={handleTimeUpdate}
+           onEnded={() => {
+-            if (videoRef.current) videoRef.current.currentTime = clip.start_time;
++            if (videoRef.current) videoRef.current.currentTime = playbackStart;
+             setPlaying(false);
+             setCurrentTime(0);
+           }}
+@@ -516,7 +522,7 @@ export function ClipVideoPreview({ clip, project, compact, paused, showControls,
+       )}
+ 
+       {/* Tracking status indicator */}
+-      {hasTracking ? (
++      {!GO_MODE && (hasTracking ? (
+         <div className="absolute top-1 left-1 z-20 flex items-center gap-0.5 rounded bg-background/70 px-1 py-0.5 text-[9px] text-foreground/70" title="Sujeito detectado">
+           <span aria-hidden="true">👤</span>
+           <span className="sr-only">Sujeito detectado</span>
+@@ -535,7 +541,7 @@ export function ClipVideoPreview({ clip, project, compact, paused, showControls,
+             <span>Processando Tracking</span>
+           </div>
+         </div>
+-      )}
++      ))}
+ 
+       {/* Emoji overlay */}
+       {activeEmoji && emojiPosition && (
+diff --git a/src/hooks/useAuth.tsx b/src/hooks/useAuth.tsx
+index 6fce9a5..c1e67fb 100644
+--- a/src/hooks/useAuth.tsx
++++ b/src/hooks/useAuth.tsx
+@@ -1,8 +1,14 @@
+-import { useState, useEffect, createContext, useContext } from "react";
++import { useState, useEffect, useRef, createContext, useContext } from "react";
+ import { User, Session } from "@supabase/supabase-js";
+ import { supabase } from "@/integrations/supabase/client";
+ import { getCurrentOrgId, limparOrgCache } from "@/lib/org";
+ 
++import { GO_MODE, REMIX_MODE } from "@/lib/go-mode";
++import { beginRemixLogin, initializeRemix, logoutRemix, remixIdentity, resumeRemixLogin } from "@/lib/go-remix";
++import { Button } from "@/components/ui/button";
++import { useToast } from "@/hooks/use-toast";
++import { closeGoAccess, ensureGoAccess, nativeSignIn, refreshNativeAccess, restoreNativeAccess, usesNativeAuth, type GoIdentity } from "@/lib/go-access";
++
+ interface AuthContextType {
+   user: User | null;
+   session: Session | null;
+@@ -15,7 +21,7 @@ interface AuthContextType {
+ 
+ const AuthContext = createContext<AuthContextType | undefined>(undefined);
+ 
+-export function AuthProvider({ children }: { children: React.ReactNode }) {
++function LegacyAuthProvider({ children }: { children: React.ReactNode }) {
+   const [user, setUser] = useState<User | null>(null);
+   const [session, setSession] = useState<Session | null>(null);
+   const [loading, setLoading] = useState(true);
+@@ -85,3 +91,96 @@ export function useAuth() {
+   if (!context) throw new Error("useAuth must be used within AuthProvider");
+   return context;
+ }
++
++const localUser = (identity: GoIdentity): User => ({ id: identity.source_user_id, email: identity.email,
++  aud: "authenticated", app_metadata: { provider: "arkom" }, user_metadata: { full_name: identity.display_name }, created_at: "" });
++
++function GoAuthProvider({ children }: { children: React.ReactNode }) {
++  const [user, setUser] = useState<User | null>(null);
++  const [session, setSession] = useState<Session | null>(null);
++  const [loading, setLoading] = useState(true);
++  const native = useRef(false);
++  const { toast } = useToast();
++  useEffect(() => {
++    let active = true; let initializing = true; let sequence = 0;
++    const applySource = async (next: Session | null) => {
++      if (native.current) return;
++      const turn = ++sequence; setLoading(true);
++      try {
++        if (next) await ensureGoAccess(next);
++        if (next && await resumeRemixLogin()) return;
++        if (active && turn === sequence && !native.current) { setSession(next); setUser(next?.user ?? null); limparOrgCache(); }
++      } catch { if (active && turn === sequence) { setSession(null); setUser(null); limparOrgCache(); } }
++      finally { if (active && turn === sequence) setLoading(false); }
++    };
++    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => { if (!initializing) void applySource(next); });
++    void (async () => {
++      try {
++        const local = await restoreNativeAccess();
++        if (!active) return;
++        if (local) { if (await resumeRemixLogin()) return; native.current = true; setUser(localUser(local)); setSession(null); setLoading(false); return; }
++        const { data } = await supabase.auth.getSession();
++        initializing = false; await applySource(data.session);
++      } catch { if (active) setLoading(false); }
++      finally { initializing = false; }
++    })();
++    const timer = setInterval(() => {
++      if (native.current) void refreshNativeAccess().catch(error => {
++        if (error?.status === 401 && active) { native.current = false; setUser(null); setSession(null); limparOrgCache(); }
++      });
++    }, 10 * 60_000);
++    return () => { active = false; clearInterval(timer); subscription.unsubscribe(); };
++  }, []);
++  const unavailable = async () => ({ error: Object.assign(new Error("Use o canal atual de atendimento para cadastro ou recuperação de senha."), { code: "clips_go_unavailable" }) });
++  const signIn = async (email: string, password: string) => {
++    try {
++      if (await usesNativeAuth(email)) {
++        const identity = await nativeSignIn(email, password);
++        if (await resumeRemixLogin()) return {error:null};
++        native.current = true; setSession(null); setUser(localUser(identity)); limparOrgCache();
++        return { error: null };
++      }
++      native.current = false;
++      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
++      if (error) return { error };
++      if (!data.session) throw new Error("Não foi possível abrir sua sessão.");
++      await ensureGoAccess(data.session); if (await resumeRemixLogin()) return {error:null}; setSession(data.session); setUser(data.session.user); limparOrgCache();
++      return { error: null };
++    } catch (error) { return { error: error as Error }; }
++  };
++  const signOut = async () => {
++    try { await closeGoAccess(); }
++    catch (error) {
++      if ((error as { status?: number }).status !== 401) { toast({ title: "Não foi possível sair", description: "Confira sua conexão e tente novamente. Sua sessão ainda está aberta.", variant: "destructive" }); return; }
++    }
++    if (!native.current) { const { error } = await supabase.auth.signOut({ scope: "local" }); if (error) localStorage.removeItem("clips-go-source-auth"); }
++    native.current = false; setSession(null); setUser(null); limparOrgCache();
++  };
++  return <AuthContext.Provider value={{ user, session, loading, signIn, signOut, signUp: unavailable, resetPassword: unavailable }}>{children}</AuthContext.Provider>;
++}
++
++function RemixAuthProvider({children}:{children:React.ReactNode}) {
++  const [user,setUser]=useState<User|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
++  const framed = window.self !== window.top;
++  useEffect(()=>{
++    if (framed) return;
++    let active=true;
++    void initializeRemix().then(identity=>{if(identity&&active){setUser(localUser(identity));setLoading(false);limparOrgCache();}}).catch(()=>{if(active)setError("Não foi possível abrir este acesso. Confira o endereço com a equipe e tente novamente.");});
++    const timer=setInterval(()=>{void remixIdentity().catch(()=>{if(active){setUser(null);setError("Seu acesso expirou ou foi encerrado. Entre novamente para continuar.");}});},5*60_000);
++    return ()=>{active=false;clearInterval(timer);};
++  },[framed]);
++  const unavailable=async()=>({error:new Error("Use o canal atual de atendimento para cadastro ou recuperação de senha.")});
++  if (framed) return <div className="flex min-h-screen items-center justify-center bg-background p-6"><div className="max-w-md space-y-4"><p className="text-foreground">Abra o CLIPS em uma nova aba para entrar com segurança.</p><Button asChild><a href={location.origin+"/login"} target="_blank" rel="noopener noreferrer">Abrir CLIPS</a></Button></div></div>;
++  if(error)return <div className="flex min-h-screen items-center justify-center bg-background p-6"><div className="max-w-md space-y-4"><p role="alert" className="text-foreground">{error}</p><Button onClick={()=>void beginRemixLogin().catch(()=>setError("Este endereço ainda não foi liberado. Fale com a equipe."))}>Entrar novamente</Button></div></div>;
++  return <AuthContext.Provider value={{
++    user, session: null, loading,
++    signIn: async () => { await beginRemixLogin(); return { error: null }; },
++    signUp: unavailable, resetPassword: unavailable,
++    signOut: async () => { await logoutRemix(); setLoading(true); setUser(null); limparOrgCache(); },
++  }}>{children}</AuthContext.Provider>;
++}
++
++export function AuthProvider({ children }: { children: React.ReactNode }) {
++  if(REMIX_MODE)return <RemixAuthProvider>{children}</RemixAuthProvider>;
++  return GO_MODE ? <GoAuthProvider>{children}</GoAuthProvider> : <LegacyAuthProvider>{children}</LegacyAuthProvider>;
++}
+diff --git a/src/hooks/useExportClip.ts b/src/hooks/useExportClip.ts
+index 4714297..8f1394f 100644
+--- a/src/hooks/useExportClip.ts
++++ b/src/hooks/useExportClip.ts
+@@ -1,3 +1,5 @@
++import { GO_MODE, REMIX_MODE } from "@/lib/go-mode";
++import { remixBlob, remixFetch } from "@/lib/go-remix";
+ import { useState, useCallback, useRef, useEffect } from "react";
+ import { supabase } from "@/integrations/supabase/client";
+ import { requireOrgId } from "@/lib/org";
+@@ -86,6 +88,16 @@ export function useExportClip() {
+     try {
+       const safeNameFallback = sanitizeDownloadBaseName(opts.clipTitle);
+ 
++      if (GO_MODE) {
++        if (opts.mode === "package" || opts.paddingBefore || opts.paddingAfter || opts.subtitleUrl) throw new Error("Esta homologação exporta apenas o MP4 vertical do trecho enviado, sem pacote de edição ou novos estilos de legenda.");
++        const url = `/storage/v1/object/sign/clips-videos/exports/${encodeURIComponent(opts.projectId)}.mp4?download=1`;
++        const response = REMIX_MODE ? await remixFetch(url, {method:"HEAD"}) : await fetch(url, { method: "HEAD", credentials: "same-origin" });
++        if (!response.ok) throw new Error("O corte ainda não está pronto ou sua sessão expirou.");
++        const anchor = document.createElement("a"); anchor.href = REMIX_MODE ? await remixBlob(url) : url; anchor.download = safeNameFallback + ".mp4";
++        document.body.appendChild(anchor); anchor.click(); anchor.remove();
++        stopAnimation(); setProgress(100); toast({ title: "Clip exportado com sucesso!" });
++        return { success: true, method: "server" as const };
++      }
+       // STEP 1 — ask the edge function to kick off the export. It returns
+       // within ~1s with an exportPath; the heavy work (Railway fetch +
+       // Storage upload) runs in background via waitUntil. Polling the
+diff --git a/src/hooks/useIntegracoes.ts b/src/hooks/useIntegracoes.ts
+index 0b7cba1..295a32f 100644
+--- a/src/hooks/useIntegracoes.ts
++++ b/src/hooks/useIntegracoes.ts
+@@ -9,6 +9,7 @@
+ // As duas integracoes sao OBRIGATORIAS para qualquer processamento, e a tela de Configuracoes
+ // nao dizia isso: mostrava tres cartoes iguais, sem hierarquia.
+ 
++import { GO_MODE } from "@/lib/go-mode";
+ import { useEffect, useState } from "react";
+ import { supabase } from "@/integrations/supabase/client";
+ import { useAuth } from "@/hooks/useAuth";
+@@ -61,6 +62,7 @@ export function useIntegracoes() {
+   const [erro, setErro] = useState<string | null>(null);
+ 
+   useEffect(() => {
++    if (GO_MODE) { setCarregando(false); return; }
+     if (!user) { setCarregando(false); return; }
+     let cancelado = false;
+     (async () => {
+diff --git a/src/hooks/useSaldoTranscricao.ts b/src/hooks/useSaldoTranscricao.ts
+index d172596..bef9f06 100644
+--- a/src/hooks/useSaldoTranscricao.ts
++++ b/src/hooks/useSaldoTranscricao.ts
+@@ -7,6 +7,7 @@
+ // Em caso de falha devolve null e NAO trava nada: nao saber o saldo nao e motivo para impedir
+ // o envio. O portao so fecha quando o saldo e conhecido E o video nao cabe.
+ 
++import { GO_MODE } from "@/lib/go-mode";
+ import { useEffect, useState } from "react";
+ import { supabase } from "@/integrations/supabase/client";
+ import { useAuth } from "@/hooks/useAuth";
+@@ -19,7 +20,7 @@ export function useSaldoTranscricao(ativo = true) {
+   const [carregando, setCarregando] = useState(ativo);
+ 
+   useEffect(() => {
+-    if (!user || !ativo) { setCarregando(false); return; }
++    if (GO_MODE || !user || !ativo) { setCarregando(false); return; }
+     let cancelado = false;
+     (async () => {
+       try {
+diff --git a/src/integrations/supabase/client.ts b/src/integrations/supabase/client.ts
+index b712488..16787f1 100644
+--- a/src/integrations/supabase/client.ts
++++ b/src/integrations/supabase/client.ts
+@@ -1,5 +1,7 @@
+ // This file is automatically generated. Do not edit it directly.
+ import { createClient } from '@supabase/supabase-js';
++import { GO_MODE, REMIX_MODE } from '@/lib/go-mode';
++import { remixFetch } from '@/lib/go-remix';
+ import type { Database } from './types';
+ 
+ // O app fala SEMPRE com o banco central, nunca com o que vier das VITE_SUPABASE_*.
+@@ -8,7 +10,7 @@ import type { Database } from './types';
+ // preenchidas com o banco do Lovable, o `||` nao caia no central e o login da Arkom falhava.
+ // Mesmo caso da Grow AI (arkom-grow-ai-17, PR #10). A chave e a publica (publishable): vai no
+ // bundle do navegador de qualquer jeito. Se o Lovable regenerar este arquivo, refazer estas linhas.
+-export const SUPABASE_URL = 'https://auytmefqnuzbktyzcled.supabase.co';
++export const SUPABASE_URL = GO_MODE ? window.location.origin : 'https://auytmefqnuzbktyzcled.supabase.co';
+ export const SUPABASE_PUBLISHABLE_KEY = 'REPLACE_WITH_YOUR_SUPABASE_PUBLIC_KEY';
+ 
+ 
+@@ -32,7 +34,24 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
+     }
+ 
+     headers.set('apikey', supabaseKey);
+-    return fetch(input, { ...init, headers });
++    if (REMIX_MODE) {
++      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
++      if (url.origin !== window.location.origin) return Promise.resolve(new Response('{}', {status:403}));
++      return remixFetch(url.pathname + url.search, {...init,headers});
++    }
++    if (GO_MODE) {
++      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
++      if (url.origin !== window.location.origin) {
++        const allowed = url.origin === new URL(__CLIPS_GO_AUTH_URL__).origin &&
++          ((url.pathname === '/auth/v1/token' && (init?.method || 'GET').toUpperCase() === 'POST') ||
++           (url.pathname === '/auth/v1/user' && (init?.method || 'GET').toUpperCase() === 'GET') ||
++           (url.pathname === '/auth/v1/logout' && url.searchParams.get('scope') === 'local'));
++        if (!allowed) return Promise.resolve(new Response(JSON.stringify({ message: 'Esta operação não está disponível na homologação.', code: 'clips_go_unavailable' }), { status: 403, headers: { 'Content-Type': 'application/json' } }));
++      } else {
++        headers.delete('Authorization');
++      }
++    }
++    return fetch(input, { ...init, headers, ...(GO_MODE ? { credentials: 'same-origin' as const } : {}) });
+   };
+ }
+ 
+@@ -42,14 +61,22 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
+ // Centralizado no Supabase único da Bilhon-OS (auytmefqnuzbktyzcled), schema `app_clips`.
+ // `db.schema` faz o PostgREST resolver as tabelas do app sem qualificar cada call-site;
+ // identidade (profiles/roles) mora em `core` e é acessada por `.schema('core')`.
+-export const supabase = createClient<Database, 'app_clips'>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
++const dataClient = createClient<Database, 'app_clips'>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+   db: { schema: 'app_clips' },
+   global: {
+     fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
+   },
++  ...(GO_MODE ? { accessToken: async () => null } : {}),
+   auth: {
+     storage: typeof window !== 'undefined' ? localStorage : undefined,
+     persistSession: true,
+     autoRefreshToken: true,
+   }
+ });
++
++// Auth is the only central service used by this build. Every data URL is same-origin.
++const sourceAuth = GO_MODE ? createClient(__CLIPS_GO_AUTH_URL__, __CLIPS_GO_AUTH_KEY__, {
++  global: { fetch: createSupabaseFetch(__CLIPS_GO_AUTH_KEY__) },
++  auth: { storageKey: 'clips-go-source-auth', persistSession: !REMIX_MODE, autoRefreshToken: !REMIX_MODE, detectSessionInUrl: false },
++}).auth : dataClient.auth;
++export const supabase = GO_MODE ? Object.assign(dataClient, { auth: sourceAuth }) : dataClient;
+diff --git a/src/lib/auth-errors.ts b/src/lib/auth-errors.ts
+index 00cfa2e..4d1d2cf 100644
+--- a/src/lib/auth-errors.ts
++++ b/src/lib/auth-errors.ts
+@@ -62,6 +62,7 @@ const GENERICA = "Não foi possível concluir. Tente de novo em instantes.";
+ export function mensagemDeErroAuth(erro: Traduzivel, fallback: string = GENERICA): string {
+   if (!erro) return fallback;
+ 
++  if (typeof erro.code === "string" && ["customer_not_enabled", "identity_provider_unavailable", "login_retry_later", "clips_go_unavailable"].includes(erro.code) && typeof erro.message === "string") return erro.message;
+   const codigo = typeof erro.code === "string" ? erro.code : undefined;
+   if (codigo && POR_CODIGO[codigo]) return POR_CODIGO[codigo];
+ 
+diff --git a/src/lib/go-access.ts b/src/lib/go-access.ts
+new file mode 100644
+index 0000000..8cf9f34
+--- /dev/null
++++ b/src/lib/go-access.ts
+@@ -0,0 +1,82 @@
++import type { Session } from "@supabase/supabase-js";
++import { supabase } from "@/integrations/supabase/client";
++import { REMIX_MODE } from "@/lib/go-mode";
++import { remixFetch, remixIdentity } from "@/lib/go-remix";
++
++export type GoIdentity = { id: string; source_user_id: string; email: string; display_name: string; workspace_id: string; session_expires_at: string; auth_provider: "local" | "supabase"; organization_id: string };
++let pending: Promise<GoIdentity> | null = null;
++let current: GoIdentity | null = null;
++
++const errors: Record<string, string> = {
++  customer_not_enabled: "Esta conta ainda não foi liberada para a homologação. O acesso ao CLIPS atual continua separado.",
++  identity_provider_unavailable: "Não conseguimos validar sua conta agora. Tente novamente em instantes.",
++  login_retry_later: "Aguarde alguns segundos e tente entrar novamente.",
++  invalid_credentials: "E-mail ou senha incorretos.",
++  invalid_source_session: "Sua sessão expirou. Entre novamente.",
++};
++
++export async function goRequest<T>(path: string, init?: RequestInit): Promise<T> {
++  const response = REMIX_MODE ? await remixFetch(path, init) : await fetch(path, { ...init, credentials: "same-origin" });
++  if (!response.ok) {
++    const body = await response.json().catch(() => ({}));
++    throw Object.assign(new Error(errors[body.error] || body.message || "Não foi possível concluir. Tente novamente."),
++      { code: body.error || "clips_go_unavailable", status: response.status });
++  }
++  return response.status === 204 ? undefined as T : response.json();
++}
++
++export async function ensureGoAccess(session: Session): Promise<GoIdentity> {
++  if (!pending) pending = (async () => {
++    const existing = await fetch("/auth/me", { credentials: "same-origin" });
++    if (existing.ok) {
++      const identity: GoIdentity = await existing.json();
++      if (identity.source_user_id === session.user.id && identity.email.toLowerCase() === session.user.email?.toLowerCase() && Date.parse(identity.session_expires_at) > Date.now() + 10 * 60_000) {
++        current = identity;
++        return identity;
++      }
++    }
++    current = await goRequest<GoIdentity>("/auth/session", {
++      method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token }, body: "{}",
++    });
++    return current;
++  })().finally(() => { pending = null; });
++  const identity = await pending;
++  if (identity.source_user_id !== session.user.id || identity.email.toLowerCase() !== session.user.email?.toLowerCase()) {
++    throw Object.assign(new Error(errors.customer_not_enabled), { code: "customer_not_enabled" });
++  }
++  return identity;
++}
++
++export async function getGoIdentity(): Promise<GoIdentity> {
++  if (REMIX_MODE) return remixIdentity();
++  if (current) return current;
++  const { data } = await supabase.auth.getSession();
++  if (!data.session) throw new Error("Entre novamente para continuar.");
++  return ensureGoAccess(data.session);
++}
++
++export async function closeGoAccess() {
++  current = null;
++  await goRequest("/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
++}
++
++export async function restoreNativeAccess(): Promise<GoIdentity | null> {
++  const response = await fetch("/auth/me", { credentials: "same-origin" });
++  if (response.status === 401) return null;
++  if (!response.ok) throw new Error("Não foi possível consultar sua sessão agora.");
++  const identity: GoIdentity = await response.json();
++  if (identity.auth_provider !== "local") return null;
++  current = identity; return identity;
++}
++export async function nativeSignIn(email: string, password: string): Promise<GoIdentity> {
++  current = await goRequest<GoIdentity>("/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
++  return current;
++}
++export async function refreshNativeAccess(): Promise<GoIdentity> {
++  current = await goRequest<GoIdentity>("/auth/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
++  return current;
++}
++export async function usesNativeAuth(email: string): Promise<boolean> {
++  const configuration = await goRequest<{ local_domains: string[] }>("/auth/config");
++  return configuration.local_domains.includes(email.trim().toLowerCase().split("@").at(-1) || "");
++}
+diff --git a/src/lib/go-mode.ts b/src/lib/go-mode.ts
+new file mode 100644
+index 0000000..1b9824d
+--- /dev/null
++++ b/src/lib/go-mode.ts
+@@ -0,0 +1,3 @@
++/** A separate build; the standard CLIPS deployment keeps its original backend. */
++export const REMIX_MODE = import.meta.env.MODE === "clips-remix";
++export const GO_MODE = import.meta.env.MODE === "clips-go" || REMIX_MODE;
+diff --git a/src/lib/go-remix.ts b/src/lib/go-remix.ts
+new file mode 100644
+index 0000000..582dfbf
+--- /dev/null
++++ b/src/lib/go-remix.ts
+@@ -0,0 +1,149 @@
++import type { GoIdentity } from "@/lib/go-access";
++
++type PublicConfig = { api_url: string; installation_id: string };
++type Bootstrap = PublicConfig & { origin: string; solution: string; callback_path: string };
++type Tokens = { access_token: string; refresh_token: string; expires_in: number; installation_id: string; identity: GoIdentity };
++const proof = /^[A-Za-z0-9_-]{43}$/;
++const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
++const prefix = "clips-remix.pkce.";
++let configuration: Promise<Bootstrap> | undefined;
++let initialization: Promise<GoIdentity | null> | undefined;
++let tokens: Tokens | undefined;
++let expiresAt = 0;
++let generation = 0;
++let refreshing: Promise<string> | undefined;
++const blobs = new Map<string, string>();
++const b64 = (v: Uint8Array) => btoa(String.fromCharCode(...v)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
++const random = () => b64(crypto.getRandomValues(new Uint8Array(32)));
++const failure = () => new Error("Este acesso ainda não foi liberado para este endereço. Fale com a equipe.");
++
++async function config(): Promise<Bootstrap> {
++  if (!configuration) configuration = (async () => {
++    const response = await fetch("/clips-installation.json", { credentials: "omit", cache: "no-store", redirect: "error" });
++    if (!response.ok) throw failure();
++    const value: PublicConfig = await response.json();
++    if (Object.keys(value).sort().join(",") !== "api_url,installation_id" || !uuid.test(value.installation_id)) throw failure();
++    const api = new URL(value.api_url);
++    if (api.protocol !== "https:" || api.username || api.password || api.pathname !== "/" || api.search || api.hash || api.origin !== value.api_url) throw failure();
++    const result = await fetch(`${api.origin}/remix/v1/installations/${value.installation_id}/bootstrap`, { credentials: "omit", cache: "no-store", redirect: "error" });
++    if (!result.ok) throw failure();
++    const boot: Bootstrap = await result.json();
++    if (boot.installation_id !== value.installation_id || boot.api_url !== api.origin || boot.solution !== "clips" || boot.origin !== location.origin || boot.callback_path !== "/login") throw failure();
++    return boot;
++  })().catch(error => { configuration = undefined; throw error; });
++  return configuration;
++}
++
++async function post<T>(action: string, body: unknown): Promise<T> {
++  const c = await config();
++  const response = await fetch(`${c.api_url}/remix/v1/installations/${c.installation_id}/${action}`, {
++    method: "POST", credentials: "omit", cache: "no-store", redirect: "error", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
++  });
++  if (!response.ok) throw failure();
++  return response.json();
++}
++
++function accept(value: Tokens, current: number): string {
++  if (current !== generation) throw new Error("A conta mudou. Entre novamente.");
++  if (!value.access_token?.startsWith("clips_remix_access_") || !value.refresh_token?.startsWith("clips_remix_refresh_") || !uuid.test(value.installation_id) || !value.identity?.id || value.expires_in < 1 || value.expires_in > 600) throw failure();
++  if (tokens?.identity.id !== value.identity.id) clearRemixBlobs();
++  tokens = value; expiresAt = Date.now() + value.expires_in * 1000;
++  return value.access_token;
++}
++
++export async function beginRemixLogin(): Promise<void> {
++  const c = await config();
++  for (let n = sessionStorage.length - 1; n >= 0; n--) {
++    const key = sessionStorage.key(n);
++    if (key?.startsWith(prefix)) {
++      try { const prior = JSON.parse(sessionStorage.getItem(key) || "null"); if (!prior || Date.now() - prior.at > 300_000) sessionStorage.removeItem(key); }
++      catch { sessionStorage.removeItem(key); }
++    }
++  }
++  const verifier = random(), state = random();
++  const challenge = b64(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
++  sessionStorage.setItem(prefix + state, JSON.stringify({ verifier, at: Date.now(), api: c.api_url, installation: c.installation_id }));
++  const result = await post<{ authorization_url: string }>("request", { state, challenge, challenge_method: "S256" });
++  const destination = new URL(result.authorization_url);
++  if (destination.origin !== c.api_url || destination.pathname !== "/remix/authorize" || !proof.test(destination.searchParams.get("request") || "") || destination.hash) throw failure();
++  location.assign(destination.toString());
++}
++
++export async function initializeRemix(): Promise<GoIdentity | null> {
++  if (!initialization) initialization = (async () => {
++    const callback = new URLSearchParams(location.hash.slice(1));
++    const code = callback.get("clips_code"), state = callback.get("state");
++    // Remove the temporary code before any API request or page navigation.
++    if (code || state) history.replaceState(null, "", location.pathname + location.search);
++    const c = await config();
++    if (!code && !state) { await beginRemixLogin(); return null; }
++    if (!code || !state || !proof.test(code) || !proof.test(state)) throw failure();
++    const key = prefix + state, raw = sessionStorage.getItem(key); sessionStorage.removeItem(key);
++    const saved = raw ? JSON.parse(raw) : null;
++    if (!saved || saved.api !== c.api_url || saved.installation !== c.installation_id || Date.now() - saved.at > 300_000 || saved.at > Date.now() || !proof.test(saved.verifier)) throw failure();
++    const value = await post<Tokens>("exchange", { code, state, verifier: saved.verifier });
++    if (value.installation_id !== c.installation_id) throw failure();
++    accept(value, generation);
++    return value.identity;
++  })();
++  return initialization;
++}
++
++async function accessToken(): Promise<string> {
++  if (!tokens) throw failure();
++  if (expiresAt > Date.now() + 30_000) return tokens.access_token;
++  if (!refreshing) {
++    const current = generation, credential = tokens.refresh_token;
++    refreshing = post<Tokens>("refresh", { refresh_token: credential }).then(value => accept(value, current)).finally(() => { refreshing = undefined; });
++  }
++  return refreshing;
++}
++
++export async function remixFetch(path: string, init?: RequestInit): Promise<Response> {
++  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) throw failure();
++  const c = await config(), token = await accessToken();
++  const url = new URL(path, c.api_url); if (url.origin !== c.api_url) throw failure();
++  const headers = new Headers(init?.headers); headers.delete("apikey"); headers.set("Authorization", "Bearer " + token); headers.set("X-Clips-Installation", c.installation_id);
++  return fetch(url.toString(), { ...init, headers, credentials: "omit", cache: "no-store", redirect: "error" });
++}
++
++export async function remixIdentity(): Promise<GoIdentity> {
++  const response = await remixFetch("/auth/me"); if (!response.ok) throw failure();
++  return response.json();
++}
++
++export function clearRemixBlobs() { for (const value of blobs.values()) URL.revokeObjectURL(value); blobs.clear(); }
++export async function remixBlob(path: string): Promise<string> {
++  const cached = blobs.get(path); if (cached) return cached;
++  const response = await remixFetch(path);
++  if (!response.ok || !response.headers.get("Content-Type")?.startsWith("video/mp4") || Number(response.headers.get("Content-Length")) > 11 * 1024 * 1024) throw failure();
++  const blob = await response.blob(); if (blob.size > 11 * 1024 * 1024) throw failure();
++  const value = URL.createObjectURL(blob); blobs.set(path, value);
++  while (blobs.size > 3) { const first = blobs.keys().next().value!; URL.revokeObjectURL(blobs.get(first)!); blobs.delete(first); }
++  return value;
++}
++
++export async function logoutRemix(): Promise<void> {
++  const response = await remixFetch("/auth/logout", { method: "POST" });
++  if (!response.ok && response.status !== 401 && response.status !== 403) throw new Error("Não foi possível sair. Tente novamente.");
++  generation++; tokens = undefined; expiresAt = 0; refreshing = undefined; initialization = undefined; clearRemixBlobs();
++  await beginRemixLogin();
++}
++
++let resuming: Promise<boolean> | undefined;
++export function resumeRemixLogin(): Promise<boolean> {
++  if (!resuming) resuming = (async () => {
++    const response = await fetch("/auth/config", { credentials: "same-origin", cache: "no-store" });
++    if (!response.ok || !(await response.json()).remix_enabled) return false;
++    const result = await fetch("/auth/remix/continue", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: "{}", cache: "no-store" });
++    if (result.status === 204) return false;
++    if (!result.ok) throw new Error("Esta conta não tem acesso a esta instalação. Entre com a conta correta ou fale com a equipe.");
++    const data: { redirect_url: string } = await result.json();
++    const destination = new URL(data.redirect_url);
++    if (destination.protocol !== "https:" || destination.username || destination.password || destination.pathname !== "/login" || destination.search) throw failure();
++    const fragment = new URLSearchParams(destination.hash.slice(1));
++    if (!proof.test(fragment.get("clips_code") || "") || !proof.test(fragment.get("state") || "")) throw failure();
++    location.assign(destination.toString()); return true;
++  })().then(value => { if (!value) resuming = undefined; return value; }, error => { resuming = undefined; throw error; });
++  return resuming;
++}
+diff --git a/src/lib/org.ts b/src/lib/org.ts
+index ab60553..c694d8b 100644
+--- a/src/lib/org.ts
++++ b/src/lib/org.ts
+@@ -1,5 +1,8 @@
+ import { supabase } from "@/integrations/supabase/client";
+ 
++import { GO_MODE } from "@/lib/go-mode";
++import { getGoIdentity } from "@/lib/go-access";
++
+ /**
+  * Resolução do tenant (org) no Supabase central.
+  *
+@@ -25,6 +28,7 @@ let emVoo: Promise<string | null> | null = null;
+ let cache: string | null = null;
+ 
+ async function resolver(): Promise<string | null> {
++  if (GO_MODE) return (await getGoIdentity()).workspace_id;
+   const { data: { user } } = await supabase.auth.getUser();
+   if (!user) return null;
+ 
+diff --git a/src/pages/Dashboard.tsx b/src/pages/Dashboard.tsx
+index 898e9a0..23cd63b 100644
+--- a/src/pages/Dashboard.tsx
++++ b/src/pages/Dashboard.tsx
+@@ -1,3 +1,4 @@
++import { GO_MODE } from "@/lib/go-mode";
+ import { useEffect, useState } from "react";
+ import { Link } from "react-router-dom";
+ import { supabase } from "@/integrations/supabase/client";
+@@ -235,6 +236,14 @@ export default function Dashboard() {
+     if (!deleteTarget) return;
+     setDeleting(true);
+     try {
++      if (GO_MODE) {
++        const { data, error } = await supabase.from("projects").delete().eq("id", deleteTarget).select("id");
++        if (error || data?.length !== 1) throw new Error("Não foi possível excluir. Aguarde o processamento terminar e tente novamente.");
++        setProjects((previous) => previous.filter((p) => p.id !== deleteTarget));
++        setDeleteTarget(null);
++        toast({ title: "Vídeo excluído da homologação" });
++        return;
++      }
+       const { error: eClips } = await supabase.from("clips").delete().eq("project_id", deleteTarget);
+       if (eClips) throw eClips;
+       const { error: eTrans } = await supabase.from("transcriptions").delete().eq("project_id", deleteTarget);
+@@ -365,7 +374,7 @@ export default function Dashboard() {
+             </div>
+             <h3 className="text-lg font-semibold mb-2">Nenhum vídeo ainda</h3>
+             <p className="text-muted-foreground mb-6 max-w-sm">
+-              Envie seu primeiro vídeo e deixe a IA encontrar os melhores cortes para suas redes sociais.
++              {GO_MODE ? "Envie um MP4 e escolha seu primeiro trecho para exportar na homologação." : "Envie seu primeiro vídeo e deixe a IA encontrar os melhores cortes para suas redes sociais."}
+             </p>
+             <Link to="/new-project">
+               <Button className="gap-2">
+diff --git a/src/pages/NewProject.tsx b/src/pages/NewProject.tsx
+index 1a50515..5285735 100644
+--- a/src/pages/NewProject.tsx
++++ b/src/pages/NewProject.tsx
+@@ -1,3 +1,5 @@
++import { GO_MODE } from "@/lib/go-mode";
++import { goRequest } from "@/lib/go-access";
+ import { useState, useRef, useCallback, useEffect } from "react";
+ import { useNavigate, Link } from "react-router-dom";
+ import * as tus from "tus-js-client";
+@@ -79,7 +81,7 @@ export default function NewProject() {
+   const [title, setTitle] = useState("");
+   // YouTube segue como padrao porque e o caminho mais rapido de testar, nao porque as
+   // outras fontes estejam bloqueadas.
+-  const [sourceType, setSourceType] = useState<SourceType>("youtube");
++  const [sourceType, setSourceType] = useState<SourceType>(GO_MODE ? "upload" : "youtube");
+   const [sourceUrl, setSourceUrl] = useState("");
+   const [file, setFile] = useState<File | null>(null);
+   const [uploading, setUploading] = useState(false);
+@@ -95,7 +97,7 @@ export default function NewProject() {
+   const [customMinStr, setCustomMinStr] = useState("15");
+   const [customMaxStr, setCustomMaxStr] = useState("90");
+   const [formatMode, setFormatMode] = useState<"vertical" | "all">("vertical");
+-  const [resolution, setResolution] = useState<"480p" | "720p" | "1080p">("1080p");
++  const [resolution, setResolution] = useState<"480p" | "720p" | "1080p">(GO_MODE ? "720p" : "1080p");
+   const [rangeMode, setRangeMode] = useState<"full" | "range">("full");
+   const [rangeStartMin, setRangeStartMin] = useState(0);
+   const [rangeStartSec, setRangeStartSec] = useState(0);
+@@ -183,6 +185,7 @@ export default function NewProject() {
+   }, []);
+ 
+   const applySelectedFile = useCallback((selectedFile: File) => {
++    setDetectedDuration(false);
+     setFile(selectedFile);
+     if (!title) setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
+ 
+@@ -300,6 +303,22 @@ export default function NewProject() {
+       return;
+     }
+ 
++    if (GO_MODE) {
++      const range = getVideoRange();
++      const start = range?.start ?? 0;
++      const duration = range ? range.end - range.start : videoDurationSeconds;
++      if (sourceType !== "upload" || !file || file.size > 7 * 1024 * 1024 || !detectedDuration || duration < 1 || duration > 30) {
++        toast({ title: "Confira o trecho", description: "Envie um MP4 de até 7 MiB e selecione um trecho de 1 a 30 segundos. Aguarde a leitura da duração do vídeo.", variant: "destructive" }); return;
++      }
++      setUploading(true); updateProgressState("uploading-video", 10);
++      try {
++        const body = new FormData(); body.set("video", file); body.set("title", trimmedTitle); body.set("start", String(start)); body.set("duration", String(duration));
++        const result = await goRequest<{ id: string }>("/app/projects", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body });
++        toast({ title: "Vídeo enviado. O corte começou." }); navigate(`/project/${result.id}`);
++      } catch (error) { const translated = await traduzirInvoke(error); toast({ title: translated.titulo, description: umaLinha(translated), variant: "destructive" }); }
++      finally { setUploading(false); }
++      return;
++    }
+     // A validacao vive em src/lib/validacao-fonte.ts, fora do componente, porque esta tela
+     // fica atras de login com confirmacao de e-mail e nao daria para exercitar por dentro sem
+     // criar usuario em producao. Sao 21 testes la.
+@@ -437,7 +456,7 @@ export default function NewProject() {
+     <div>
+       <main className="container px-6 py-10 max-w-2xl">
+         <h1 className="text-3xl font-display font-bold mb-2">Novo vídeo</h1>
+-        <p className="text-muted-foreground mb-8">Escolha como enviar seu vídeo para análise</p>
++        <p className="text-muted-foreground mb-8">{GO_MODE ? "Envie um MP4 e escolha um trecho de até 30 segundos para corte vertical. Sem transcrição ou análise automática nesta homologação." : "Escolha como enviar seu vídeo para análise"}</p>
+ 
+         {/* Aviso de integracao faltando, ANTES do formulario.
+ 
+@@ -496,7 +515,7 @@ export default function NewProject() {
+             <div role="group" aria-label="Origem do vídeo" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+               {sources.map((s) => {
+                 const isSelected = sourceType === s.type;
+-                const disabled = s.comingSoon;
++                const disabled = s.comingSoon || (GO_MODE && s.type !== "upload");
+                 return (
+                   <button
+                     key={s.type}
+@@ -573,7 +592,7 @@ export default function NewProject() {
+                 <input
+                   ref={fileRef}
+                   type="file"
+-                  accept={EXTENSOES_ACEITAS.map((e) => "." + e).join(",")}
++                  accept={GO_MODE ? ".mp4" : EXTENSOES_ACEITAS.map((e) => "." + e).join(",")}
+                   onChange={handleFileChange}
+                   className="hidden"
+                 />
+@@ -589,13 +608,13 @@ export default function NewProject() {
+                   <>
+                     <Upload className={`h-10 w-10 mx-auto mb-3 ${dragging ? "text-primary" : "text-muted-foreground"}`} />
+                     <p className="text-sm text-muted-foreground">{dragging ? "Solte o vídeo aqui" : "Clique ou arraste um vídeo aqui"}</p>
+-                    <p className="text-xs text-muted-foreground mt-1">MP4, MOV, AVI, MKV, WebM · até 5 GB</p>
++                    <p className="text-xs text-muted-foreground mt-1">{GO_MODE ? "MP4 · até 7 MiB · trecho de 1 a 30 segundos" : "MP4, MOV, AVI, MKV, WebM · até 5 GB"}</p>
+                   </>
+                 )}
+               </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                 <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+-                <span>A extração de áudio e transcrição serão feitas automaticamente no servidor.</span>
++                <span>{GO_MODE ? "O trecho será exportado em 720 × 1280. Transcrição automática ainda não disponível." : "A extração de áudio e transcrição serão feitas automaticamente no servidor."}</span>
+               </div>
+               {saldoTranscricao && (
+                 <div
+@@ -662,6 +681,7 @@ export default function NewProject() {
+               </button>
+               <button
+                 type="button"
++                disabled={GO_MODE}
+                 aria-pressed={formatMode === "all"}
+                 onClick={() => setFormatMode("all")}
+                 className={`p-4 rounded-xl border text-left transition-all duration-200 ${
+@@ -686,6 +706,7 @@ export default function NewProject() {
+               ]).map((r) => (
+                 <button
+                   key={r.value}
++                  disabled={GO_MODE && r.value !== "720p"}
+                   type="button"
+                   aria-pressed={resolution === r.value}
+                   onClick={() => setResolution(r.value)}
+@@ -702,7 +723,7 @@ export default function NewProject() {
+             </div>
+           </div>
+ 
+-          <div className="space-y-3">
++          <div className="space-y-3" hidden={GO_MODE}>
+             <Label>Duração dos cortes</Label>
+             <div role="group" aria-label="Duração dos cortes" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+               {durationPresets.map((p) => (
+@@ -776,7 +797,7 @@ export default function NewProject() {
+           <div className="space-y-3">
+             <Label className="flex items-center gap-2">
+               <Clock className="h-4 w-4" />
+-              Trecho para análise
++              {GO_MODE ? "Trecho para corte" : "Trecho para análise"}
+             </Label>
+             <div role="group" aria-label="Trecho para análise" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+               <button
+@@ -790,7 +811,7 @@ export default function NewProject() {
+                 }`}
+               >
+                 <div className="text-sm font-medium">Vídeo inteiro</div>
+-                <div className="text-xs text-muted-foreground mt-0.5">Analisa todo o conteúdo do vídeo</div>
++                <div className="text-xs text-muted-foreground mt-0.5">{GO_MODE ? "Exporta o vídeo inteiro quando ele tem até 30 segundos" : "Analisa todo o conteúdo do vídeo"}</div>
+               </button>
+               <button
+                 type="button"
+@@ -951,9 +972,9 @@ export default function NewProject() {
+             </div>
+           )}
+ 
+-          <Button type="submit" className="w-full" disabled={uploading}>
++          <Button type="submit" className="w-full" disabled={uploading || (GO_MODE && !detectedDuration)}>
+             {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+-            Enviar e analisar
++            {GO_MODE ? "Enviar e gerar corte" : "Enviar e analisar"}
+           </Button>
+         </form>
+       </main>
+diff --git a/src/pages/ProjectDetail.tsx b/src/pages/ProjectDetail.tsx
+index f098a42..c74a4ec 100644
+--- a/src/pages/ProjectDetail.tsx
++++ b/src/pages/ProjectDetail.tsx
+@@ -1,3 +1,4 @@
++import { GO_MODE } from "@/lib/go-mode";
+ import { useEffect, useState, useCallback } from "react";
+ import { useParams, Link } from "react-router-dom";
+ import { useAuth } from "@/hooks/useAuth";
+@@ -294,7 +295,7 @@ export default function ProjectDetail() {
+           </div>
+ 
+           {project.status === "completed" && (
+-            <Button variant="outline" onClick={() => setReanalyzeOpen(true)} disabled={analyzing || isProcessing} className="gap-2">
++            <Button variant="outline" onClick={() => setReanalyzeOpen(true)} disabled={GO_MODE || analyzing || isProcessing} className="gap-2">
+               <RefreshCw className="h-4 w-4" /> Re-analisar
+             </Button>
+           )}
+@@ -351,10 +352,10 @@ export default function ProjectDetail() {
+               <TabsTrigger value="clips" className="gap-2">
+                 <Play className="h-3.5 w-3.5" /> Cortes ({clips.length})
+               </TabsTrigger>
+-              <TabsTrigger value="transcription" className="gap-2">
++              {!GO_MODE && <TabsTrigger value="transcription" className="gap-2">
+                 <FileText className="h-3.5 w-3.5" /> Transcrição
+-              </TabsTrigger>
+-              {clips.length > 0 && (
++              </TabsTrigger>}
++              {!GO_MODE && clips.length > 0 && (
+                 <Button
+                   variant="outline"
+                   size="sm"
+@@ -383,7 +384,7 @@ export default function ProjectDetail() {
+                   <Button
+                     variant="outline"
+                     onClick={() => setReanalyzeOpen(true)}
+-                    disabled={analyzing || isProcessing}
++                    disabled={GO_MODE || analyzing || isProcessing}
+                     className="mt-6 gap-2"
+                   >
+                     <RefreshCw className="h-4 w-4" /> Re-analisar
+diff --git a/src/pages/Settings.tsx b/src/pages/Settings.tsx
+index 2fe71f5..60cd0f7 100644
+--- a/src/pages/Settings.tsx
++++ b/src/pages/Settings.tsx
+@@ -1,3 +1,4 @@
++import { GO_MODE } from "@/lib/go-mode";
+ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+ import { IntegrationsTab } from "@/components/settings/IntegrationsTab";
+ import { TeamTab } from "@/components/settings/TeamTab";
+@@ -11,7 +12,7 @@ export default function Settings() {
+         <p className="text-muted-foreground mt-1">Gerencie as integrações da sua conta.</p>
+       </div>
+ 
+-      <Tabs defaultValue="integrations" className="space-y-6">
++      <Tabs defaultValue={GO_MODE ? "team" : "integrations"} className="space-y-6">
+         <TabsList>
+           <TabsTrigger value="team">Equipe</TabsTrigger>
+           <TabsTrigger value="security">Segurança</TabsTrigger>
+@@ -25,7 +26,7 @@ export default function Settings() {
+           <SecurityTab />
+         </TabsContent>
+         <TabsContent value="integrations">
+-          <IntegrationsTab />
++          {GO_MODE ? <p className="text-sm text-muted-foreground">As integrações do CLIPS atual permanecem separadas. Transcrição, análise automática e importação de links ainda não estão disponíveis nesta homologação.</p> : <IntegrationsTab />}
+         </TabsContent>
+       </Tabs>
+     </main>
+diff --git a/src/vite-env.d.ts b/src/vite-env.d.ts
+index 11f02fe..7bc5db0 100644
+--- a/src/vite-env.d.ts
++++ b/src/vite-env.d.ts
+@@ -1 +1,4 @@
+ /// <reference types="vite/client" />
++
++declare const __CLIPS_GO_AUTH_URL__: string;
++declare const __CLIPS_GO_AUTH_KEY__: string;
+diff --git a/vite.config.ts b/vite.config.ts
+index de984ce..255e95d 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -1,10 +1,21 @@
+-import { defineConfig } from "vite";
++import { defineConfig, loadEnv } from "vite";
+ import react from "@vitejs/plugin-react-swc";
+ import path from "path";
+ import { componentTagger } from "lovable-tagger";
+ 
+ // https://vitejs.dev/config/
+-export default defineConfig(({ mode }) => ({
++export default defineConfig(({ mode }) => {
++  const env = loadEnv(mode, process.cwd(), "VITE_");
++  const url = env.VITE_CLIPS_GO_AUTH_URL || "https://auytmefqnuzbktyzcled.supabase.co";
++  const key = env.VITE_CLIPS_GO_AUTH_KEY || "REPLACE_WITH_YOUR_SUPABASE_PUBLIC_KEY";
++  if (mode === "clips-go") {
++    const parsed = new URL(url);
++    const central = url === "https://auytmefqnuzbktyzcled.supabase.co";
++    const lab = process.env.CLIPS_ALLOW_LOOPBACK_AUTH === "1" && parsed.protocol === "http:" && parsed.hostname === "127.0.0.1" && parsed.pathname === "/";
++    if ((!central && !lab) || !key.startsWith("sb_publishable_")) throw new Error("Invalid CLIPS Go Auth configuration");
++  }
++  return {
++  define: { __CLIPS_GO_AUTH_URL__: JSON.stringify(url), __CLIPS_GO_AUTH_KEY__: JSON.stringify(key) },
+   server: {
+     host: "::",
+     port: 8080,
+@@ -26,4 +37,5 @@ export default defineConfig(({ mode }) => ({
+   optimizeDeps: {
+     exclude: ["@ffmpeg/ffmpeg", "@ffmpeg/core"],
+   },
+-}));
++};
++});

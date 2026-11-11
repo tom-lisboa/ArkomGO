@@ -1,0 +1,9 @@
+version: 1
+default_provider: arkom_sdk
+providers:
+  - name: arkom_sdk
+    type: http
+    base_url: http://127.0.0.1:8099/provider
+    api_key_env: ARKOM_DEMO_PROVIDER_TOKEN
+    timeout_ms: 60000
+    model: gpt-5.4-mini

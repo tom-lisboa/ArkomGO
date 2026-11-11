@@ -1,0 +1,29 @@
+/lab-data/
+**/node_modules/
+**/dist/
+**/__pycache__/
+.DS_Store
+.env
+.env.*
+*.env
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.pem
+*.key
+*.tgz
+*.zip
+/sdr-next
+
+# Delivery contains local investigations, credentials, data and release binaries.
+# Only the reviewed client sources and API contracts belong in this repository.
+/delivery/*
+!/delivery/lovable-template/
+!/delivery/platform-contract.md
+!/delivery/workers-contract.md
+!/delivery/core-contract.md
+!/delivery/whatsapp-client-contract.json
+!/delivery/build_platform_contract.py
+sdr-next

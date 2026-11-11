@@ -1,0 +1,31 @@
+flowchart TB
+    subgraph client["🖥️ Cliente — Next.js 16 App Router"]
+        aluno["(aluno)\n15 rotas · mapa, dash,\nchart, genesis, trainings"]
+        auth["(auth)\nlogin · cadastro ·\nsenha"]
+        admin["/admin\n10 rotas de gestão"]
+    end
+
+    subgraph server["⚙️ Server — API Routes + Server Components"]
+        api["/api\nauth · media · map ·\nbrain · remix · export"]
+        genapi["/genesis/api\netapa · transcrever"]
+    end
+
+    subgraph central["☁️ Supabase Central"]
+        pg[("Postgres\napp_arkom | educacional")]
+        storage["Storage\narkom-media | bilhon-media\n(buckets privados)"]
+        edge["Edge Functions\nbai_builder-llm\nbai_builder-stt"]
+        sbauth["Supabase Auth"]
+    end
+
+    llm["🤖 OpenAI / Anthropic"]
+
+    aluno --> api
+    aluno --> genapi
+    admin --> api
+    auth --> api
+    api --> pg
+    api --> storage
+    api --> sbauth
+    genapi --> edge
+    genapi --> pg
+    edge --> llm

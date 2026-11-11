@@ -1,0 +1,441 @@
+/* ============================================================
+   Peek system — ported 1:1 from the original dash (#peek / .pk*).
+   Portaled to <body>, so scoped under .peekroot with explicit
+   colors (the .dashroot vars don't reach a body portal).
+   ============================================================ */
+.peekroot {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(5, 6, 9, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  --bd: rgba(255, 255, 255, 0.07);
+  --mut: #989da9;
+  --pk-ivory: #e9e4d6;
+  --pk-ivory-2: #b9b4a6;
+  --pk-ink-3: #565a6e;
+  --pk-copper: #c58b5f;
+  --pk-bad: #ef4444;
+  --pk-good: #5eead4;
+  --ink-3: #565a6e;
+  --lnrgb: 233, 228, 214;
+}
+/* peek — LIGHT variant (Pkg9 · N4). Portaled to <body>, so the light tokens
+   key off the top-level html[data-theme=light]. White panel on a dimmed
+   light scrim; ink/copper/good/bad match the dash light palette. */
+[data-theme="light"] .peekroot {
+  background: rgba(24, 27, 34, 0.32);
+  --bd: rgba(27, 30, 38, 0.12);
+  --mut: #6b7080;
+  --pk-ivory: #1b1e26;
+  --pk-ivory-2: #4a4f5c;
+  --pk-ink-3: #9aa0b0;
+  --pk-copper: #9a6535;
+  --pk-bad: #e11d48;
+  --pk-good: #0e9384;
+  --ink-3: #9aa0b0;
+  --lnrgb: 27, 30, 38;
+}
+[data-theme="light"] .peekroot .pkpanel {
+  background: #ffffff;
+}
+[data-theme="light"] .peekroot .htrk {
+  background: rgba(27, 30, 38, 0.08);
+}
+.peekroot .pkpanel {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: #11141b;
+  border: 1px solid var(--bd);
+  border-radius: 14px;
+  padding: 22px 24px 18px;
+  color: var(--pk-ivory);
+  animation: peekin 0.22s cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+@keyframes peekin {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.peekroot .pkhead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.peekroot h4 {
+  flex: 1;
+  margin: 0;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  color: var(--pk-ivory);
+}
+.peekroot .pkx,
+.peekroot .pknav,
+.peekroot .pkback {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--bd);
+  background: none;
+  color: var(--mut);
+  font-size: 13px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.peekroot .pkx:hover,
+.peekroot .pknav:hover,
+.peekroot .pkback:hover {
+  color: var(--pk-ivory);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.peekroot .pksub {
+  font-size: 12px;
+  color: var(--mut);
+  margin: 8px 0 16px;
+  line-height: 1.5;
+}
+.peekroot .pkcrumb {
+  color: var(--mut);
+  cursor: pointer;
+}
+.peekroot .pkcrumb:hover {
+  color: var(--pk-ivory);
+}
+/* stat cards — generous scale, matching the live-app reference prints */
+.peekroot .pkstats {
+  display: grid;
+  /* Pkg9 · N3 — minmax(0,1fr) lets each of the 5 tracks shrink below its
+     content so a longer PT/label wraps inside the card instead of forcing the
+     row wider (clip). Equal-height rows come free from the grid. */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.peekroot .pkstat {
+  border: 1px solid var(--bd);
+  border-radius: 11px;
+  padding: 13px 15px;
+}
+.peekroot .pkstat .l {
+  font-size: 13px;
+  color: var(--mut);
+  /* Pkg9 · N3 — break long labels rather than overflow the narrow card. */
+  overflow-wrap: anywhere;
+}
+.peekroot .pkstat .v {
+  font-size: 23px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  margin-top: 5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--pk-ivory);
+}
+.peekroot .pkprops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  padding: 13px 15px;
+  border: 1px solid var(--bd);
+  border-radius: 11px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  color: var(--pk-ivory-2);
+}
+.peekroot .pkprop span {
+  color: var(--mut);
+  margin-right: 7px;
+  font-size: 13px;
+}
+.peekroot .pkcreative {
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  padding: 13px 15px;
+  margin-bottom: 14px;
+}
+.peekroot .pkcfmt {
+  font-size: 10.5px;
+  color: var(--mut);
+  letter-spacing: 0.04em;
+  margin-bottom: 7px;
+}
+.peekroot .pkchead {
+  font-size: 14px;
+  font-weight: 650;
+  margin-bottom: 5px;
+  color: var(--pk-ivory);
+}
+.peekroot .pkcbody {
+  font-size: 12px;
+  color: var(--pk-ivory-2);
+  line-height: 1.65;
+}
+.peekroot .pkgrid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 0;
+}
+.peekroot .psub {
+  font-size: 11.5px;
+  color: var(--mut);
+  margin-bottom: 6px;
+}
+/* hbar rows */
+.peekroot .hrow {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+.peekroot .hlbl {
+  color: var(--pk-ivory-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.peekroot .htrk {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.peekroot .hval {
+  color: var(--pk-ivory);
+  font-variant-numeric: tabular-nums;
+}
+.peekroot .spark {
+  display: block;
+}
+/* mission timeline */
+.peekroot .feedrow {
+  display: flex;
+  gap: 10px;
+  padding: 8px 2px;
+  border-top: 1px solid var(--bd);
+  font-size: 12px;
+}
+.peekroot .feedrow .ft {
+  color: var(--mut);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.peekroot .feedrow .fr {
+  color: var(--pk-copper);
+  font-size: 10.5px;
+  margin-top: 2px;
+}
+.peekroot .feedrow .fb {
+  flex: 1;
+}
+.peekroot .feedrow .blocked {
+  color: var(--pk-bad);
+  font-weight: 600;
+}
+
+/* body subhead (h4) — distinct from the 15px header title */
+.peekroot .pksubhead {
+  flex: none;
+  margin: 8px 0 4px;
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1.4;
+  color: var(--pk-ivory);
+}
+
+/* stage-probability dots (deal peek) */
+.peekroot .pdots {
+  display: flex;
+  gap: 5px;
+  margin: 10px 0 14px;
+  align-items: center;
+}
+.peekroot .pdots i {
+  width: 26px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.peekroot .pdots i.on {
+  background: var(--pk-good);
+}
+.peekroot .pdots span {
+  font-size: 11px;
+  color: var(--mut);
+  margin-left: 6px;
+}
+.peekroot .pkbars {
+  margin: 4px 0 12px;
+}
+
+/* full-width progress bar (ops peek) */
+.peekroot .pkprogress {
+  height: 6px;
+  margin: 2px 0 16px;
+}
+.peekroot .htrk .hfill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+/* signal rows inside the peek */
+.peekroot .sigrow {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 6px 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--pk-ivory-2);
+}
+.peekroot .sigrow.flush {
+  border: none;
+}
+.peekroot .sigrow .ic {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  stroke: currentColor;
+  fill: none;
+}
+.peekroot .sigrow.good .ic {
+  color: var(--pk-good);
+}
+.peekroot .sigrow.warn .ic {
+  color: var(--pk-bad);
+}
+.peekroot .sigrow.info .ic {
+  color: var(--mut);
+}
+.peekroot .sigrow b {
+  color: var(--pk-ivory);
+  font-weight: 600;
+}
+
+/* tables inside the peek (drill / line items / sequence) */
+.peekroot .tbl {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 12.5px;
+}
+.peekroot .tbl th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--mut);
+  padding: 8px 9px;
+  border-bottom: 1px solid var(--bd);
+  white-space: nowrap;
+}
+.peekroot .tbl th.num,
+.peekroot .tbl td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.peekroot .tbl td {
+  padding: 9px 9px;
+  border-bottom: 1px solid var(--bd);
+  vertical-align: top;
+  color: var(--pk-ivory);
+}
+.peekroot .tbl .tname {
+  font-weight: 600;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pk-ivory);
+}
+.peekroot .tbl .tsub {
+  font-size: 11px;
+  color: var(--mut);
+  font-weight: 400;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.peekroot .tbl tbody tr.rowlink {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+@media (hover: hover) {
+  .peekroot .tbl tbody tr.rowlink:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* chips inside the peek (sub line, sig replies, drill cells) */
+.peekroot .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid var(--bd);
+  border-radius: 999px;
+  padding: 2.5px 9px 2.5px 8px;
+  color: var(--mut);
+  white-space: nowrap;
+}
+.peekroot .chip + .chip {
+  margin-left: 5px;
+}
+.peekroot .chip::before {
+  font-size: 10px;
+}
+.peekroot .chip.active::before,
+.peekroot .chip.quality::before {
+  content: "✓";
+  color: var(--pk-good);
+}
+.peekroot .chip.learning::before {
+  content: "↻";
+  color: var(--mut);
+}
+.peekroot .chip.fatigue {
+  color: var(--pk-bad);
+  border-color: color-mix(in srgb, var(--pk-bad) 35%, transparent);
+}
+.peekroot .chip.fatigue::before {
+  content: "!";
+  color: var(--pk-bad);
+  font-weight: 700;
+}
+.peekroot .chip.qavg::before,
+.peekroot .chip.paused::before {
+  content: "";
+  margin-right: -4px;
+}
+
+/* area chart container (campaign peek) */
+.peekroot .chart {
+  margin: 6px 0 14px;
+}
+
+@media (max-width: 700px) {
+  .peekroot .pkstats,
+  .peekroot .pkgrid2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

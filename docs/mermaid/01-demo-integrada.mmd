@@ -1,0 +1,16 @@
+flowchart TB
+    Cliente[Cliente] --> Portal[Portal Arkom /demo]
+    Portal --> Proxy[Proxy local autenticado]
+    Proxy --> API[API SDR Next]
+    API --> Contexto[(Contexto e estado: SQLite)]
+    API --> W1[Worker de contexto]
+    API --> W2[Worker de execução]
+    W2 --> SDK[SDR SDK / OpenAI]
+    API --> Genesis[Ponte Genesis]
+    Genesis --> deepH[Runtime deepH]
+    deepH --> Provider[Provedor HTTP local]
+    Provider --> SDK
+    API --> CRM[CRMGO]
+    CRM --> PG[(PostgreSQL: rotas e entregas)]
+    CRM --> Clickmax[Clickmax DEV]
+    Core[Backend Core em refatoração] -. evolução do diretório e contratos .-> API

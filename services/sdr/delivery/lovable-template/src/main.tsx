@@ -1,0 +1,13 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import LabApp from './LabApp';
+import './index.css';
+import './bilhon-ds.tokens.css';
+import './bilhon-bosweb.css';
+import './bilhon-effects.css';
+import './bilhon-modernize.css';
+import './arkom-identity.css';
+import './lab.css';
+document.documentElement.dataset.theme='arkom';
+document.documentElement.classList.add('bos-scope');
+createRoot(document.getElementById('root')!).render(<React.StrictMode><LabApp/></React.StrictMode>);

@@ -1,0 +1,7 @@
+{
+  "source": "Arkon/pkg/platformaccess",
+  "files": {
+    "client.go": "2e5d1e4619777e135ab6f04cb5e4e0a194a6d763fce56121db9c2ca3952455b4",
+    "types.go": "d4ed14c12639df9a18220b176d30ffec651228eb6abe80ad77a191112552712c"
+  }
+}

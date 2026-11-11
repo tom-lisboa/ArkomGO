@@ -1,0 +1,6 @@
+flowchart TD
+    A[("builder_prompt_configs\n(por step_key)")] -->|"existe config?"| B{"cfg"}
+    B -->|sim| C["system_prompt +\nuser_prompt_template da config"]
+    B -->|não| D["Fallback padrão\nem builder.ts"]
+    C --> E["Prompt final da etapa"]
+    D --> E

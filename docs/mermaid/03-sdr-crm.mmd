@@ -1,0 +1,22 @@
+sequenceDiagram
+    actor Cliente
+    participant Portal as Portal Arkom
+    participant SDR as API e workers SDR
+    participant Outbox as Outbox do SDR
+    participant CRM as CRMGO
+    participant DB as PostgreSQL
+    participant Clickmax as Clickmax DEV
+    Cliente->>Portal: Seleciona contato e inicia conversa de teste
+    Portal->>SDR: Mensagem com sessão autenticada
+    SDR->>SDR: Atualiza memória e qualifica contato vinculado
+    SDR->>Outbox: Grava evento com identidade estável
+    Outbox->>CRM: Evento de oportunidade qualificada
+    CRM->>DB: Resolve rota e registra entrega
+    CRM-->>Outbox: 202 recebido
+    CRM->>Clickmax: Cria card no destino configurado
+    Clickmax-->>CRM: ID do card
+    CRM->>DB: Registra done e ID do card
+    Portal->>SDR: Consulta CRM
+    SDR->>CRM: Consulta autorizada pela organização
+    CRM->>Clickmax: Lista oportunidades
+    Clickmax-->>Portal: Resultado via CRMGO e API SDR

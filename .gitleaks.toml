@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Explicit documentation placeholders, never real credentials"
+regexTarget = "secret"
+regexes = ['''^SEU_ACCESS_TOKEN$''', '''^fc_sua_chave_aqui$''', '''^REPLACE_WITH_YOUR_SUPABASE_PUBLIC_KEY$''', '''^example-idempotency-key$''', '''^sk-abc123xyz$''']

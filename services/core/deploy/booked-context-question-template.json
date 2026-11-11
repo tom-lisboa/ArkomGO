@@ -1,0 +1,10 @@
+{
+  "friendly_name": "arkom_contexto_pergunta_v2",
+  "language": "pt_BR",
+  "variables": {},
+  "types": {
+    "twilio/text": {
+      "body": "Vamos avaliar onde a IA pode ajudar na sua empresa.\n\nQual rotina vamos priorizar nessa reunião: atendimento, vendas ou operação?"
+    }
+  }
+}

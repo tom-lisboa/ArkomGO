@@ -1,0 +1,16 @@
+flowchart TD
+    subgraph central["Supabase Central"]
+        APP[("app_arkom\n(schema demo dedicado)")]
+        EDU[("educacional\n(dados reais bilhon-ai\n+ tabelas do builder)")]
+        CORE[("core")]
+        AUTH["Supabase Auth"]
+        ST1["Storage: arkom-media\n(privado)"]
+        ST2["Storage: bilhon-media\n(privado)"]
+    end
+
+    RT["Runtime Arkom\n(ARKOM_DATABASE_URL)"] --> APP
+    RT -.->|"modo educacional"| EDU
+    GEN["Genesis\n(EDUCACIONAL_DATABASE_URL)"] --> EDU
+    RT --> AUTH
+    RT --> ST1
+    RT -.->|"modo educacional"| ST2

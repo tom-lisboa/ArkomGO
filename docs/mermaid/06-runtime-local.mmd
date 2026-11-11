@@ -1,0 +1,13 @@
+flowchart LR
+    Navegador[Navegador] --> Portal[Next.js 127.0.0.1:3007]
+    Portal --> API[SDR API 127.0.0.1:8080]
+    API --> Listener[API workers 127.0.0.1:8081]
+    Contexto[Worker contexto] --> Listener
+    Execucao[Worker execução] --> Listener
+    API --> CRM[CRMGO 127.0.0.1:8098]
+    CRM --> DB[(PostgreSQL DEV)]
+    CRM --> Clickmax[Clickmax DEV externo]
+    API --> deepH[Processo deepH]
+    deepH --> Provider[Provedor 127.0.0.1:8099]
+    Provider --> OpenAI[OpenAI externo]
+    Execucao --> OpenAI

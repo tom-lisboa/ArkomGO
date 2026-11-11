@@ -1,0 +1,5 @@
+flowchart LR
+    C[Cliente de teste] -->|Cria pedido e consulta estado| A[API Go]
+    A --> P[(Postgres local)]
+    W[Workers Go] -->|Reserva tarefa e registra resultado| P
+    W --> S[Simulador ou worker CLIPS local]

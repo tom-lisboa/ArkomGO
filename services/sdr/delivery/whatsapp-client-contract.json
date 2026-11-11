@@ -1,0 +1,72 @@
+{
+  "version": "0.8-whatsapp-text-test",
+  "authentication": "Sessão autenticada; empresa resolvida no servidor",
+  "paths": {
+    "GET /v1/sdr/whatsapp": {
+      "role": "viewer, operator, admin",
+      "response_fields": [
+        "status",
+        "provisioning",
+        "qr_data_url",
+        "pairing_code",
+        "expires_at",
+        "operation_id",
+        "operation_status",
+        "error"
+      ],
+      "note": "viewer recebe apenas estado; QR/código ocultos. Expirados nunca retornam ao navegador."
+    },
+    "POST /v1/sdr/whatsapp/connect": {
+      "role": "operator/admin",
+      "headers": [
+        "Authorization",
+        "Idempotency-Key"
+      ],
+      "body": {
+        "method": "qr | phone | disconnect",
+        "phone": "somente method=phone; DDI+DDD+número"
+      },
+      "accepted": 202,
+      "conflicts": [
+        "idempotency_conflict",
+        "connection_busy"
+      ],
+      "limit": "6 tentativas por empresa/minuto"
+    },
+    "GET /v1/sdr/whatsapp/messaging": {
+      "role": "viewer, operator, admin",
+      "fields": [
+        "enabled",
+        "revision",
+        "test_phones",
+        "synced",
+        "last_sync",
+        "error_code"
+      ],
+      "default_enabled": false
+    },
+    "POST /v1/sdr/whatsapp/messaging": {
+      "role": "admin",
+      "headers": [
+        "Authorization",
+        "Idempotency-Key"
+      ],
+      "body": {
+        "enabled": "boolean",
+        "test_phones": "até 3 números com DDI+DDD",
+        "expected_revision": "revisão atual",
+        "reason": "motivo"
+      },
+      "requires_connected_to_enable": true
+    }
+  },
+  "provisioning": "Automático após acesso autenticado; canal exclusivo; nenhuma chave no Remix",
+  "limitations": [
+    "Confirmação do WhatsApp no celular necessária",
+    "Até 3 contatos de teste autorizados por empresa",
+    "Somente mensagens diretas novas de texto; sem grupos, áudios, anexos ou histórico anterior",
+    "Resposta no aplicativo WhatsApp do celular não assume automaticamente o atendimento no SDR",
+    "Envios já autorizados podem concluir após pausa; não confirmados não são repetidos automaticamente",
+    "Identidade/compra de novos clientes ainda não integrada à plataforma Arkom"
+  ]
+}

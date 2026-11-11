@@ -1,0 +1,12 @@
+flowchart LR
+    UI[Interface oficial ARKOM] --> API[CLIPS Go]
+    API --> DB[(PostgreSQL de homologação)]
+    DB --> W[Worker Go e FFmpeg]
+    W --> TX[MP4 e evento na mesma transação]
+    TX --> BUS[API de eventos por organização]
+    BUS --> SOCIAL[Conector SOCIAL: cópia do corte em rascunho]
+    BUS --> FIN[Conector Finance: metadados recebidos]
+    BUS --> BIA[Conector BIA SDR: metadados recebidos]
+    SOCIAL --> INBOX[(Caixas de integração persistentes)]
+    FIN --> INBOX
+    BIA --> INBOX

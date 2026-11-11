@@ -1,0 +1,24 @@
+flowchart TD
+    A["Cliente pede horário, remarcação ou cancelamento"]
+    A --> B{"Ação pedida"}
+    B -->|Agendar ou remarcar| C["Consulta vagas reais e oferece até duas opções no WhatsApp"]
+    B -->|Cancelar| D["Localiza e confere a reserva ativa no ClickMax"]
+    C --> E["Cliente escolhe e o worker revalida a vaga"]
+    E --> F{"Vaga continua livre?"}
+    F -->|Não| C
+    F -->|Sim| G["Grava a operação no PostgreSQL"]
+    G --> H{"Já havia reserva para remarcar?"}
+    H -->|Não| I["Cria no ClickMax e recebe o vendedor do rodízio"]
+    H -->|Sim| J["Atualiza a mesma reserva no ClickMax"]
+    D --> K["Pede cancelamento e verifica o estado cancelado"]
+    I --> L{"Resultado verificável?"}
+    J --> L
+    K -->|Cancelamento verificado| M
+    K -->|Resultado incerto| O
+    L -->|Sim| M["Atualiza reserva e filas no PostgreSQL"]
+    L -->|Incerto| N["Consulta o ClickMax antes de repetir qualquer operação"]
+    N -->|Resultado encontrado| M
+    N -->|Permanece incerto| O["Operação vai para revisão"]
+    M --> P{"Reserva continua ativa?"}
+    P -->|Sim| Q["Envia confirmação ou remarcação e recalcula lembretes"]
+    P -->|Não| R["Encerra lembretes da reserva cancelada"]

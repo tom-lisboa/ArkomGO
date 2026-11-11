@@ -1,0 +1,49 @@
+---
+title: "i18n e Tema"
+description: "Dicionário EN/PT type-safe sem lib externa e temas claro/escuro com anti-flash"
+---
+
+## i18n próprio
+
+O Arkom não usa lib de i18n: o dicionário EN⇄PT vive em `src/lib/i18n/` e é **type-safe por construção** — chaves inexistentes quebram o `tsc`.
+
+| Regra | Valor |
+|-------|-------|
+| Idioma padrão | Português (o app nasce em PT) |
+| Toggle | EN⇄PT na barra lateral |
+| Persistência | `localStorage` |
+| Conteúdo PT | `src/lib/content-pt.ts` · `src/lib/playbook-pt.ts` |
+
+## Tema claro/escuro
+
+| Mecanismo | Detalhe |
+|-----------|---------|
+| Aplicação | `html[data-theme]` |
+| Anti-flash | Script inline no `<head>` aplica o tema antes do primeiro paint |
+| Persistência local | `localStorage` |
+| Persistência no banco | Preferência por usuário — migration `0005-user-theme-preference.sql` |
+| Provider | `src/lib/theme.tsx` |
+
+## Design tokens
+
+Tokens em **oklch** no Tailwind v4 (`globals.css`), prefixo `--st-*` (steel):
+
+| Grupo | Tokens |
+|-------|--------|
+| Superfícies | `--st-bg`, `--st-card`, `--st-card-2` |
+| Texto | `--st-ivory`, `--st-ink-2`, `--st-ink-3` |
+| Linhas | `--st-line`, `--st-line-2`, `--st-sidebar-line` |
+| Marca | `--st-copper`, `--st-copper-ink`, `--st-copper-soft`, `--st-copper-line` |
+| Logo | `--arkom-ink` (light `#191919` · dark `#FAFAF7`), `--arkom-gold` (light `#B9915B` · dark `#DCC279`) |
+
+## Tipografia
+
+| Uso | Fonte | Token |
+|-----|-------|-------|
+| Display (títulos do mapa) | Marcellus | `--font-display` |
+| Corpo | Plus Jakarta Sans | `--font-sans` |
+| Mono | Geist Mono | `--font-mono` |
+
+<Note>
+  A marca (`BRAND`, `DOMAIN`, `INSTALL_CMD`) vive em **um único lugar**: `src/lib/brand.ts`. Para re-brandear os dados que embutem o domínio como texto literal, o próprio arquivo documenta o procedimento (swap repo-wide + atualizar o arquivo).
+</Note>

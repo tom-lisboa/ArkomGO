@@ -1,0 +1,27 @@
+flowchart LR
+  API[API de entrada] --> IN[(Inbox Postgres)]
+  IN --> C[Worker de contexto]
+  C <--> R[(Redis: buffer e prazo)]
+  C <--> PG[(Postgres: histórico e response IDs)]
+  C -->|media.request| M[Worker de mídia]
+  M -->|media.completed| C
+  C -->|janela pronta / Run| E[Worker de execução]
+  E --> D[Decisions: leitura do turno]
+  D --> A{Coordenador Go}
+  A --> SDR[Conexão e persuasão]
+  A --> OBJ[Objeções]
+  A --> ATT[Comparecimento]
+  A --> AG[Agendamento]
+  A --> REC[Recuperação de ausência]
+  E -->|book / cancel| S[Worker de agendamento]
+  S -->|reserva, remarcação, cancelamento| CAL[(Agenda)]
+  E -->|retomada programada| F[Worker de follow-up]
+  S -->|lembretes e recuperação| F
+  F -->|delivery.completed| C
+  S -->|delivery.completed| C
+  E -->|run.completed e delivery.completed| C
+  API -->|intenção de chamada| V[Worker de voz]
+  V <--> WA[WhatsApp Calling / Twilio]
+  V <--> RT[OpenAI Realtime]
+  V -->|consulta e nota de reunião| S
+  V -->|voice.transcript| C

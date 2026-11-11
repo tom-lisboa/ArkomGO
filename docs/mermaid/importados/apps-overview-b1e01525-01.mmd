@@ -1,0 +1,12 @@
+sequenceDiagram
+    participant C as Cliente
+    participant R as Route Handler
+    participant S as Sessão (HMAC)
+    participant PG as Postgres
+
+    C->>R: request + cookie arkom_session
+    R->>S: valida assinatura + versão de sessão
+    S-->>R: usuário resolvido
+    R->>PG: query no schema do runtime
+    PG-->>R: dados
+    R-->>C: resposta JSON
