@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+
 import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:arkom_genesis/main.dart';
 import 'package:arkom_genesis/studio_controller.dart';
@@ -21,8 +23,7 @@ StudioController fixture() {
     'files': {
       'DESIGN.md':
           '# Oportunidades de leilão\n\nDomínio com isolamento por empresa.',
-      'backend/lots.go':
-          'package auction\n\n// Cada empresa acompanha seus próprios lotes.\ntype Lot struct {\n    ID string\n    OrganizationID string\n    Title string\n}\n',
+      'backend/lots.go': 'package auction\n\n// Cada empresa acompanha seus próprios lotes.\ntype Lot struct {\n    ID string\n    OrganizationID string\n    Title string\n}\n',
     },
     'traces': [
       {
@@ -60,8 +61,7 @@ StudioController fixture() {
         'agent': 'backend',
         'summary': 'Criou o modelo de lotes com isolamento por empresa.',
         'path': 'backend/lots.go',
-        'after':
-            'package auction\n\ntype Lot struct {\n    ID string\n    OrganizationID string\n    Title string\n}\n',
+        'after': 'package auction\n\ntype Lot struct {\n    ID string\n    OrganizationID string\n    Title string\n}\n',
         'at': '2026-11-11T21:18:15Z',
       },
     ],
@@ -106,6 +106,48 @@ void main() {
     expect(c.traces.length, 6);
     expect(c.files['backend/lots.go'], 'package revised');
   });
+  for (final width in [1280.0, 390.0]) {
+    testWidgets(
+      'completed solution exposes interactive preview at width $width',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 1100);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final c = fixture();
+        await tester.pumpWidget(GenesisApp(controller: c));
+        await tester.pump();
+        c.accept({
+          'type': 'update',
+          'build': {...c.build!, 'status': 'ready', 'sequence': 6},
+          'traces': [
+            {
+              'sequence': 6,
+              'kind': 'file.written',
+              'path': 'frontend/index.html',
+              'after': '<h1>Calculadora</h1>',
+              'agent': 'interface',
+              'summary': 'Interface criada',
+              'at': '2026-11-11T21:18:20Z',
+            },
+          ],
+        });
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(
+          find.text('Veja e experimente o que você criou.'),
+          findsOneWidget,
+        );
+        expect(find.text('Prévia interativa da solução'), findsOneWidget);
+        await tester.tap(find.text('Recolher prévia'));
+        await tester.pump();
+        expect(find.text('Abrir minha solução'), findsOneWidget);
+        expect(find.text('Prévia interativa da solução'), findsNothing);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        c.dispose();
+      },
+    );
+  }
   for (final width in [1280.0, 900.0, 390.0]) {
     testWidgets('studio at width $width renders and updates live', (
       tester,

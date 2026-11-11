@@ -27,6 +27,7 @@ async function stream(id,generation){
 function receive(event){if(event.origin!==global.location.origin||event.source!==global.parent||event.data?.type!=='arkom.genesis.session')return;const next=event.data.session;if(!next?.access_token||!next?.identity)return;if(session?.access_token===next.access_token)return;stop();selected='';cursor=0;session=next;clearTimeout(handshake);emit('session',{identity:session.identity});}
 global.addEventListener('message',receive);
 global.genesisBridge={
+ createPreview(files){return global.genesisPreview.createPreview(JSON.parse(files));},
  connect(cb){callback=cb;disposed=false;const ready=()=>{if(disposed)return;global.parent.postMessage({type:'arkom.genesis.ready'},global.location.origin);if(!session)handshake=setTimeout(ready,1000);};ready();if(session)emit('session',{identity:session.identity});},
  disconnect(){disposed=true;stop();clearTimeout(handshake);session=null;callback=null;},
  async invoke(action,payload){const data=JSON.parse(payload||'{}');

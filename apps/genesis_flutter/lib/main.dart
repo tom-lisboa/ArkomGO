@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'studio_controller.dart';
 import 'visuals.dart';
+import 'solution_preview.dart';
 
 void main() => runApp(const GenesisApp());
 
@@ -54,6 +55,8 @@ class _StudioState extends State<Studio> with SingleTickerProviderStateMixin {
   final feedScroll = ScrollController();
   int view = 0;
   bool follow = true;
+  bool showSolution = true;
+  int previewRevision = 0;
   Map<String, dynamic>? selectedEvent;
   int lastCount = 0;
   String lastBuild = "";
@@ -83,6 +86,7 @@ class _StudioState extends State<Studio> with SingleTickerProviderStateMixin {
     if (!mounted) return;
     if (lastBuild != model.id) {
       lastBuild = model.id;
+      showSolution = true;
       selectedEvent = null;
       view = 0;
     }
@@ -217,6 +221,10 @@ class _StudioState extends State<Studio> with SingleTickerProviderStateMixin {
                 const SizedBox(height: 32),
                 hero(compact),
                 const SizedBox(height: 26),
+                if (model.files.containsKey('frontend/index.html')) ...[
+                  solution(compact),
+                  const SizedBox(height: 24),
+                ],
                 if (model.error.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
@@ -279,6 +287,79 @@ class _StudioState extends State<Studio> with SingleTickerProviderStateMixin {
       },
     ),
   );
+  Widget solution(bool compact) => box(
+    Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 16,
+          runSpacing: 12,
+          alignment: WrapAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                text('SUA SOLUÇÃO', size: 9, color: gold, spacing: 2),
+                const SizedBox(height: 7),
+                text(
+                  'Veja e experimente o que você criou.',
+                  size: compact ? 19 : 23,
+                ),
+                const SizedBox(height: 6),
+                text(
+                  model.running
+                      ? 'Prévia em construção. Atualize para ver novos arquivos.'
+                      : 'A interface está pronta para você experimentar.',
+                  size: 11,
+                  color: muted,
+                ),
+              ],
+            ),
+            Wrap(
+              spacing: 8,
+              children: [
+                button(
+                  showSolution ? 'Recolher prévia' : 'Abrir minha solução',
+                  showSolution ? Icons.expand_less : Icons.play_arrow,
+                  () => setState(() => showSolution = !showSolution),
+                  primary: !showSolution,
+                ),
+                if (showSolution)
+                  button(
+                    'Atualizar prévia',
+                    Icons.refresh,
+                    () => setState(() => previewRevision++),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        if (showSolution) ...[
+          const SizedBox(height: 18),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: compact ? 620 : 660,
+              width: double.infinity,
+              child: SolutionPreview(
+                key: ValueKey(
+                  '${model.id}-$previewRevision-${model.build?['status']}',
+                ),
+                files: Map.of(model.files),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          text(
+            'Prévia interativa local. Serviços do backend e integrações externas ainda não estão conectados aqui.',
+            size: 10,
+            color: muted,
+          ),
+        ],
+      ],
+    ),
+  );
+
   Widget topbar(bool compact) => Row(
     children: [
       Container(
