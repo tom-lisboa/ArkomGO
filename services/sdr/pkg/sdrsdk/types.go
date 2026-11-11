@@ -47,6 +47,7 @@ type Fact struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 type Candidate struct {
+	QualificationFields []string         `json:"qualification_fields,omitempty"`
 	Calendar            json.RawMessage  `json:"calendar,omitempty"`
 	Organization        string           `json:"organization_id"`
 	Conversation        string           `json:"conversation_id"`
@@ -75,6 +76,7 @@ func BuildContext(in Candidate, p Policy) (Prepared, error) {
 	c.InputIDs = slices.Clone(in.InputIDs)
 	c.Business = slices.Clone(in.Business)
 	c.Calendar = slices.Clone(in.Calendar)
+	c.QualificationFields = slices.Clone(in.QualificationFields)
 	if in.Organization == "" || in.Conversation == "" || len(in.InputIDs) == 0 || !json.Valid(in.Business) {
 		return Prepared{}, errors.New("invalid_context_candidate")
 	}

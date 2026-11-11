@@ -1,0 +1,40 @@
+name: Agent foundation
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: [services/sdr, packages/deeph]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: |
+            services/sdr/go.sum
+            packages/deeph/go.sum
+      - run: go test ./...
+        working-directory: ${{ matrix.module }}
+  portal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: apps/portal
+      - run: npx next typegen && npx tsc --noEmit && node --test scripts/test-demo-session.cjs scripts/test-demo-proxy.cjs
+        working-directory: apps/portal
+  diagrams:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: python3 scripts/catalog_mermaid.py && npm run diagrams:check
