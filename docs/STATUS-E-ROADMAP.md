@@ -8,18 +8,23 @@
 | CRMGO e oportunidade no Clickmax DEV | Exercitado com integração real |
 | Planejamento Genesis com quatro agentes deepH | Exercitado com inferência real |
 | Alterar critérios de qualificação SDR/CRM por Genesis | Implementado: contrato, artefato Go testado, prévia, aprovação, versão e restauração |
-| Construir e publicar aplicações inteiras pelo Genesis | Ainda não implementado |
+| Gerar código Go e interface web por agentes, com traces | Implementado no estúdio de construção; testes isolados e exportação |
+| Publicar e operar aplicações novas dentro da Arkom | Ainda não implementado |
 | Catálogo operacional das 23 soluções | Ainda não integrado por completo |
 | Remix automático para a conta Lovable do cliente | Ainda não implementado |
 | Provisionamento comercial multiempresa de ponta a ponta | Ainda não concluído |
+
+## Prioridade definida
+
+Neste momento, evoluir backend Go, deepH, contratos e execução. Quando a etapa de interface começar, migrar o frontend completo para Flutter. A demo web existente permanece como instrumento de validação. A migração ainda não começou.
 
 ## Entregas incrementais
 
 1. Consolidar componentes compartilhados, sessão e contexto entre portal, SDR e CRM. Revisar desktop e celular.
 2. Expandir a primeira mudança executável de qualificação para outras capacidades, mantendo prévia, aprovação, testes e versões recuperáveis.
-3. Ampliar o painel com atividade real dos agentes, fila completa de aprovações e resultado de cada ação. O resumo atual mostra disponibilidade de IA, funis e aprovações nas 30 execuções mais recentes.
+3. Evoluir os traces de construção já implementados com critérios independentes de aceitação e fila de aprovações. O resumo atual mostra disponibilidade de IA, funis e aprovações nas 30 execuções mais recentes.
 4. Implantar diretório de capacidades das 23 soluções, com contratos e permissões versionados e instalação por empresa.
-5. Construir novas aplicações em ambientes isolados usando essas capacidades, com testes e publicação controlada.
+5. Ligar o código produzido no estúdio a persistência, adaptadores das soluções e prévia executável, com publicação controlada.
 6. Entregar Remix e personalização mantendo os mesmos contratos de backend e os limites de cada cliente.
 
 Critério do produto: o cliente deve conseguir criar, usar e pedir mudanças em linguagem comum. A plataforma traduz isso em operações rastreáveis, sem exigir que ele administre código, infraestrutura ou credenciais.

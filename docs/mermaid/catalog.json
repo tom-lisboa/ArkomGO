@@ -1,5 +1,10 @@
 [
   {
+    "source": "docs/mermaid/08-genesis-construcao-traces.mmd",
+    "diagram": "docs/mermaid/08-genesis-construcao-traces.mmd",
+    "block": 1
+  },
+  {
     "source": "docs/mermaid/07-genesis-alteracao-go.mmd",
     "diagram": "docs/mermaid/07-genesis-alteracao-go.mmd",
     "block": 1
