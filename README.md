@@ -2,10 +2,11 @@
 
 Plataforma agêntica da Arkom: o cliente descreve o que precisa, trabalha com agentes e ferramentas dentro da plataforma e acompanha as decisões com o contexto da sua empresa.
 
-Este repositório reúne o **estado de desenvolvimento de 11/11/2026** do portal, SDR, CRM, deepH e backend em refatoração. A demo executa atendimento com IA e integra o CRM ao Clickmax de desenvolvimento. O Genesis coordena quatro agentes e já prepara alterações limitadas de qualificação SDR/CRM: gera e testa um artefato Go, oferece uma prévia e publica a regra no motor existente após aprovação. Construção de aplicações inteiras ainda está no roteiro.
+Este repositório reúne o **estado de desenvolvimento de 11/11/2026** do portal, SDR, CRM, deepH e backend em refatoração. A demo executa atendimento com IA e integra o CRM ao Clickmax de desenvolvimento. O Genesis coordena quatro agentes e já prepara alterações limitadas de qualificação SDR/CRM: gera e testa um artefato Go, oferece uma prévia e publica a regra no motor existente após aprovação. O estúdio de construção agora também coordena escrita de código Go e interface web, testes isolados e traces persistidos. Implantação e integração automática das aplicações geradas ainda estão no roteiro.
 
 ## Comece por aqui
 
+- [Estúdio de construção: código, Gophers e traces](docs/GENESIS-CONSTRUCAO.md)
 - [Primeira etapa agêntica: regra SDR/CRM em Go](docs/GENESIS-ETAPA-1.md)
 - [Estrutura e responsabilidades](docs/ARQUITETURA.md)
 - [Como preparar e executar a demo](docs/EXECUTAR.md)
