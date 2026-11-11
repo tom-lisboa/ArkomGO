@@ -23,7 +23,7 @@ O pacote `platform` fornece `Tenant`, `Lead` e uma interface de consulta ao CRM.
 
 A API autenticada fica em `/v1/sdr/genesis-demo/construction`, atrás dos controles da demo local. Listagem, consulta, exportação e continuação são restritas à empresa da sessão; o perfil de leitura não cria nem interrompe construções.
 
-Cada escrita persiste junto com seu trace, incluindo conteúdo anterior e novo, no SQLite existente. A interface consulta os eventos por cursor e mostra código, alterações e saída dos testes. Os resumos dos agentes descrevem ações; não representam raciocínio privado nem evidência de que uma operação externa ocorreu.
+Cada escrita persiste junto com seu trace, incluindo conteúdo anterior e novo, no SQLite existente. O estúdio Flutter recebe eventos por uma conexão SSE autenticada, retoma pelo cursor e mostra código, alterações e saída dos testes. O endpoint de consulta permanece para compatibilidade. Os resumos dos agentes descrevem ações; não representam raciocínio privado nem evidência de que uma operação externa ocorreu.
 
 Falha transitória do provedor admite uma nova tentativa por etapa, registrada nos traces; não há repetição automática ilimitada.
 
@@ -52,4 +52,4 @@ Diagrama editável: [construção, testes e traces](mermaid/08-genesis-construca
 - Cancelamento real pela API e continuação em outro projeto a partir dos oito arquivos preservados. A nova construção completou o backend, interface demonstrativa e revisão.
 - Revisão visual interativa pendente: acesso ao navegador desativado no aplicativo. HTTP 200 e compilação não comprovam a experiência visual.
 
-Próxima direção: backend primeiro; o frontend definitivo será Flutter, conforme [decisão arquitetural](ARQUITETURA.md#direção-do-frontend-flutter). Esta entrega conserva a interface de validação construída antes dessa decisão.
+Próxima direção: backend primeiro; o frontend definitivo será Flutter, conforme [decisão arquitetural](ARQUITETURA.md#direção-do-frontend-flutter). O estúdio foi posteriormente migrado para Flutter Web; a migração das demais telas permanece pendente. Veja [o app Flutter](../apps/genesis_flutter/README.md).

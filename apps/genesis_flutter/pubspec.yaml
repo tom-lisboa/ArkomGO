@@ -1,0 +1,29 @@
+name: arkom_genesis
+publish_to: none
+description: Genesis Flutter studio for the Arkom agent platform.
+version: 0.1.0+1
+environment:
+  sdk: '>=3.13.0 <4.0.0'
+  flutter: '>=3.50.0'
+dependencies:
+  material_ui: 1.11.0
+  flutter:
+    sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: ArkomSans
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Roboto-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
+    - family: ArkomMono
+      fonts:
+        - asset: assets/fonts/RobotoMono-Regular.ttf

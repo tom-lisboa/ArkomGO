@@ -2,6 +2,7 @@
 
 | Capacidade | Estado |
 | --- | --- |
+| Genesis Flutter com Gophers e traces via SSE | Implementado no portal de demonstração; demais telas ainda em React |
 | Portal com visual Arkom e navegação por ferramentas | Implementado na demo local |
 | Sessão compartilhada, CRM e SDR no portal | Implementado; verificação visual interativa pendente |
 | Atendimento com IA e workers separados | Exercitado com dados fictícios |
@@ -16,7 +17,7 @@
 
 ## Prioridade definida
 
-Neste momento, evoluir backend Go, deepH, contratos e execução. Quando a etapa de interface começar, migrar o frontend completo para Flutter. A demo web existente permanece como instrumento de validação. A migração ainda não começou.
+Neste momento, evoluir backend Go, deepH, contratos e execução. Quando a etapa de interface começar, migrar o frontend completo para Flutter. A demo web existente permanece como instrumento de validação. A migração começou pelo estúdio Genesis a pedido do usuário; demais telas ainda pendentes.
 
 ## Entregas incrementais
 

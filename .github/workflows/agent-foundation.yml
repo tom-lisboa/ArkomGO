@@ -38,3 +38,17 @@ jobs:
           node-version: '24'
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: python3 scripts/catalog_mermaid.py && npm run diagrams:check
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: git clone --depth 1 --branch 3.50.0 https://github.com/flutter/flutter.git /tmp/flutter-sdk
+      - run: echo "/tmp/flutter-sdk/bin" >> "$GITHUB_PATH"
+      - run: flutter --disable-analytics
+      - run: flutter pub get && flutter analyze && flutter test
+        working-directory: apps/genesis_flutter
+      - run: node --test apps/genesis_flutter/test/bridge.test.cjs
+      - run: python3 scripts/build-genesis-flutter.py
