@@ -1,0 +1,20 @@
+flowchart TD
+    Pedido[Pedido do cliente] --> Catalogo[Catálogo Arkom versionado]
+    Catalogo --> Time[deepH: contexto, SDR, CRM e revisor]
+    Time --> JSON[Especificação estruturada]
+    JSON --> Contrato{Go, Arkom e capacidades existentes?}
+    Contrato -->|Não| Recusar[Explicar limite; não aplicar]
+    Contrato -->|Sim| Gerar[Gerar artefato Go pelo template]
+    Gerar --> Testar[Compilar e executar testes]
+    Testar -->|Falha| Recusar
+    Testar -->|Sucesso| Proposta[(Proposta durável por empresa)]
+    Proposta --> Previa[Simular dados fictícios sem efeitos]
+    Previa --> Aprovar[Administrador aprova a versão]
+    Aprovar --> Atual{Versão de origem ainda atual?}
+    Atual -->|Não| Refazer[Preparar nova proposta]
+    Atual -->|Sim| Publicar[Publicar regra no motor Go existente]
+    Publicar --> SDR[SDR coleta os dados exigidos]
+    SDR --> Qualificado{Todos os fatos presentes e válidos?}
+    Qualificado -->|Sim| Outbox[Outbox existente para CRMGO]
+    Qualificado -->|Não| Aguardar[Aguardar mais informações]
+    Publicar --> Restaurar[Restaurar critérios anteriores com nova versão]

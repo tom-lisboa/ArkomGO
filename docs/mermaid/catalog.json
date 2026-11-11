@@ -1,5 +1,10 @@
 [
   {
+    "source": "docs/mermaid/07-genesis-alteracao-go.mmd",
+    "diagram": "docs/mermaid/07-genesis-alteracao-go.mmd",
+    "block": 1
+  },
+  {
     "source": "docs/mermaid/06-runtime-local.mmd",
     "diagram": "docs/mermaid/06-runtime-local.mmd",
     "block": 1

@@ -196,7 +196,7 @@ func (a *App) rawCandidate(c *Conversation, w *ContextWindow) (sdrsdk.Candidate,
 	for _, k := range keys {
 		memory = append(memory, a.state.Pipeline.Memory[c.ID][k])
 	}
-	return sdrsdk.Candidate{Organization: c.Org, Conversation: c.ID, Generation: a.state.Generation[c.ID], InputVersion: c.InputVersion, BusinessVersion: b.Version, BusinessFingerprint: b.Fingerprint, Business: raw, Calendar: a.calendarContext(c), InputIDs: slices.Clone(w.InputIDs), History: history, Memory: memory, At: a.now().UTC()}, true
+	return sdrsdk.Candidate{QualificationFields: slices.Clone(a.qualification(c.Org).Spec.RequiredFields), Organization: c.Org, Conversation: c.ID, Generation: a.state.Generation[c.ID], InputVersion: c.InputVersion, BusinessVersion: b.Version, BusinessFingerprint: b.Fingerprint, Business: raw, Calendar: a.calendarContext(c), InputIDs: slices.Clone(w.InputIDs), History: history, Memory: memory, At: a.now().UTC()}, true
 }
 func (a *App) privateWorkers() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

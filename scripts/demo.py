@@ -28,6 +28,7 @@ if crm:
 ports=[3007,8080,8081,8099]+([8098] if crm else [])
 for port in ports:
  with socket.socket() as check:
+  check.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
   try:check.bind(('127.0.0.1',port))
   except OSError:sys.exit(f'Porta {port} ocupada. Encerre a demo anterior antes de iniciar outra.')
 for name in ['bia','deeph']+(['crm'] if crm else []):

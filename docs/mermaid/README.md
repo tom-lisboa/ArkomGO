@@ -1,6 +1,6 @@
 # Diagramas Mermaid
 
-65 diagramas indexados. As fontes anteriores são preservadas; blocos em Markdown também recebem uma cópia `.mmd` editável em `importados/`.
+66 diagramas indexados. As fontes anteriores são preservadas; blocos em Markdown também recebem uma cópia `.mmd` editável em `importados/`.
 
 Os diagramas herdados podem representar propostas ou versões anteriores. Consulte a origem e [o estado atual](../STATUS-E-ROADMAP.md) antes de tratá-los como descrição da demo.
 
@@ -8,6 +8,7 @@ Para atualizar: `python3 scripts/catalog_mermaid.py`.
 
 | Diagrama editável | Documento de origem |
 | --- | --- |
+| [07-genesis-alteracao-go.mmd](../../docs/mermaid/07-genesis-alteracao-go.mmd) | [docs/mermaid/07-genesis-alteracao-go.mmd — bloco 1](../../docs/mermaid/07-genesis-alteracao-go.mmd) |
 | [06-runtime-local.mmd](../../docs/mermaid/06-runtime-local.mmd) | [docs/mermaid/06-runtime-local.mmd — bloco 1](../../docs/mermaid/06-runtime-local.mmd) |
 | [05-jornada-produto-proposta.mmd](../../docs/mermaid/05-jornada-produto-proposta.mmd) | [docs/mermaid/05-jornada-produto-proposta.mmd — bloco 1](../../docs/mermaid/05-jornada-produto-proposta.mmd) |
 | [04-autonomia-proposta.mmd](../../docs/mermaid/04-autonomia-proposta.mmd) | [docs/mermaid/04-autonomia-proposta.mmd — bloco 1](../../docs/mermaid/04-autonomia-proposta.mmd) |

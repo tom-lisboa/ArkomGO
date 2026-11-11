@@ -12,7 +12,7 @@ Os nomes Git, banco de dados, SDK e workspace não precisam fazer parte da jorna
 
 **SDR e workers.** `services/sdr` autentica sessões, mantém o contexto publicado, histórico e estado do piloto em SQLite. Os workers de contexto e execução usam os contratos de `pkg/sdrsdk`, com credenciais próprias e listener separado. Fluxos de negócio e controles de aprovação já existem no motor de plataforma. Sua existência não significa que o plano Genesis já seja executável.
 
-**Genesis.** A ponte Go inicia um processo deepH com o fluxo `contexto > sdr + crm > revisor`. Contexto é preparado primeiro; os especialistas SDR e CRM produzem propostas; o revisor consolida o resultado. O provedor HTTP local chama OpenAI pelo SDK existente. O resultado atual é um plano, e não uma alteração aplicada. Os relatórios ficam em arquivos locais e o índice de execuções permanece em memória; ainda não é uma fila durável de construção.
+**Genesis.** A ponte Go inicia um processo deepH com o fluxo `contexto > sdr + crm > revisor`. Contexto é preparado primeiro; os especialistas SDR e CRM produzem propostas; o revisor consolida o resultado. O provedor HTTP local chama OpenAI pelo SDK existente. O revisor produz um plano e, para critérios de qualificação SDR/CRM, uma especificação estrita. O pacote Arkom do deepH gera e testa um artefato Go; a prévia e aprovação permitem publicar essa regra no motor Go existente. Consulte [a etapa 1](GENESIS-ETAPA-1.md). Os relatórios ficam em arquivos locais e o índice de execuções permanece em memória; ainda não é uma fila durável de construção. Propostas de alteração, versões e auditoria são persistidas no SQLite do SDR.
 
 **CRMGO.** `services/crm` recebe chamadas da Bia e eventos de qualificação. O PostgreSQL mantém as rotas por organização e instalação, além do estado das entregas. Contatos, pipelines, etapas e cards estão no Clickmax. Portanto, nesta etapa a Arkom controla o acesso e a orquestração, mas o armazenamento comercial depende do Clickmax.
 
@@ -22,7 +22,7 @@ Os nomes Git, banco de dados, SDK e workspace não precisam fazer parte da jorna
 
 A sessão identifica organização e perfil. Serviços resolvem a instalação e as credenciais pelo backend. O navegador usa a sessão da Arkom; chaves OpenAI, Clickmax e tokens entre serviços permanecem no servidor. A entrada simplificada Alfa depende de flags DEV e loopback e não é o cadastro comercial definitivo.
 
-A configuração de autonomia deve ser aplicada pelo backend, por tipo de operação. A próxima entrega Genesis deverá mostrar uma prévia, receber a aprovação necessária, executar uma mudança limitada, verificar o efeito e registrar uma versão recuperável.
+A configuração de autonomia deve ser aplicada pelo backend, por tipo de operação. A primeira alteração de qualificação já mostra prévia, exige aprovação e registra uma versão recuperável. Esse caminho será ampliado para outras capacidades.
 
 ## As 23 soluções e o Remix
 
