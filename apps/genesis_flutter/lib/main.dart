@@ -64,7 +64,13 @@ class _StudioState extends State<Studio> {
       showChat = true,
       mobileChat = false,
       newIdea = false;
-  String lastBuild = '', lastStatus = '';
+  String lastBuild = '', lastStatus = '', historyStep = '';
+  List<Map<String, dynamic>> get historyTraces => model.traces
+      .where((e) => historyStep.isEmpty || e['step_id'] == historyStep)
+      .toList();
+  String get historyTitle => historyStep.isEmpty
+      ? 'Histórico de ações'
+      : 'Traces · ${model.steps.where((s) => s['id'] == historyStep).firstOrNull?['title'] ?? historyStep}';
   Map<String, dynamic>? selectedEvent;
   List<Map<String, dynamic>> get tests => model.traces
       .where((e) => e['kind'] == 'test.passed' || e['kind'] == 'test.failed')
@@ -102,6 +108,7 @@ class _StudioState extends State<Studio> {
       lastBuild = model.id;
       lastSequence = 0;
       selectedEvent = null;
+      historyStep = '';
       mode = 0;
       newIdea = false;
     }
@@ -479,6 +486,8 @@ class _StudioState extends State<Studio> {
           'Histórico de ações',
           Icons.history,
           () => setState(() {
+            historyStep = '';
+            selectedEvent = null;
             mode = mode == 2 ? 0 : 2;
             mobileChat = false;
           }),
@@ -614,7 +623,7 @@ class _StudioState extends State<Studio> {
                 const SizedBox(height: 12),
                 label(
                   newIdea || model.id.isEmpty
-                      ? 'Conte o que você precisa. O Genesis reúne o time e constrói com a Arkom.'
+                      ? 'Conte o que você precisa. Primeiro planejamos; depois construímos uma etapa por vez.'
                       : 'Peça uma mudança aqui e acompanhe a solução ao lado.',
                   color: muted,
                   size: 12,
@@ -642,6 +651,10 @@ class _StudioState extends State<Studio> {
                       ],
                     ),
                   ),
+                ],
+                if (!newIdea && model.steps.isNotEmpty) ...[
+                  const SizedBox(height: 22),
+                  constructionSteps(),
                 ],
                 const SizedBox(height: 26),
                 Row(
@@ -702,6 +715,116 @@ class _StudioState extends State<Studio> {
     ),
   );
 
+  Widget constructionSteps() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      label('PASSO A PASSO', size: 9, color: gold, spacing: 1.4),
+      const SizedBox(height: 5),
+      label('Cada etapa acompanha os traces salvos.', size: 10, color: muted),
+      const SizedBox(height: 10),
+      for (final s in model.steps)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: InkWell(
+            key: ValueKey('step-${s['id']}'),
+            onTap: (s['trace_count'] ?? 0) == 0
+                ? null
+                : () => setState(() {
+                    historyStep = s['id'];
+                    selectedEvent = null;
+                    mode = 2;
+                    mobileChat = false;
+                  }),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: s['status'] == 'running'
+                      ? gold.withValues(alpha: .5)
+                      : line,
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    s['status'] == 'completed'
+                        ? Icons.check_circle_outline
+                        : s['status'] == 'running'
+                        ? Icons.play_circle_outline
+                        : [
+                            'failed',
+                            'cancelled',
+                            'interrupted',
+                          ].contains(s['status'])
+                        ? Icons.pause_circle_outline
+                        : Icons.radio_button_unchecked,
+                    size: 17,
+                    color: s['status'] == 'completed'
+                        ? agentColors[3]
+                        : s['status'] == 'pending'
+                        ? muted
+                        : gold,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        label(s['title'], size: 11, weight: FontWeight.w500),
+                        const SizedBox(height: 4),
+                        label(s['acceptance'], size: 10, color: muted),
+                        const SizedBox(height: 4),
+                        label(
+                          {
+                                'pending': 'Aguardando',
+                                'running': 'Em execução',
+                                'completed': 'Concluída',
+                                'failed': 'Precisa de correção',
+                                'cancelled': 'Interrompida',
+                                'interrupted': 'Aguardando retomada',
+                              }[s['status']] ??
+                              s['status'],
+                          size: 9,
+                          color: muted,
+                        ),
+                        if ((s['trace_count'] ?? 0) > 0) ...[
+                          const SizedBox(height: 4),
+                          label(
+                            '${s['trace_count']} traces · #${s['first_sequence']}–#${s['last_sequence']}',
+                            size: 9,
+                            color: gold,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      if (model.build?['next_step_id'] != '' && !model.running) ...[
+        const SizedBox(height: 4),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: model.canAdvance ? model.advanceStep : null,
+            icon: const Icon(Icons.play_arrow, size: 16),
+            label: Text(
+              model.build?['status'] == 'awaiting_step'
+                  ? 'Iniciar próxima etapa'
+                  : 'Retomar esta etapa',
+              style: const TextStyle(fontSize: 11),
+            ),
+          ),
+        ),
+      ],
+    ],
+  );
+
   Widget teamMember(int i) {
     final latest = model.traces
         .where((e) => e['agent'] == agentIds[i])
@@ -709,10 +832,16 @@ class _StudioState extends State<Studio> {
     final started = model.traces.any(
       (e) => e['agent'] == agentIds[i] && e['kind'] == 'agent.started',
     );
-    final done = model.traces.any(
-      (e) => e['agent'] == agentIds[i] && e['kind'] == 'agent.finished',
-    );
-    final active = !newIdea && model.running && started && !done;
+    final step = model.steps.where((s) => s['id'] == agentIds[i]).firstOrNull;
+    final done = step != null
+        ? step['status'] == 'completed'
+        : model.traces.any(
+            (e) => e['agent'] == agentIds[i] && e['kind'] == 'agent.finished',
+          );
+    final active =
+        !newIdea &&
+        model.running &&
+        (step != null ? step['status'] == 'running' : started && !done);
     return Tooltip(
       message:
           '${agentJobs[i]} · ${active ? (latest?['summary'] ?? 'Trabalhando') : (done && !newIdea ? 'Concluído' : 'Disponível')}',
@@ -760,14 +889,19 @@ class _StudioState extends State<Studio> {
     final state = model.build?['status'];
     final ready = state == 'ready';
     final failed = state == 'failed';
-    final title = ready
+    final waiting = state == 'awaiting_step';
+    final title = waiting
+        ? 'Etapa concluída'
+        : ready
         ? 'Pronta para experimentar'
         : model.running
         ? 'Seu time está construindo'
         : failed
         ? 'Vamos ajustar o que faltou'
         : 'Construção interrompida';
-    final detail = ready
+    final detail = waiting
+        ? 'Revise os traces e inicie a próxima etapa quando estiver pronto.'
+        : ready
         ? 'Use a prévia. A próxima melhoria começa com uma mensagem.'
         : model.running
         ? 'Os Gophers mostram as ações na área da solução. O histórico guarda cada passo.'
@@ -891,7 +1025,7 @@ class _StudioState extends State<Studio> {
                   ),
                   Tooltip(
                     message: newIdea || model.id.isEmpty
-                        ? 'Construir minha ideia'
+                        ? 'Planejar minha ideia'
                         : 'Enviar melhoria',
                     child: IconButton.filled(
                       onPressed: canSend ? send : null,
@@ -1082,13 +1216,22 @@ class _StudioState extends State<Studio> {
             const Icon(Icons.history, size: 18, color: gold),
             const SizedBox(width: 10),
             Expanded(
-              child: label(
-                'Histórico de ações',
-                size: 15,
-                weight: FontWeight.w500,
-              ),
+              child: label(historyTitle, size: 15, weight: FontWeight.w500),
             ),
-            label('${model.traces.length} eventos', color: muted, size: 10),
+            if (historyStep.isNotEmpty)
+              IconButton(
+                tooltip: 'Ver todos os traces',
+                onPressed: () => setState(() {
+                  historyStep = '';
+                  selectedEvent = null;
+                }),
+                icon: const Icon(
+                  Icons.filter_alt_off_outlined,
+                  size: 16,
+                  color: muted,
+                ),
+              ),
+            label('${historyTraces.length} eventos', color: muted, size: 10),
           ],
         ),
       ),
@@ -1096,7 +1239,7 @@ class _StudioState extends State<Studio> {
       Expanded(
         child: selectedEvent != null
             ? eventDetail()
-            : model.traces.isEmpty
+            : historyTraces.isEmpty
             ? Center(
                 child: label(
                   'As ações do time serão registradas aqui.',
@@ -1108,9 +1251,9 @@ class _StudioState extends State<Studio> {
                   horizontal: 22,
                   vertical: 12,
                 ),
-                itemCount: model.traces.length,
+                itemCount: historyTraces.length,
                 itemBuilder: (context, n) {
-                  final e = model.traces[model.traces.length - 1 - n];
+                  final e = historyTraces[historyTraces.length - 1 - n];
                   final i = agentIndex(e['agent']);
                   return InkWell(
                     onTap: () => setState(() => selectedEvent = e),

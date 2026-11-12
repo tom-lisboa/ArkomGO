@@ -52,12 +52,21 @@ func allowed(agent, p string) bool {
 		return false
 	}
 	switch agent {
-	case "architect", "backend", "interface", "reviewer":
+	case "architect":
+		return p == "DESIGN.md" || p == "README.md" || p == application.ManifestPath
+	case "backend":
+		return strings.HasPrefix(p, "backend/") || p == "README.md" || p == application.ManifestPath
+	case "interface":
+		return strings.HasPrefix(p, "frontend/") || p == "README.md" || p == application.ManifestPath
+	case "reviewer":
 		return true
 	}
 	return false
 }
 func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string) (map[string]string, error) {
+	return e.run(ctx, goal, initial, "")
+}
+func (e *Engine) run(ctx context.Context, goal string, initial map[string]string, onlyStep string) (map[string]string, error) {
 	files := Seed()
 	for k, v := range initial {
 		if ValidPath(k) && !strings.HasPrefix(k, "backend/platform/") && !strings.HasPrefix(k, "backend/cmd/arkom-runtime/") {
@@ -81,17 +90,12 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 		refs = append(refs, k)
 	}
 	sort.Strings(refs)
-	stages := []struct {
-		name, instruction string
-		rounds            int
-	}{
-		{"architect", "Consulte contratos e escreva application.json e DESIGN.md: escopo, endpoints, estrutura, reuso, isolamento e critérios de aceitação.", 4},
-		{"backend", "Sua responsabilidade principal é backend Go e testes reais de domínio e isolamento por empresa. Use net/http/httptest em vez de abrir portas. Execute test e corrija falhas. Quando backend e testes estiverem prontos, use ready e deixe o restante da interface para o próximo especialista.", 10},
-		{"interface", "Sua responsabilidade principal é frontend/index.html e CSS/JS necessários. Aproveite arquivos existentes e use contratos do backend gerado; identifique ligações pendentes da implantação. Evite mudanças desnecessárias no backend.", 6},
-		{"reviewer", "Revise todos os arquivos contra o pedido. Corrija erros, acrescente testes e execute test. Se não puder resolver uma lacuna, use blocked. Não alegue teste visual.", 8},
-	}
+	stages := Steps()
 	for _, stage := range stages {
-		if err := emit(Event{Kind: "agent.started", Agent: stage.name, Summary: "Etapa iniciada"}); err != nil {
+		if onlyStep != "" && stage.ID != onlyStep {
+			continue
+		}
+		if err := emit(Event{Kind: "agent.started", Agent: stage.ID, Summary: "Etapa iniciada"}); err != nil {
 			return files, err
 		}
 		feedback := []string{}
@@ -102,11 +106,11 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 				return files, err
 			}
 			referencesSeen := consulted["reference/catalog.json"] && consulted["reference/platform-contracts.go"]
-			turn, err := e.Provider.Next(ctx, Request{Agent: stage.name, Goal: goal, Instruction: Rules + "\n" + RuntimeReference + "\n" + application.Reference + "\nSUA ETAPA: " + stage.instruction, Files: clone(files), References: refs, Feedback: feedback})
+			turn, err := e.Provider.Next(ctx, Request{Agent: stage.ID, Goal: goal, Instruction: Rules + "\n" + RuntimeReference + "\n" + application.Reference + "\nSUA ETAPA: " + stage.instruction, Files: clone(files), References: refs, Feedback: feedback})
 			if err != nil {
 				if errors.Is(err, ErrProviderUnavailable) && !retried && ctx.Err() == nil {
 					retried = true
-					if saveErr := emit(Event{Kind: "agent.retry", Agent: stage.name, Summary: "O provedor demorou ou ficou indisponível. Tentando novamente com os arquivos preservados."}); saveErr != nil {
+					if saveErr := emit(Event{Kind: "agent.retry", Agent: stage.ID, Summary: "O provedor demorou ou ficou indisponível. Tentando novamente com os arquivos preservados."}); saveErr != nil {
 						return files, saveErr
 					}
 					continue
@@ -116,14 +120,14 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 			if len(turn.Actions) > 6 || len(turn.Summary) > 2000 {
 				return files, errors.New("invalid_agent_response")
 			}
-			if err := emit(Event{Kind: "agent.update", Agent: stage.name, Summary: turn.Summary}); err != nil {
+			if err := emit(Event{Kind: "agent.update", Agent: stage.ID, Summary: turn.Summary}); err != nil {
 				return files, err
 			}
 			for _, a := range turn.Actions {
 				if err := ctx.Err(); err != nil {
 					return files, err
 				}
-				ev := Event{Agent: stage.name, Path: a.Path}
+				ev := Event{Agent: stage.ID, Path: a.Path}
 				switch a.Tool {
 				case "list":
 					names := []string{}
@@ -156,7 +160,7 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 						ev.Summary = "Consulte o ecossistema antes de construir"
 						break
 					}
-					if !allowed(stage.name, a.Path) || len(a.Content) > 48000 {
+					if !allowed(stage.ID, a.Path) || len(a.Content) > 48000 {
 						feedback = append(feedback, "Escrita recusada: "+a.Path)
 						ev.Kind = "tool.rejected"
 						ev.Summary = "Caminho ou tamanho não permitido"
@@ -178,7 +182,13 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 					files[a.Path] = a.Content
 					feedback = append(feedback, "Arquivo salvo: "+a.Path)
 				case "test":
-					if err := emit(Event{Kind: "test.started", Agent: stage.name, Summary: "Executando testes Go em isolamento"}); err != nil {
+					if stage.ID == "architect" {
+						ev.Kind = "tool.rejected"
+						ev.Summary = "A etapa de planejamento não executa código"
+						feedback = append(feedback, ev.Summary)
+						break
+					}
+					if err := emit(Event{Kind: "test.started", Agent: stage.ID, Summary: "Executando testes Go em isolamento"}); err != nil {
 						return files, err
 					}
 					output, err := e.Tester.Test(ctx, clone(files))
@@ -204,17 +214,17 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 				return files, errors.New("agent_reported_blocker")
 			}
 			if turn.Verdict == "ready" {
-				if stage.name == "architect" && files["DESIGN.md"] == "" {
+				if stage.ID == "architect" && files["DESIGN.md"] == "" {
 					feedback = append(feedback, "Escreva DESIGN.md antes de concluir.")
 					continue
 				}
-				if stage.name == "interface" && files["frontend/index.html"] == "" {
+				if stage.ID == "interface" && files["frontend/index.html"] == "" {
 					feedback = append(feedback, "Escreva frontend/index.html antes de concluir.")
 					continue
 				}
-				if stage.name == "architect" || stage.name == "reviewer" {
+				if stage.ID == "architect" || stage.ID == "reviewer" {
 					var contractErr error
-					if stage.name == "architect" {
+					if stage.ID == "architect" {
 						_, contractErr = application.Decode(files[application.ManifestPath])
 					} else {
 						_, contractErr = application.ValidateFiles(files)
@@ -223,7 +233,7 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 					if contractErr != nil {
 						kind, summary = "contract.rejected", "Corrija o contrato da aplicação: "+contractErr.Error()
 					}
-					if err := emit(Event{Kind: kind, Agent: stage.name, Path: application.ManifestPath, Summary: summary}); err != nil {
+					if err := emit(Event{Kind: kind, Agent: stage.ID, Path: application.ManifestPath, Summary: summary}); err != nil {
 						return files, err
 					}
 					if contractErr != nil {
@@ -231,8 +241,8 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 						continue
 					}
 				}
-				if stage.name == "backend" || stage.name == "reviewer" {
-					if err := emit(Event{Kind: "test.started", Agent: stage.name, Summary: "Validando o estado final da etapa"}); err != nil {
+				if stage.ID == "backend" || stage.ID == "reviewer" {
+					if err := emit(Event{Kind: "test.started", Agent: stage.ID, Summary: "Validando o estado final da etapa"}); err != nil {
 						return files, err
 					}
 					output, err := e.Tester.Test(ctx, clone(files))
@@ -240,7 +250,7 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 					if err != nil {
 						kind = "test.failed"
 					}
-					if saveErr := emit(Event{Kind: kind, Agent: stage.name, Summary: "Resultado da validação final", Output: output}); saveErr != nil {
+					if saveErr := emit(Event{Kind: kind, Agent: stage.ID, Summary: "Resultado da validação final", Output: output}); saveErr != nil {
 						return files, saveErr
 					}
 					if err != nil {
@@ -256,9 +266,9 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 			}
 		}
 		if !finished {
-			return files, fmt.Errorf("agent_round_limit: %s", stage.name)
+			return files, fmt.Errorf("agent_round_limit: %s", stage.ID)
 		}
-		if err := emit(Event{Kind: "agent.finished", Agent: stage.name, Summary: "Etapa concluída"}); err != nil {
+		if err := emit(Event{Kind: "agent.finished", Agent: stage.ID, Summary: "Etapa concluída"}); err != nil {
 			return files, err
 		}
 	}

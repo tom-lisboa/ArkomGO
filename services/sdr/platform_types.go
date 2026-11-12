@@ -304,6 +304,9 @@ func validatePlatform(c PlatformConfig) []string {
 func (a *App) initPlatform() {
 	for _, b := range a.state.Platform.Constructions {
 		if b.Status == "running" {
+			if b.StepsVersion == 1 {
+				b.appendStepEvent("step.interrupted", b.nextStepID(), "Serviço reiniciado; retome esta etapa a partir dos arquivos preservados.", "", a.now().UTC())
+			}
 			b.Status = "interrupted"
 			b.UpdatedAt = a.now().UTC()
 		}

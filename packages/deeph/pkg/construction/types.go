@@ -33,13 +33,15 @@ type Tester interface {
 	Test(context.Context, map[string]string) (string, error)
 }
 type Event struct {
-	Kind    string `json:"kind"`
-	Agent   string `json:"agent"`
-	Summary string `json:"summary"`
-	Path    string `json:"path,omitempty"`
-	Before  string `json:"before,omitempty"`
-	After   string `json:"after,omitempty"`
-	Output  string `json:"output,omitempty"`
+	StepID      string `json:"step_id,omitempty"`
+	ExecutionID string `json:"execution_id,omitempty"`
+	Kind        string `json:"kind"`
+	Agent       string `json:"agent"`
+	Summary     string `json:"summary"`
+	Path        string `json:"path,omitempty"`
+	Before      string `json:"before,omitempty"`
+	After       string `json:"after,omitempty"`
+	Output      string `json:"output,omitempty"`
 }
 type Engine struct {
 	Provider   Provider

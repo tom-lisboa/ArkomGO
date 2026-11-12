@@ -113,6 +113,9 @@ type cursor struct {
 	Messages      []Message
 }
 type App struct {
+	constructionRuns    map[string]constructionExecution
+	constructionSetup   constructionSetup
+	constructionClosed  bool
 	runtimeMu           sync.Mutex
 	runtimes            map[string]*previewRuntime
 	runtimeClosed       bool

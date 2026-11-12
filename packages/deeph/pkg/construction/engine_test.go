@@ -198,3 +198,33 @@ func TestManifestMustBeCorrectedBeforeReady(t *testing.T) {
 		})
 	}
 }
+
+func TestRunStepStopsAtCheckpointAndRestrictsPlanning(t *testing.T) {
+	tester := &fakeTester{}
+	calls := 0
+	rejected := 0
+	engine := Engine{Tester: tester, References: map[string]string{"reference/catalog.json": "{}", "reference/platform-contracts.go": Contracts}}
+	engine.Provider = fakeProvider{func(r Request) Turn {
+		calls++
+		if r.Agent != "architect" {
+			t.Fatalf("advanced automatically to %s", r.Agent)
+		}
+		if len(r.Feedback) == 0 {
+			return Turn{Actions: []Action{{"read", "reference/catalog.json", ""}, {"read", "reference/platform-contracts.go", ""}}, Verdict: "continue"}
+		}
+		return Turn{Actions: []Action{{"write", "DESIGN.md", "Primeira entrega: somar dois valores; histórico fica para depois."}, {"write", "application.json", testManifest}, {"write", "backend/premature.go", "package solution"}, {"write", "frontend/index.html", "<h1>Too early</h1>"}, {"test", "", ""}}, Verdict: "ready"}
+	}}
+	engine.Emit = func(e Event) error {
+		if e.Kind == "tool.rejected" {
+			rejected++
+		}
+		return nil
+	}
+	files, err := engine.RunStep(context.Background(), "Criar calculadora", nil, "architect")
+	if err != nil || calls != 2 || tester.calls != 0 || rejected != 3 || files["backend/premature.go"] != "" || files["frontend/index.html"] != "" {
+		t.Fatal(err, calls, tester.calls, rejected, files)
+	}
+	if _, err := engine.RunStep(context.Background(), "idea", nil, "not-a-step"); err == nil {
+		t.Fatal("accepted arbitrary step")
+	}
+}

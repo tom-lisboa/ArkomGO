@@ -14,6 +14,20 @@ class StudioController extends ChangeNotifier {
   String role = 'viewer', connection = 'waiting', error = '', selectedFile = '';
   bool busy = false, authenticated = false, _disposed = false;
   int _refresh = 0;
+  List<Map<String, dynamic>> get steps => ((build?['steps'] ?? []) as List)
+      .map((s) => Map<String, dynamic>.from(s))
+      .toList();
+  bool get canAdvance =>
+      canEdit &&
+      !busy &&
+      !anyRunning &&
+      (build?['next_step_id'] ?? '') != '' &&
+      [
+        'awaiting_step',
+        'failed',
+        'cancelled',
+        'interrupted',
+      ].contains(build?['status']);
   bool get running => build?['status'] == 'running';
   bool get anyRunning => projects.any((b) => b['status'] == 'running');
   bool get canEdit => authenticated && role != 'viewer';
@@ -128,6 +142,30 @@ class StudioController extends ChangeNotifier {
       });
       projects.insert(0, result);
       await select(result['id']);
+    } catch (e) {
+      failure(e);
+    } finally {
+      busy = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  Future<void> advanceStep() async {
+    if (!canAdvance) return;
+    final requested = id;
+    busy = true;
+    error = '';
+    notifyListeners();
+    try {
+      final result = await call('advance_step', {
+        'id': requested,
+        'step_id': build!['next_step_id'],
+        'sequence': build!['sequence'],
+      });
+      if (_disposed || id != requested) return;
+      final index = projects.indexWhere((p) => p['id'] == requested);
+      if (index >= 0) projects[index] = result;
+      await select(requested);
     } catch (e) {
       failure(e);
     } finally {

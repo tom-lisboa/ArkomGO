@@ -3,30 +3,21 @@ package main
 import (
 	"archive/zip"
 	"bytes"
-	"context"
 	"deeph/pkg/application"
-	"deeph/pkg/arkom"
 	"deeph/pkg/construction"
 	"embed"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
-	"os"
-	"sdr-next-pilot/pkg/sdrsdk"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
 //go:embed demo/construction/reference/*
 var constructionReferences embed.FS
-var constructionControl = struct {
-	sync.Mutex
-	cancel map[string]context.CancelFunc
-}{cancel: map[string]context.CancelFunc{}}
 
 type ConstructionTrace struct {
 	construction.Event
@@ -34,6 +25,8 @@ type ConstructionTrace struct {
 	At       time.Time `json:"at"`
 }
 type ConstructionBuild struct {
+	StepsVersion  int                   `json:"steps_version,omitempty"`
+	ExecutionID   string                `json:"execution_id,omitempty"`
 	ID            string                `json:"id"`
 	ApplicationID string                `json:"application_id,omitempty"`
 	Revision      int                   `json:"revision,omitempty"`
@@ -49,14 +42,21 @@ type ConstructionBuild struct {
 }
 
 func (b *ConstructionBuild) summary() map[string]any {
-	return map[string]any{"id": b.ID, "goal": b.Goal, "status": b.Status, "parent_id": b.ParentID, "created_at": b.CreatedAt, "updated_at": b.UpdatedAt, "files_count": len(b.Files), "sequence": len(b.Traces), "application_id": b.ApplicationID, "revision": b.Revision, "contract_status": b.contractStatus(), "runtime_compatible": construction.RuntimeCompatible(b.Files)}
+	return map[string]any{"id": b.ID, "goal": b.Goal, "status": b.Status, "parent_id": b.ParentID, "created_at": b.CreatedAt, "updated_at": b.UpdatedAt, "files_count": len(b.Files), "sequence": len(b.Traces), "application_id": b.ApplicationID, "revision": b.Revision, "contract_status": b.contractStatus(), "runtime_compatible": construction.RuntimeCompatible(b.Files), "steps_version": b.StepsVersion, "steps": b.steps(), "next_step_id": b.nextStepID()}
 }
 func (a *App) constructionTrace(id string, event construction.Event) error {
+	return a.constructionRunTrace(id, "", event)
+}
+func (a *App) constructionRunTrace(id, executionID string, event construction.Event) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	b := a.state.Platform.Constructions[id]
-	if b == nil || b.Status != "running" {
+	if a.constructionClosed || b == nil || b.Status != "running" || (executionID != "" && b.ExecutionID != executionID) {
 		return errors.New("build_not_running")
+	}
+	if b.StepsVersion == 1 {
+		event.StepID = b.nextStepID()
+		event.ExecutionID = b.ExecutionID
 	}
 	err := a.transact(func() {
 		if event.Kind == "file.written" {
@@ -70,25 +70,6 @@ func (a *App) constructionTrace(id string, event construction.Event) error {
 	}
 	return err
 }
-func (a *App) runConstruction(ctx context.Context, id string, planner *sdrsdk.OpenAIPlanner, initial map[string]string) {
-	defer func() {
-		constructionControl.Lock()
-		delete(constructionControl.cancel, id)
-		constructionControl.Unlock()
-	}()
-	refs := map[string]string{"reference/catalog.json": arkom.Catalog, "reference/platform-contracts.go": construction.Contracts}
-	for _, name := range []string{"sdr-types.go.txt", "crm-integration.md"} {
-		data, _ := constructionReferences.ReadFile("demo/construction/reference/" + name)
-		refs["reference/"+name] = string(data)
-	}
-	a.mu.Lock()
-	goal := a.state.Platform.Constructions[id].Goal
-	a.mu.Unlock()
-	engine := construction.Engine{Provider: constructionProvider{planner}, Tester: construction.Sandbox{}, References: refs, Emit: func(e construction.Event) error { return a.constructionTrace(id, e) }}
-	_, err := engine.Run(ctx, goal, initial)
-	a.finishConstruction(id, err, ctx.Err())
-}
-
 func (a *App) finishConstruction(id string, err, contextErr error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -200,39 +181,36 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 				initial[k] = v
 			}
 		}
-		if !(construction.Sandbox{}).Available() {
-			fail(w, 503, "isolated_runner_unavailable")
-			return true
-		}
-		planner, err := sdrsdk.NewOpenAI(os.Getenv("OPENAI_API_KEY"), os.Getenv("SDR_OPENAI_MODEL"))
+		provider, tester, err := a.prepareConstruction("architect")
 		if err != nil {
-			fail(w, 503, "genesis_unavailable")
+			fail(w, 503, err.Error())
 			return true
 		}
 		applicationID, revision := a.constructionIdentity(u.Org, parent)
-		b := &ConstructionBuild{ApplicationID: applicationID, Revision: revision, ID: "build_" + token(), Org: u.Org, Goal: body.Goal, ParentID: body.ParentID, Status: "running", CreatedAt: a.now().UTC(), UpdatedAt: a.now().UTC(), Files: initial, Traces: []ConstructionTrace{}}
+		b := &ConstructionBuild{StepsVersion: 1, ExecutionID: token(), ApplicationID: applicationID, Revision: revision, ID: "build_" + token(), Org: u.Org, Goal: body.Goal, ParentID: body.ParentID, Status: "running", CreatedAt: a.now().UTC(), UpdatedAt: a.now().UTC(), Files: initial, Traces: []ConstructionTrace{}}
 		if a.transact(func() {
 			if a.state.Platform.Constructions == nil {
 				a.state.Platform.Constructions = map[string]*ConstructionBuild{}
 			}
 			a.state.Platform.Constructions[b.ID] = b
+			b.appendStepEvent("step.started", b.nextStepID(), "Planejamento iniciado pelo cliente.", "", a.now().UTC())
 			a.record(AuditEntry{Org: u.Org, Actor: u.ID, Action: "construction.started", Operation: b.ID})
 		}) != nil {
 			fail(w, 503, "storage_unavailable")
 			return true
 		}
 		a.signalConstruction()
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-		constructionControl.Lock()
-		constructionControl.cancel[b.ID] = cancel
-		constructionControl.Unlock()
-		go func() { defer cancel(); a.runConstruction(ctx, b.ID, planner, initial) }()
+		a.launchConstruction(b, provider, tester)
 		write(w, 202, b.summary())
 		return true
 	}
 	b := a.state.Platform.Constructions[parts[0]]
 	if b == nil || b.Org != u.Org {
 		fail(w, 404, "not_found")
+		return true
+	}
+	if len(parts) == 2 && parts[1] == "advance" && r.Method == "POST" {
+		a.advanceConstruction(w, r, u, b)
 		return true
 	}
 	if len(parts) == 2 && parts[1] == "contract" && r.Method == "GET" {
@@ -269,20 +247,20 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 		}
 		if b.Status == "running" {
 			if a.transact(func() {
+				if b.StepsVersion == 1 {
+					b.appendStepEvent("step.cancelled", b.nextStepID(), "Etapa interrompida; arquivos preservados.", "", a.now().UTC())
+				}
 				b.Status = "cancelled"
 				b.UpdatedAt = a.now().UTC()
-				b.Traces = append(b.Traces, ConstructionTrace{construction.Event{Kind: "build.cancelled", Agent: "system", Summary: "Interrompido pelo cliente; arquivos preservados."}, len(b.Traces) + 1, b.UpdatedAt})
+				b.Traces = append(b.Traces, ConstructionTrace{construction.Event{Kind: "build.cancelled", Agent: "system", StepID: b.nextStepID(), ExecutionID: b.ExecutionID, Summary: "Interrompido pelo cliente; arquivos preservados."}, len(b.Traces) + 1, b.UpdatedAt})
 				a.record(AuditEntry{Org: u.Org, Actor: u.ID, Action: "construction.cancelled", Operation: b.ID})
 			}) != nil {
 				fail(w, 503, "storage_unavailable")
 				return true
 			}
 			a.signalConstruction()
-			constructionControl.Lock()
-			cancel := constructionControl.cancel[b.ID]
-			constructionControl.Unlock()
-			if cancel != nil {
-				cancel()
+			if run, ok := a.constructionRuns[b.ID]; ok {
+				run.cancel()
 			}
 		}
 		write(w, 200, b.summary())
