@@ -93,6 +93,7 @@ func (a *App) openStore(file string) error {
 	return nil
 }
 func (a *App) Close() error {
+	a.closeRuntimes()
 	var err error
 	if a.db != nil {
 		err = a.db.Close()

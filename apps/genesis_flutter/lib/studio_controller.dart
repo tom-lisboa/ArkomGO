@@ -10,6 +10,7 @@ class StudioController extends ChangeNotifier {
   final Map<String, String> files = {};
   final List<Map<String, dynamic>> traces = [];
   String lastDelivery = '';
+  String runtimeStatus = 'stopped';
   String role = 'viewer', connection = 'waiting', error = '', selectedFile = '';
   bool busy = false, authenticated = false, _disposed = false;
   int _refresh = 0;
@@ -23,7 +24,11 @@ class StudioController extends ChangeNotifier {
   void accept(Map<String, dynamic> data) {
     lastDelivery = data['type'] ?? '';
     switch (data['type']) {
+      case 'runtime':
+        runtimeStatus = data['status'];
+        if ((data['message'] ?? '').isNotEmpty) error = data['message'];
       case 'session':
+        runtimeStatus = 'stopped';
         build = null;
         projects.clear();
         files.clear();
@@ -96,6 +101,7 @@ class StudioController extends ChangeNotifier {
   }
 
   Future<void> select(String id) async {
+    runtimeStatus = 'stopped';
     build = projects.firstWhere((p) => p['id'] == id);
     files.clear();
     traces.clear();

@@ -49,7 +49,7 @@ type ConstructionBuild struct {
 }
 
 func (b *ConstructionBuild) summary() map[string]any {
-	return map[string]any{"id": b.ID, "goal": b.Goal, "status": b.Status, "parent_id": b.ParentID, "created_at": b.CreatedAt, "updated_at": b.UpdatedAt, "files_count": len(b.Files), "sequence": len(b.Traces), "application_id": b.ApplicationID, "revision": b.Revision, "contract_status": b.contractStatus()}
+	return map[string]any{"id": b.ID, "goal": b.Goal, "status": b.Status, "parent_id": b.ParentID, "created_at": b.CreatedAt, "updated_at": b.UpdatedAt, "files_count": len(b.Files), "sequence": len(b.Traces), "application_id": b.ApplicationID, "revision": b.Revision, "contract_status": b.contractStatus(), "runtime_compatible": construction.RuntimeCompatible(b.Files)}
 }
 func (a *App) constructionTrace(id string, event construction.Event) error {
 	a.mu.Lock()
@@ -134,6 +134,10 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 	}
 	suffix := strings.TrimPrefix(r.URL.Path, prefix)
 	parts := strings.Split(strings.Trim(suffix, "/"), "/")
+	if len(parts) >= 2 && parts[1] == "runtime" {
+		a.runtimeHTTP(w, r, u, parts)
+		return true
+	}
 	if len(parts) == 2 && parts[1] == "events" && r.Method == "GET" {
 		a.constructionStream(w, r, u, parts[0])
 		return true

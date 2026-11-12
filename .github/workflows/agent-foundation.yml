@@ -53,3 +53,17 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node --test apps/genesis_flutter/test/*.test.cjs
       - run: python3 scripts/build-genesis-flutter.py
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: services/sdr/go.sum
+      - run: docker pull golang:1.26
+      - run: go test -run TestRuntimeIntegration -count=1 -timeout=4m .
+        working-directory: services/sdr
+        env:
+          ARKOM_RUNTIME_INTEGRATION: 'true'

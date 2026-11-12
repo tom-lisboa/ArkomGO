@@ -66,7 +66,7 @@ contrato inventado. Ao continuar um projeto antigo, inicia-se uma linhagem com
 identidade e revisão, e os agentes precisam produzir a declaração.
 
 Esta etapa valida a declaração e sua correspondência com os arquivos. Não comprova
-que um handler implementa uma rota nem inicia o backend gerado. A etapa 2 definirá
+que um handler implementa uma rota nem inicia o backend gerado. A [etapa 2](GENESIS-RUNTIME-PREVIA.md) acrescenta
 a entrada executável, o ciclo de vida do processo e a ligação autenticada da prévia.
 Persistência de negócio, adaptadores e ativação continuam nas etapas seguintes.
 

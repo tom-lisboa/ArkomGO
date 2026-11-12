@@ -48,7 +48,7 @@ func ValidPath(p string) bool {
 	return strings.HasPrefix(p, "frontend/") && (strings.HasSuffix(p, ".html") || strings.HasSuffix(p, ".css") || strings.HasSuffix(p, ".js"))
 }
 func allowed(agent, p string) bool {
-	if !ValidPath(p) || strings.HasPrefix(p, "backend/platform/") {
+	if !ValidPath(p) || (strings.HasPrefix(p, "backend/platform/") || strings.HasPrefix(p, "backend/cmd/arkom-runtime/")) {
 		return false
 	}
 	switch agent {
@@ -60,7 +60,7 @@ func allowed(agent, p string) bool {
 func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string) (map[string]string, error) {
 	files := Seed()
 	for k, v := range initial {
-		if ValidPath(k) && !strings.HasPrefix(k, "backend/platform/") {
+		if ValidPath(k) && !strings.HasPrefix(k, "backend/platform/") && !strings.HasPrefix(k, "backend/cmd/arkom-runtime/") {
 			files[k] = v
 		}
 	}
@@ -102,7 +102,7 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 				return files, err
 			}
 			referencesSeen := consulted["reference/catalog.json"] && consulted["reference/platform-contracts.go"]
-			turn, err := e.Provider.Next(ctx, Request{Agent: stage.name, Goal: goal, Instruction: Rules + "\n" + application.Reference + "\nSUA ETAPA: " + stage.instruction, Files: clone(files), References: refs, Feedback: feedback})
+			turn, err := e.Provider.Next(ctx, Request{Agent: stage.name, Goal: goal, Instruction: Rules + "\n" + RuntimeReference + "\n" + application.Reference + "\nSUA ETAPA: " + stage.instruction, Files: clone(files), References: refs, Feedback: feedback})
 			if err != nil {
 				if errors.Is(err, ErrProviderUnavailable) && !retried && ctx.Err() == nil {
 					retried = true

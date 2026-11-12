@@ -33,5 +33,8 @@ arquivo. O host atribui ID estável e revisão crescente à linhagem da aplicaç
 O arquiteto declara o contrato. Backend, interface e revisor mantêm rotas e código
 coerentes. O revisor precisa entregar um contrato válido e a entrada web existente.
 A validação do manifesto não prova que um handler atende a rota: implementação e
-comportamento devem ter testes Go. Inicialização do servidor, persistência e
-conexão autenticada serão definidos na etapa do runtime.
+comportamento devem ter testes Go. Para a prévia executável, use package solution
+e func NewHandler(tenant platform.Tenant) http.Handler em backend/*.go. O host
+cria o processo e fornece a empresa; a interface chama fetch nas rotas /api/
+declaradas. Não abra portas nem crie main. Dados duram somente durante a prévia;
+persistência durável e adaptadores de capacidades ainda não estão disponíveis.

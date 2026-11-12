@@ -488,12 +488,26 @@ class _StudioState extends State<Studio> {
           tooltip: 'Mais opções',
           icon: const Icon(Icons.more_horiz, size: 19, color: muted),
           onSelected: (v) {
+            if (v == 'runtime_start' || v == 'runtime_stop') model.action(v);
             if (v == 'replay') startReplay();
             if (v == 'export') model.action('export');
             if (v == 'qualification') model.call('qualification');
             if (v == 'cancel') model.action('cancel');
           },
           itemBuilder: (_) => [
+            if (model.build?['contract_status'] == 'validated')
+              PopupMenuItem(
+                value: ['running', 'starting'].contains(model.runtimeStatus)
+                    ? 'runtime_stop'
+                    : 'runtime_start',
+                enabled: model.canEdit && !model.busy,
+                child: Text(
+                  ['running', 'starting'].contains(model.runtimeStatus)
+                      ? 'Encerrar backend da prévia'
+                      : 'Iniciar backend da prévia',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
             PopupMenuItem(
               value: 'replay',
               enabled: !model.running && model.traces.isNotEmpty,
@@ -953,7 +967,11 @@ class _StudioState extends State<Studio> {
             Expanded(
               child: label(
                 mode == 0
-                    ? 'Prévia local · integrações ainda não conectadas'
+                    ? (model.runtimeStatus == 'running'
+                          ? 'Backend Go conectado · dados temporários'
+                          : model.runtimeStatus == 'starting'
+                          ? 'Preparando backend Go…'
+                          : 'Prévia local · integrações ainda não conectadas')
                     : 'Seu projeto e histórico ficam salvos na Arkom',
                 size: 9,
                 color: muted,
