@@ -113,6 +113,10 @@ type cursor struct {
 	Messages      []Message
 }
 type App struct {
+	runtimeMu           sync.Mutex
+	runtimes            map[string]*previewRuntime
+	runtimeClosed       bool
+	runtimeStart        runtimeStarter
 	constructionChanged chan struct{}
 	constructionStreams map[string]int
 	crmRoutes           map[string]crmRoute

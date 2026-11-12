@@ -1,0 +1,96 @@
+package main
+
+import (
+	solution "arkom.local/solution"
+	"arkom.local/solution/platform"
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"strings"
+)
+
+type request struct {
+	Method string
+	Path   string
+	Body   string
+}
+type response struct {
+	Status      int    `json:"status"`
+	Body        string `json:"body"`
+	ContentType string `json:"content_type"`
+}
+type writer struct {
+	header http.Header
+	status int
+	body   bytes.Buffer
+}
+
+func (w *writer) Header() http.Header { return w.header }
+func (w *writer) WriteHeader(n int) {
+	if w.status == 0 {
+		w.status = n
+	}
+}
+func (w *writer) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.status = 200
+	}
+	if w.body.Len()+len(b) > 65536 {
+		panic("response_limit")
+	}
+	return w.body.Write(b)
+}
+func invoke(h http.Handler, in request) (out response) {
+	defer func() {
+		if recover() != nil {
+			out = response{500, "handler_failed", "text/plain"}
+		}
+	}()
+	r, e := http.NewRequest(in.Method, "http://application.invalid"+in.Path, strings.NewReader(in.Body))
+	if e != nil {
+		return response{400, "bad_request", "text/plain"}
+	}
+	r.Header.Set("Content-Type", "application/json")
+	w := &writer{header: make(http.Header)}
+	h.ServeHTTP(w, r)
+	if w.status == 0 {
+		w.status = 200
+	}
+	ct := "text/plain"
+	if strings.HasPrefix(w.header.Get("Content-Type"), "application/json") {
+		ct = "application/json"
+	}
+	return response{w.status, w.body.String(), ct}
+}
+func main() {
+	scan := bufio.NewScanner(os.Stdin)
+	scan.Buffer(make([]byte, 4096), 256*1024)
+	if !scan.Scan() {
+		return
+	}
+	var init struct {
+		Org string `json:"organization_id"`
+	}
+	if json.Unmarshal(scan.Bytes(), &init) != nil || init.Org == "" {
+		return
+	}
+	h := solution.NewHandler(platform.Tenant{OrganizationID: init.Org})
+	if h == nil {
+		return
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.Encode(response{200, "ready", "text/plain"})
+	for scan.Scan() {
+		var in request
+		if json.Unmarshal(scan.Bytes(), &in) != nil {
+			return
+		}
+		if err := enc.Encode(invoke(h, in)); err != nil {
+			fmt.Fprintln(os.Stderr, "response_failed")
+			return
+		}
+	}
+}

@@ -9,11 +9,12 @@ class SSEParser {
 if(typeof module!=='undefined')module.exports={SSEParser};
 if(!global.document)return;
 let session=null,callback=null,controller=null,selection=0,retry=null,handshake=null,selected='',cursor=0,disposed=false;
+let runtimeTimer=null,runtimeStatus='stopped';
 const base='/api/demo/backend/v1/sdr/genesis-demo/construction';
 const emit=(type,data={})=>callback?.(JSON.stringify({type,...data}));
-const errors={unauthorized:'Sua sessão terminou. Entre novamente.',construction_busy:'Outro projeto está em construção. Aguarde ou interrompa o projeto ativo.',construction_limit:'O limite de projetos deste laboratório foi atingido.',forbidden:'Seu perfil permite apenas acompanhar.',isolated_runner_unavailable:'O executor de testes precisa estar disponível para construir.',invalid_goal:'Descreva sua ideia com pelo menos 15 caracteres.'};
+const errors={runtime_entrypoint_missing:'Continue o projeto para adaptar o backend ao contrato NewHandler.',runtime_contract_invalid:'Conclua a construção com um contrato válido antes de iniciar.',runtime_capabilities_unavailable:'Esta aplicação depende de integrações que ainda não estão disponíveis na prévia.',runtime_busy:'Já existe uma prévia em execução para esta empresa. Encerre-a antes de iniciar outra.',runtime_not_running:'Inicie o backend da prévia.',runtime_request_failed:'O backend não respondeu. Reinicie a prévia.',unauthorized:'Sua sessão terminou. Entre novamente.',construction_busy:'Outro projeto está em construção. Aguarde ou interrompa o projeto ativo.',construction_limit:'O limite de projetos deste laboratório foi atingido.',forbidden:'Seu perfil permite apenas acompanhar.',isolated_runner_unavailable:'O executor de testes precisa estar disponível para construir.',invalid_goal:'Descreva sua ideia com pelo menos 15 caracteres.'};
 async function request(url,body,signal){if(!session)throw Error('Aguardando sua sessão Arkom.');const r=await fetch(url,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+session.access_token,...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),credentials:'omit',redirect:'error',cache:'no-store',signal:signal||AbortSignal.timeout(20000)});if(!r.ok){const data=await r.json().catch(()=>({}));const error=Error(errors[data.error]||'Não foi possível concluir a operação ('+r.status+').');error.status=r.status;throw error;}return r;}
-function stop(){selection++;controller?.abort();clearTimeout(retry);controller=null;}
+function stop(){clearTimeout(runtimeTimer);runtimeStatus='stopped';emit('runtime',{status:'stopped'});selection++;controller?.abort();clearTimeout(retry);controller=null;}
 async function stream(id,generation){
  controller=new AbortController();emit('connection',{status:'connecting'});let ended=false;
  try{const r=await request(base+'/'+encodeURIComponent(id)+'/events?after='+cursor,undefined,controller.signal);if(generation!==selection)return;
@@ -24,16 +25,26 @@ async function stream(id,generation){
  }catch(e){if(generation!==selection||disposed)return;if([401,403,404].includes(e.status)){ended=true;emit('error',{message:e.message});emit('connection',{status:e.status===401?'expired':'unavailable'});}else{emit('connection',{status:'reconnecting'});}}
  if(!ended&&generation===selection&&!disposed){emit('connection',{status:'reconnecting'});retry=setTimeout(()=>stream(id,generation),1800);}
 }
+async function pollRuntime(id,generation){
+ clearTimeout(runtimeTimer);
+ try{const state=await(await request(base+'/'+encodeURIComponent(id)+'/runtime')).json();if(generation!==selection||id!==selected||disposed)return;runtimeStatus=state.status;emit('runtime',state);if(['starting','running'].includes(state.status))runtimeTimer=setTimeout(()=>pollRuntime(id,generation),1500);}
+ catch(e){if(generation===selection){runtimeStatus='stopped';emit('runtime',{status:'stopped'});emit('error',{message:e.message});}}
+}
 function receive(event){if(event.origin!==global.location.origin||event.source!==global.parent||event.data?.type!=='arkom.genesis.session')return;const next=event.data.session;if(!next?.access_token||!next?.identity)return;if(session?.access_token===next.access_token)return;stop();selected='';cursor=0;session=next;clearTimeout(handshake);emit('session',{identity:session.identity});}
 global.addEventListener('message',receive);
 global.genesisBridge={
- createPreview(files){return global.genesisPreview.createPreview(JSON.parse(files));},
+ createPreview(files){const id=selected,identity=session;return global.genesisPreview.createPreview(JSON.parse(files),async data=>{
+  if(!id||id!==selected||identity!==session||disposed||runtimeStatus!=='running')throw Error('Inicie o backend desta prévia antes de usar esta função.');
+  const result=await(await request(base+'/'+encodeURIComponent(id)+'/runtime/request',data)).json();
+  if(id!==selected||identity!==session||disposed)throw Error('A prévia foi encerrada.');return result;
+ });},
  connect(cb){callback=cb;disposed=false;const ready=()=>{if(disposed)return;global.parent.postMessage({type:'arkom.genesis.ready'},global.location.origin);if(!session)handshake=setTimeout(ready,1000);};ready();if(session)emit('session',{identity:session.identity});},
  disconnect(){disposed=true;stop();clearTimeout(handshake);session=null;callback=null;},
  async invoke(action,payload){const data=JSON.parse(payload||'{}');
  if(action==='list')return JSON.stringify(await (await request(base)).json());
- if(action==='select'){stop();selected=data.id;cursor=0;if(selected)void stream(selected,selection);return '{}';}
+ if(action==='select'){stop();selected=data.id;cursor=0;if(selected){void stream(selected,selection);void pollRuntime(selected,selection);}return '{}';}
  if(action==='start')return JSON.stringify(await (await request(base,{goal:data.goal,parent_id:data.parent_id||''})).json());
+ if(action==='runtime_start'||action==='runtime_stop'){if(data.id!==selected)throw Error('Selecione novamente o projeto.');const result=await(await request(base+'/'+encodeURIComponent(data.id)+'/runtime/'+(action==='runtime_start'?'start':'stop'),{})).json();void pollRuntime(selected,selection);return JSON.stringify(result);}
  if(action==='cancel')return JSON.stringify(await (await request(base+'/'+encodeURIComponent(data.id)+'/cancel',{})).json());
  if(action==='export'){const blob=await (await request(base+'/'+encodeURIComponent(data.id)+'/export')).blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='genesis-project.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);return '{}';}
  if(action==='qualification'){global.parent.postMessage({type:'arkom.genesis.qualification'},global.location.origin);return '{}';}

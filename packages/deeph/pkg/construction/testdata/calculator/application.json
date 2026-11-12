@@ -1,0 +1,1 @@
+{"schema_version":"arkom.application.v1","catalog_version":"arkom-capabilities-v1","name":"Calculadora de referência","backend":"go","entrypoint":"frontend/index.html","routes":[{"method":"POST","path":"/api/calculate","operation_id":"calculate"},{"method":"GET","path":"/api/history","operation_id":"history"}],"capabilities":[]}

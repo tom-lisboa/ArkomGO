@@ -7,3 +7,32 @@ test('preview assembles local styles and scripts with restrictive CSP',()=>{
 });
 test('preview requires an actual interface',()=>{assert.throws(()=>compilePreview({},Parser),/interface/)});
 test('sandbox grants scripts only, never same-origin or navigation permissions',()=>{const source=require('fs').readFileSync(require.resolve('../web/preview.js'),'utf8');assert.match(source,/setAttribute\('sandbox','allow-scripts'\)/);assert.ok(!source.includes('allow-same-origin'));assert.ok(!source.includes('allow-top-navigation'));});
+
+test('runtime bridge checks source, opaque origin, connection and payload; child fetch receives only the reply',async()=>{
+ const vm=require('node:vm');const fs=require('node:fs');
+ const outer=new JSDOM('<body></body>',{runScripts:'outside-only',url:'http://localhost:3007'});
+ const win=outer.window;let receive;
+ win.addEventListener=(type,fn)=>{if(type==='message')receive=fn};
+ win.eval(fs.readFileSync(require.resolve('../web/preview.js'),'utf8'));
+ const calls=[];
+ const frame=win.genesisPreview.createPreview({'frontend/index.html':'<body><output id="result"></output></body>'},async request=>{calls.push(request);return {status:200,body:'{"result":42}',content_type:'application/json'}});
+ win.document.body.append(frame);
+ const replies=[];const port={postMessage:value=>replies.push(value),close(){}};
+ const request={method:'POST',path:'/api/calculate',body:'{"a":12,"b":30}'};
+ const event={origin:'null',source:frame.contentWindow,data:{type:'arkom.preview.request',request},ports:[port]};
+ await receive({...event,origin:win.location.origin});await receive({...event,source:{}});
+ assert.equal(calls.length,0);
+ await receive({...event,data:{...event.data,request:{...request,body:42}}});assert.equal(calls.length,0);assert.match(replies.pop().error,/inválido/);
+ await receive(event);assert.equal(calls.length,1);assert.equal(replies.pop().body,'{"result":42}');
+ const compiled=new Parser().parseFromString(frame.srcdoc,'text/html');
+ assert.equal(compiled.querySelector('meta[http-equiv]').content,policy);
+ assert.ok(compiled.head.innerHTML.indexOf('Content-Security-Policy')<compiled.head.innerHTML.indexOf('<script>'));
+ const {MessageChannel}=require('node:worker_threads');
+ const child={window:{},Response,MessageChannel,setTimeout,clearTimeout,parent:{postMessage:async(data,origin,ports)=>{assert.equal(origin,'*');await receive({...event,data,ports})}}};
+ vm.runInNewContext(compiled.querySelector('script').textContent,child);
+ const result=await child.window.fetch('/api/calculate',{method:'POST',body:request.body});
+ assert.equal(result.status,200);assert.deepEqual(await result.json(),{result:42});
+ await assert.rejects(()=>child.window.fetch('https://example.com/api/calculate'),/somente/);
+ frame.remove();await receive(event);assert.equal(calls.length,2);
+ outer.window.close();
+});
