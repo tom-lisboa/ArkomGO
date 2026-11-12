@@ -11,7 +11,7 @@ export default function GenesisFlutter({session,onQualification}:{session:Sessio
   window.addEventListener('message',receive);return()=>{clearTimeout(timeout);window.removeEventListener('message',receive)};
  },[onQualification]);
  useEffect(()=>{if(ready)frame.current?.contentWindow?.postMessage({type:'arkom.genesis.session',session},window.location.origin)},[session,ready]);
- return <section aria-label="Genesis Flutter" style={{position:'relative',height:'calc(100dvh - 110px)',minHeight:700,background:'#090b0e',borderRadius:20,overflow:'hidden'}}>
+ return <section aria-label="Genesis Flutter" style={{position:'relative',height:'calc(100dvh - 110px)',minHeight:480,background:'#090b0e',borderRadius:14,overflow:'hidden'}}>
   {!ready&&<div role="status" style={{padding:32,color:'#d4b477',position:'absolute',inset:0,zIndex:2,background:'#090b0e',height:160}}>Preparando o Genesis em Flutter…{slow&&<p style={{fontSize:13}}>O estúdio está demorando para carregar. <button onClick={()=>{setSlow(false);if(frame.current)frame.current.src='/genesis-flutter/index.html'}}>Tentar novamente</button></p>}</div>}
   <iframe ref={frame} title="Genesis — estúdio de criação em Flutter" src="/genesis-flutter/index.html" style={{width:'100%',height:'100%',border:0,display:'block'}}/>
  </section>

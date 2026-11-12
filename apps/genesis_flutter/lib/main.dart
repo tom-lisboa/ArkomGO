@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
+import 'code_workspace.dart';
+import 'live_activity.dart';
+import 'solution_preview.dart';
 import 'studio_controller.dart';
 import 'visuals.dart';
-import 'solution_preview.dart';
 
 void main() => runApp(const GenesisApp());
 
@@ -34,7 +37,7 @@ class GenesisApp extends StatelessWidget {
         ),
       ),
       tooltipTheme: const TooltipThemeData(
-        waitDuration: Duration(milliseconds: 400),
+        waitDuration: Duration(milliseconds: 350),
       ),
     ),
     home: Studio(controller: controller),
@@ -48,1298 +51,1173 @@ class Studio extends StatefulWidget {
   State<Studio> createState() => _StudioState();
 }
 
-class _StudioState extends State<Studio> with SingleTickerProviderStateMixin {
-  late StudioController model;
-  late AnimationController motion;
+class _StudioState extends State<Studio> {
+  late final StudioController model;
+  final activity = LiveActivity();
   final goal = TextEditingController();
-  final feedScroll = ScrollController();
-  int view = 0;
-  bool follow = true;
-  bool showSolution = true;
-  int previewRevision = 0;
+  final inputFocus = FocusNode();
+  Timer? previewDebounce, replayTimer;
+  bool replaying = false;
+  int replayStep = 0, replayTotal = 0;
+  int mode = 0, previewRevision = 0, lastSequence = 0;
+  bool mobilePreview = false,
+      showChat = true,
+      mobileChat = false,
+      newIdea = false;
+  String lastBuild = '', lastStatus = '';
   Map<String, dynamic>? selectedEvent;
-  int lastCount = 0;
-  String lastBuild = "";
+  List<Map<String, dynamic>> get tests => model.traces
+      .where((e) => e['kind'] == 'test.passed' || e['kind'] == 'test.failed')
+      .toList();
+  bool get hasPreview =>
+      !newIdea && model.files.containsKey('frontend/index.html');
+  bool get canSend =>
+      model.canEdit &&
+      !model.busy &&
+      !model.anyRunning &&
+      goal.text.trim().length >= 15;
+
   @override
   void initState() {
     super.initState();
     model = widget.controller ?? StudioController();
+    lastBuild = model.id;
+    lastStatus = model.build?['status'] ?? '';
+    lastSequence = model.build?['sequence'] ?? 0;
+    activity.seed(model.id, model.traces);
     model.addListener(changed);
-    motion = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 18),
-    );
     if (widget.controller == null) model.attach();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      motion.stop();
-    } else {
-      motion.repeat();
-    }
   }
 
   void changed() {
     if (!mounted) return;
-    if (lastBuild != model.id) {
+    if (replaying &&
+        (model.lastDelivery == 'snapshot' ||
+            model.lastDelivery == 'update' ||
+            model.lastDelivery == 'session'))
+      stopReplay();
+    final switched = lastBuild != model.id;
+    if (switched) {
+      previewDebounce?.cancel();
       lastBuild = model.id;
-      showSolution = true;
+      lastSequence = 0;
       selectedEvent = null;
-      view = 0;
+      mode = 0;
+      newIdea = false;
     }
+    activity.sync(
+      model.id,
+      model.traces,
+      replay: model.lastDelivery == 'snapshot',
+    );
+    final frontendChanged = model.traces.any(
+      (e) =>
+          (e['sequence'] as int) > lastSequence &&
+          e['kind'] == 'file.written' &&
+          (e['path'] ?? '').startsWith('frontend/'),
+    );
+    lastSequence = model.build?['sequence'] ?? lastSequence;
+    final status = model.build?['status'] ?? '';
+    if (frontendChanged || status != lastStatus) {
+      previewDebounce?.cancel();
+      previewDebounce = Timer(
+        status == 'running' ? const Duration(milliseconds: 900) : Duration.zero,
+        () {
+          if (mounted) setState(() => previewRevision++);
+        },
+      );
+    }
+    lastStatus = status;
     setState(() {});
-    if (follow && lastCount != model.traces.length) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (feedScroll.hasClients)
-          feedScroll.animateTo(
-            feedScroll.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOut,
-          );
-      });
-    }
-    lastCount = model.traces.length;
   }
 
   @override
   void dispose() {
+    previewDebounce?.cancel();
+    replayTimer?.cancel();
+    activity.dispose();
     model.removeListener(changed);
     if (widget.controller == null) model.dispose();
-    motion.dispose();
     goal.dispose();
-    feedScroll.dispose();
+    inputFocus.dispose();
     super.dispose();
   }
 
-  String get status => switch (model.build?['status']) {
-    'running' => 'Seu time está construindo',
-    'ready' => 'Uma nova ideia ganhou forma',
-    'failed' => 'Vamos retomar de onde parou',
-    'cancelled' || 'interrupted' => 'Seu projeto está preservado',
-    _ => 'Grandes ideias começam aqui',
-  };
-  Widget text(
-    String s, {
-    double size = 13,
-    Color color = const Color(0xffe6e8ed),
+  Future<void> send() async {
+    if (!canSend) return;
+    final old = model.id;
+    await model.start(
+      goal.text.trim(),
+      continueProject: !newIdea && model.id.isNotEmpty,
+    );
+    if (mounted && old != model.id) {
+      setState(() {
+        goal.clear();
+        newIdea = false;
+        mobileChat = false;
+        mode = 0;
+      });
+    }
+  }
+
+  void startReplay() {
+    if (model.running || model.traces.isEmpty) return;
+    final events = model.traces
+        .where(
+          (e) =>
+              agentIndex(e['agent']) >= 0 &&
+              [
+                'agent.started',
+                'file.written',
+                'test.passed',
+                'test.failed',
+                'agent.finished',
+              ].contains(e['kind']),
+        )
+        .toList();
+    if (events.isEmpty) return;
+    replayTimer?.cancel();
+    activity.seed(model.id, []);
+    setState(() {
+      replaying = true;
+      replayStep = 1;
+      replayTotal = events.length;
+      mode = 0;
+      mobileChat = false;
+    });
+    activity.sync(model.id, [events.first]);
+    replayTimer = Timer.periodic(const Duration(milliseconds: 2200), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (replayStep >= events.length) {
+        stopReplay();
+        return;
+      }
+      activity.sync(model.id, [events[replayStep]]);
+      setState(() => replayStep++);
+    });
+  }
+
+  void stopReplay() {
+    replayTimer?.cancel();
+    activity.sync(model.id, model.traces, replay: true);
+    if (mounted) setState(() => replaying = false);
+  }
+
+  Widget label(
+    String value, {
+    double size = 12,
+    Color color = const Color(0xffe4e5e8),
     FontWeight weight = FontWeight.w400,
+    int? lines,
     double? spacing,
   }) => Text(
-    s,
+    value,
+    maxLines: lines,
+    overflow: lines == null ? null : TextOverflow.ellipsis,
     style: TextStyle(
-      fontFamily: 'ArkomSans',
       fontSize: size,
       color: color,
       fontWeight: weight,
+      height: 1.5,
       letterSpacing: spacing,
     ),
   );
-  Widget tag(String s, {Color color = gold, IconData? icon}) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: .07),
-      border: Border.all(color: color.withValues(alpha: .18)),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (icon != null) ...[
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 6),
-        ],
-        text(s, size: 10, color: color, weight: FontWeight.w500),
-      ],
-    ),
-  );
-  Widget box(
-    Widget child, {
-    EdgeInsets padding = const EdgeInsets.all(20),
-    Color color = panel,
-  }) => Container(
-    padding: padding,
-    decoration: BoxDecoration(
-      color: color,
-      border: Border.all(color: line),
-      borderRadius: BorderRadius.circular(18),
-    ),
-    child: child,
-  );
-  Widget button(
-    String s,
+  Widget iconAction(
+    String tooltip,
     IconData icon,
-    VoidCallback? click, {
-    bool primary = false,
-  }) => primary
-      ? FilledButton.icon(
-          onPressed: click,
-          icon: Icon(icon, size: 16),
-          label: Text(s),
-          style: FilledButton.styleFrom(
-            backgroundColor: gold,
-            foregroundColor: ink,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            textStyle: const TextStyle(
-              fontFamily: 'ArkomSans',
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        )
-      : OutlinedButton.icon(
-          onPressed: click,
-          icon: Icon(icon, size: 15),
-          label: Text(s),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: const Color(0xffbdc3cf),
-            side: const BorderSide(color: line),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(9),
-            ),
-            textStyle: const TextStyle(fontFamily: 'ArkomSans', fontSize: 11),
-          ),
-        );
+    VoidCallback? action, {
+    bool active = false,
+  }) => IconButton(
+    tooltip: tooltip,
+    onPressed: action,
+    isSelected: active,
+    style: IconButton.styleFrom(
+      foregroundColor: active ? gold : muted,
+      backgroundColor: active
+          ? gold.withValues(alpha: .10)
+          : Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    ),
+    icon: Icon(icon, size: 18),
+    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+  );
+
   @override
   Widget build(BuildContext context) => Scaffold(
     body: LayoutBuilder(
-      builder: (context, limits) {
-        final compact = limits.maxWidth < 840;
-        return SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.all(compact ? 16 : 28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                topbar(compact),
-                const SizedBox(height: 32),
-                hero(compact),
-                const SizedBox(height: 26),
-                if (model.files.containsKey('frontend/index.html')) ...[
-                  solution(compact),
-                  const SizedBox(height: 24),
-                ],
-                if (model.error.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: box(
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.error_outline,
-                            color: Color(0xffef9c8d),
-                            size: 18,
+      builder: (context, c) {
+        final narrow = c.maxWidth < 760;
+        return Column(
+          children: [
+            header(narrow),
+            if (model.error.isNotEmpty)
+              Container(
+                width: double.infinity,
+                color: const Color(0xff30201e),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 9,
+                ),
+                child: label(
+                  model.error,
+                  color: const Color(0xfff0b0a0),
+                  size: 11,
+                  lines: 3,
+                ),
+              ),
+            Expanded(
+              child: Row(
+                children: [
+                  if (!narrow && showChat)
+                    SizedBox(
+                      width: c.maxWidth < 1050 ? 280 : 316,
+                      child: conversation(),
+                    ),
+                  if (!narrow && showChat)
+                    const VerticalDivider(width: 1, color: line),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        toolbar(narrow),
+                        Expanded(
+                          child: IndexedStack(
+                            index: narrow && mobileChat ? 1 : 0,
+                            children: [workspace(), if (narrow) conversation()],
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: text(
-                              model.error,
-                              color: const Color(0xffefb9ae),
-                            ),
-                          ),
-                        ],
-                      ),
-                      color: const Color(0xff24191a),
+                        ),
+                      ],
                     ),
                   ),
-                if (compact) ...[
-                  composer(),
-                  const SizedBox(height: 18),
-                  stage(),
-                  const SizedBox(height: 18),
-                  activity(380),
-                ] else
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(width: 275, child: composer()),
-                      const SizedBox(width: 18),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            stage(),
-                            const SizedBox(height: 18),
-                            ecosystem(),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 18),
-                      SizedBox(
-                        width: math.min(300, limits.maxWidth * .25),
-                        child: activity(558),
-                      ),
-                    ],
-                  ),
-                const SizedBox(height: 24),
-                workbench(compact),
-                const SizedBox(height: 20),
-                footer(compact),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         );
       },
     ),
   );
-  Widget solution(bool compact) => box(
-    Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+
+  Widget header(bool narrow) => Container(
+    height: 62,
+    padding: EdgeInsets.symmetric(horizontal: narrow ? 12 : 20),
+    decoration: const BoxDecoration(
+      color: Color(0xff111214),
+      border: Border(bottom: BorderSide(color: line)),
+    ),
+    child: Row(
       children: [
-        Wrap(
-          spacing: 16,
-          runSpacing: 12,
-          alignment: WrapAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                text('SUA SOLUÇÃO', size: 9, color: gold, spacing: 2),
-                const SizedBox(height: 7),
-                text(
-                  'Veja e experimente o que você criou.',
-                  size: compact ? 19 : 23,
-                ),
-                const SizedBox(height: 6),
-                text(
-                  model.running
-                      ? 'Prévia em construção. Atualize para ver novos arquivos.'
-                      : 'A interface está pronta para você experimentar.',
-                  size: 11,
-                  color: muted,
-                ),
-              ],
-            ),
-            Wrap(
-              spacing: 8,
-              children: [
-                button(
-                  showSolution ? 'Recolher prévia' : 'Abrir minha solução',
-                  showSolution ? Icons.expand_less : Icons.play_arrow,
-                  () => setState(() => showSolution = !showSolution),
-                  primary: !showSolution,
-                ),
-                if (showSolution)
-                  button(
-                    'Atualizar prévia',
-                    Icons.refresh,
-                    () => setState(() => previewRevision++),
-                  ),
-              ],
-            ),
-          ],
-        ),
-        if (showSolution) ...[
-          const SizedBox(height: 18),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              height: compact ? 620 : 660,
-              width: double.infinity,
-              child: SolutionPreview(
-                key: ValueKey(
-                  '${model.id}-$previewRevision-${model.build?['status']}',
-                ),
-                files: Map.of(model.files),
-              ),
-            ),
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            border: Border.all(color: gold.withValues(alpha: .35)),
+            borderRadius: BorderRadius.circular(9),
           ),
-          const SizedBox(height: 12),
-          text(
-            'Prévia interativa local. Serviços do backend e integrações externas ainda não estão conectados aqui.',
-            size: 10,
-            color: muted,
+          child: const Icon(Icons.auto_awesome, size: 16, color: gold),
+        ),
+        const SizedBox(width: 10),
+        label('GENESIS', size: 11, weight: FontWeight.w600, spacing: 2.1),
+        const SizedBox(width: 18),
+        const SizedBox(
+          height: 18,
+          child: VerticalDivider(width: 1, color: line),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: model.projects.isEmpty || newIdea
+              ? label('Nova ideia', size: 12, color: muted)
+              : DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    key: ValueKey(model.id),
+                    value: model.id.isEmpty ? null : model.id,
+                    isExpanded: true,
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 16,
+                      color: muted,
+                    ),
+                    dropdownColor: panel,
+                    style: const TextStyle(
+                      fontFamily: 'ArkomSans',
+                      fontSize: 12,
+                      color: Color(0xffe4e5e8),
+                    ),
+                    items: model.projects
+                        .map(
+                          (p) => DropdownMenuItem<String>(
+                            value: p['id'],
+                            child: Text(
+                              p['goal'].toString().trim(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        newIdea = false;
+                        model.select(v);
+                      }
+                    },
+                  ),
+                ),
+        ),
+        const SizedBox(width: 8),
+        iconAction('Nova solução', Icons.add, () {
+          setState(() {
+            newIdea = true;
+            goal.clear();
+            mobileChat = true;
+            showChat = true;
+          });
+          inputFocus.requestFocus();
+        }),
+        if (!narrow) ...[
+          const SizedBox(width: 12),
+          Tooltip(
+            message: connectionLabel,
+            child: Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: model.connection == 'live' ? agentColors[3] : muted,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                label(connectionLabel, size: 10, color: muted),
+              ],
+            ),
           ),
         ],
       ],
     ),
   );
 
-  Widget topbar(bool compact) => Row(
-    children: [
-      Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          border: Border.all(color: gold.withValues(alpha: .5)),
-          borderRadius: BorderRadius.circular(11),
+  String get connectionLabel => switch (model.connection) {
+    'live' => 'Ao vivo',
+    'complete' => 'Salvo na Arkom',
+    'reconnecting' => 'Reconectando',
+    'connecting' => 'Conectando',
+    'expired' => 'Sessão encerrada',
+    'unavailable' => 'Indisponível',
+    _ => 'Aguardando sessão',
+  };
+
+  Widget toolbar(bool narrow) => Container(
+    height: 54,
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: line)),
+    ),
+    child: Row(
+      children: [
+        iconAction(
+          narrow
+              ? 'Conversar com o Genesis'
+              : showChat
+              ? 'Recolher conversa'
+              : 'Mostrar conversa',
+          Icons.chat_bubble_outline,
+          () => setState(() {
+            if (narrow) {
+              mobileChat = !mobileChat;
+            } else {
+              showChat = !showChat;
+            }
+          }),
+          active: narrow && mobileChat,
         ),
-        child: const Icon(Icons.auto_awesome, color: gold, size: 18),
-      ),
-      const SizedBox(width: 11),
-      text('GENESIS', size: 14, spacing: 3, weight: FontWeight.w500),
-      if (!compact) ...[
-        const SizedBox(width: 16),
-        Container(height: 18, width: 1, color: line),
-        const SizedBox(width: 16),
-        text('ESTÚDIO DE CRIAÇÃO', size: 9, color: muted, spacing: 2),
+        const SizedBox(width: 6),
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: const Color(0xff181a1d),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              modeButton('Solução', Icons.web_asset_outlined, 0, narrow),
+              modeButton('Código', Icons.code, 1, narrow),
+            ],
+          ),
+        ),
+        const Spacer(),
+        if (!narrow && mode == 0) ...[
+          iconAction(
+            'Visualizar em desktop',
+            Icons.desktop_windows_outlined,
+            () => setState(() => mobilePreview = false),
+            active: !mobilePreview,
+          ),
+          iconAction(
+            'Visualizar em celular',
+            Icons.smartphone_outlined,
+            () => setState(() => mobilePreview = true),
+            active: mobilePreview,
+          ),
+          const SizedBox(width: 7),
+          const SizedBox(
+            height: 18,
+            child: VerticalDivider(width: 1, color: line),
+          ),
+          const SizedBox(width: 7),
+        ],
+        if (mode == 0)
+          iconAction(
+            'Atualizar prévia',
+            Icons.refresh,
+            hasPreview ? () => setState(() => previewRevision++) : null,
+          ),
+        iconAction(
+          'Histórico de ações',
+          Icons.history,
+          () => setState(() {
+            mode = mode == 2 ? 0 : 2;
+            mobileChat = false;
+          }),
+          active: mode == 2,
+        ),
+        PopupMenuButton<String>(
+          tooltip: 'Mais opções',
+          icon: const Icon(Icons.more_horiz, size: 19, color: muted),
+          onSelected: (v) {
+            if (v == 'replay') startReplay();
+            if (v == 'export') model.action('export');
+            if (v == 'qualification') model.call('qualification');
+            if (v == 'cancel') model.action('cancel');
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              value: 'replay',
+              enabled: !model.running && model.traces.isNotEmpty,
+              child: const Text(
+                'Rever ações dos Gophers',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'export',
+              enabled: model.id.isNotEmpty,
+              child: const Text(
+                'Baixar código',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+            if (model.running)
+              PopupMenuItem(
+                value: 'cancel',
+                enabled: model.canEdit && !model.busy,
+                child: const Text(
+                  'Interromper construção',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            const PopupMenuItem(
+              value: 'qualification',
+              child: Text(
+                'Qualificação SDR/CRM',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
       ],
-      const Spacer(),
-      connectionTag(),
-    ],
+    ),
   );
-  Widget connectionTag() {
-    final label = switch (model.connection) {
-      'live' => 'AO VIVO',
-      'complete' => 'HISTÓRICO SINCRONIZADO',
-      'reconnecting' => 'RECONECTANDO',
-      'connecting' => 'CONECTANDO',
-      'expired' => 'SESSÃO ENCERRADA',
-      'unavailable' => 'INDISPONÍVEL',
-      _ => 'PRONTO PARA CRIAR',
-    };
-    return tag(
-      label,
-      color: model.connection == 'live' ? const Color(0xff8ac6ac) : gold,
-      icon: model.connection == 'live' ? Icons.sensors : Icons.circle_outlined,
+
+  Widget modeButton(String name, IconData icon, int index, bool narrow) =>
+      Semantics(
+        selected: mode == index && !mobileChat,
+        child: Tooltip(
+          message: name,
+          child: TextButton(
+            onPressed: () => setState(() {
+              mode = index;
+              mobileChat = false;
+            }),
+            style: TextButton.styleFrom(
+              minimumSize: Size(narrow ? 40 : 94, 34),
+              padding: EdgeInsets.symmetric(horizontal: narrow ? 10 : 13),
+              foregroundColor: mode == index && !mobileChat ? gold : muted,
+              backgroundColor: mode == index && !mobileChat
+                  ? const Color(0xff30302c)
+                  : Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(7),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 17),
+                if (!narrow) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+
+  Widget conversation() => Container(
+    color: const Color(0xff111214),
+    child: Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(22, 25, 22, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                label(
+                  'UM TIME PARA A SUA IDEIA',
+                  size: 9,
+                  color: gold,
+                  spacing: 1.5,
+                ),
+                const SizedBox(height: 12),
+                label(
+                  newIdea || model.id.isEmpty
+                      ? 'O que vamos\ncriar hoje?'
+                      : 'Sua ideia,\nganhando forma.',
+                  size: 27,
+                  weight: FontWeight.w300,
+                ),
+                const SizedBox(height: 12),
+                label(
+                  newIdea || model.id.isEmpty
+                      ? 'Conte o que você precisa. O Genesis reúne o time e constrói com a Arkom.'
+                      : 'Peça uma mudança aqui e acompanhe a solução ao lado.',
+                  color: muted,
+                  size: 12,
+                ),
+                if (!newIdea && model.build != null) ...[
+                  const SizedBox(height: 24),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: gold.withValues(alpha: .06),
+                      border: Border.all(color: gold.withValues(alpha: .14)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        label('VOCÊ PEDIU', size: 8, color: gold, spacing: 1.4),
+                        const SizedBox(height: 8),
+                        label(
+                          model.build!['goal'].toString().trim(),
+                          size: 12,
+                          lines: 5,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 26),
+                Row(
+                  children: [
+                    label('Seu time', size: 12, weight: FontWeight.w500),
+                    const Spacer(),
+                    label('deepH', size: 10, color: muted),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(4, (i) => teamMember(i)),
+                ),
+                const SizedBox(height: 22),
+                if (!newIdea && model.build != null) resultSummary(),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: line),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.hub_outlined, size: 18, color: gold),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            label('Construído com a Arkom', size: 11),
+                            label(
+                              'Contexto, catálogo e ferramentas',
+                              size: 10,
+                              color: muted,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Tooltip(
+                        message: 'O time consulta os contratos do ecossistema. As integrações operacionais ainda precisam ser conectadas.',
+                        child: const Icon(
+                          Icons.info_outline,
+                          size: 13,
+                          color: muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        composer(),
+      ],
+    ),
+  );
+
+  Widget teamMember(int i) {
+    final latest = model.traces
+        .where((e) => e['agent'] == agentIds[i])
+        .lastOrNull;
+    final started = model.traces.any(
+      (e) => e['agent'] == agentIds[i] && e['kind'] == 'agent.started',
+    );
+    final done = model.traces.any(
+      (e) => e['agent'] == agentIds[i] && e['kind'] == 'agent.finished',
+    );
+    final active = !newIdea && model.running && started && !done;
+    return Tooltip(
+      message:
+          '${agentJobs[i]} · ${active ? (latest?['summary'] ?? 'Trabalhando') : (done && !newIdea ? 'Concluído' : 'Disponível')}',
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: active
+                  ? agentColors[i].withValues(alpha: .09)
+                  : const Color(0xff191b1e),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: active ? agentColors[i].withValues(alpha: .65) : line,
+              ),
+            ),
+            child: Gopher(index: i, size: 46, active: active),
+          ),
+          const SizedBox(height: 7),
+          label(
+            agentNames[i],
+            size: 10,
+            color: active ? agentColors[i] : muted,
+          ),
+          const SizedBox(height: 5),
+          Container(
+            width: 4,
+            height: 4,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: active
+                  ? agentColors[i]
+                  : done && !newIdea
+                  ? agentColors[3].withValues(alpha: .5)
+                  : line,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget hero(bool compact) => Row(
-    crossAxisAlignment: CrossAxisAlignment.end,
-    children: [
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            text(
-              'SUA VISÃO. NOSSA INTELIGÊNCIA.',
-              size: 9,
-              color: gold,
-              spacing: 2.6,
-            ),
-            const SizedBox(height: 12),
-            Text.rich(
-              TextSpan(
-                children: [
-                  const TextSpan(text: 'Imagine o próximo.\n'),
-                  TextSpan(
-                    text: 'Seu time constrói.',
-                    style: TextStyle(fontFamily: 'ArkomSans', color: gold),
-                  ),
-                ],
-              ),
-              style: TextStyle(
-                fontFamily: 'ArkomSans',
-                fontSize: compact ? 32 : 42,
-                fontWeight: FontWeight.w300,
-                height: 1.14,
-                letterSpacing: -1.7,
-              ),
-            ),
-            const SizedBox(height: 12),
-            text(
-              'Uma conversa vira código. Cada passo, na sua frente.',
-              color: muted,
-              size: 12,
-            ),
-          ],
-        ),
-      ),
-      if (!compact)
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            text(
-              'ARKOM × deepH',
-              size: 11,
-              color: const Color(0xffbab3a3),
-              spacing: 1.5,
-            ),
-            const SizedBox(height: 7),
-            text(
-              'Inteligência conectada ao seu ecossistema',
-              size: 10,
-              color: muted,
-            ),
-          ],
-        ),
-    ],
-  );
-  Widget composer() => box(
-    Column(
+  Widget resultSummary() {
+    final state = model.build?['status'];
+    final ready = state == 'ready';
+    final failed = state == 'failed';
+    final title = ready
+        ? 'Pronta para experimentar'
+        : model.running
+        ? 'Seu time está construindo'
+        : failed
+        ? 'Vamos ajustar o que faltou'
+        : 'Construção interrompida';
+    final detail = ready
+        ? 'Use a prévia. A próxima melhoria começa com uma mensagem.'
+        : model.running
+        ? 'Os Gophers mostram as ações na área da solução. O histórico guarda cada passo.'
+        : 'Seu código foi preservado. Você pode pedir uma nova versão.';
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            text('01', size: 10, color: gold),
-            const SizedBox(width: 9),
-            text('A ideia é sua.', size: 16, weight: FontWeight.w500),
+            Icon(
+              ready
+                  ? Icons.check_circle_outline
+                  : model.running
+                  ? Icons.auto_awesome
+                  : Icons.info_outline,
+              size: 17,
+              color: ready ? agentColors[3] : gold,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: label(title, size: 12, weight: FontWeight.w500)),
           ],
         ),
-        const SizedBox(height: 8),
-        text(
-          'Conte o que facilitaria seu dia.\nO time cuida da construção.',
-          color: muted,
-          size: 11,
-        ),
-        const SizedBox(height: 20),
-        TextField(
-          controller: goal,
-          minLines: 5,
-          maxLines: 8,
-          maxLength: 4000,
-          onChanged: (_) => setState(() {}),
-          style: const TextStyle(
-            fontFamily: 'ArkomSans',
-            fontSize: 13,
-            height: 1.7,
-          ),
-          decoration: InputDecoration(
-            hintText: 'Ex.: preciso organizar lotes de leilão e acompanhar os interessados…',
-            hintStyle: const TextStyle(
-              fontFamily: 'ArkomSans',
-              color: Color(0xff69717e),
-              height: 1.7,
-            ),
-            counterText: '',
-            filled: true,
-            fillColor: ink,
-            contentPadding: const EdgeInsets.all(14),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: line),
-            ),
-          ),
-        ),
+        const SizedBox(height: 9),
+        label(detail, size: 11, color: muted),
         const SizedBox(height: 12),
         Wrap(
-          spacing: 6,
+          spacing: 8,
           runSpacing: 6,
           children: [
-            suggestion(
-              'Leilões',
-              Icons.gavel,
-              'Crie uma ferramenta para cadastrar lotes de leilão, filtrar por categoria e acompanhar interessados, aproveitando os contratos da Arkom.',
+            smallTag(
+              '${model.files.length} arquivos',
+              Icons.description_outlined,
             ),
-            suggestion(
-              'Vendas',
-              Icons.trending_up,
-              'Crie uma ferramenta para acompanhar metas de vendas e oportunidades, com backend Go e contratos de integração ao CRM da Arkom.',
-            ),
-          ],
-        ),
-        const SizedBox(height: 22),
-        SizedBox(
-          width: double.infinity,
-          child: button(
-            model.busy ? 'Preparando…' : 'Construir minha ideia',
-            Icons.north_east,
-            model.canEdit &&
-                    !model.anyRunning &&
-                    !model.busy &&
-                    goal.text.trim().length >= 15
-                ? () => model.start(goal.text)
-                : null,
-            primary: true,
-          ),
-        ),
-        if (model.id.isNotEmpty && !model.running) ...[
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: button(
-              'Melhorar este projeto',
-              Icons.fork_right,
-              model.canEdit &&
-                      !model.anyRunning &&
-                      !model.busy &&
-                      goal.text.trim().length >= 15
-                  ? () => model.start(goal.text, continueProject: true)
-                  : null,
-            ),
-          ),
-        ],
-        const SizedBox(height: 18),
-        const Divider(color: line),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            const Icon(Icons.shield_outlined, size: 14, color: muted),
-            const SizedBox(width: 7),
-            Expanded(
-              child: text(
-                'Seu ambiente. Suas decisões.',
-                color: muted,
-                size: 10,
+            if (tests.isNotEmpty)
+              smallTag(
+                '${tests.where((e) => e['kind'] == 'test.passed').length}/${tests.length} testes',
+                Icons.task_alt,
               ),
-            ),
           ],
         ),
-        const SizedBox(height: 8),
-        text(
-          'Código novo em um ambiente separado.\nSua operação continua como está.',
-          color: const Color(0xff636c7b),
-          size: 10,
+      ],
+    );
+  }
+
+  Widget smallTag(String text, IconData icon) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 12, color: muted),
+      const SizedBox(width: 5),
+      label(text, size: 10, color: muted),
+    ],
+  );
+
+  Widget composer() => Padding(
+    padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(14, 4, 10, 9),
+          decoration: BoxDecoration(
+            color: const Color(0xff1b1d20),
+            border: Border.all(
+              color: inputFocus.hasFocus
+                  ? gold.withValues(alpha: .5)
+                  : const Color(0xff35373a),
+            ),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Column(
+            children: [
+              CallbackShortcuts(
+                bindings: {
+                  const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+                      send,
+                  const SingleActivator(
+                    LogicalKeyboardKey.enter,
+                    control: true,
+                  ): send,
+                },
+                child: TextField(
+                  controller: goal,
+                  focusNode: inputFocus,
+                  minLines: 2,
+                  maxLines: 4,
+                  maxLength: 4000,
+                  onChanged: (_) => setState(() {}),
+                  style: const TextStyle(
+                    fontFamily: 'ArkomSans',
+                    fontSize: 12,
+                    height: 1.6,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: newIdea || model.id.isEmpty
+                        ? 'Descreva sua ideia…'
+                        : 'O que você quer mudar?',
+                    hintStyle: const TextStyle(color: muted, fontSize: 12),
+                    counterText: '',
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.auto_awesome, size: 13, color: gold),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: label(
+                      model.busy
+                          ? 'Preparando…'
+                          : model.running
+                          ? 'Time trabalhando'
+                          : newIdea || model.id.isEmpty
+                          ? 'Criar com o Genesis'
+                          : 'Melhorar esta solução',
+                      size: 10,
+                      color: muted,
+                    ),
+                  ),
+                  Tooltip(
+                    message: newIdea || model.id.isEmpty
+                        ? 'Construir minha ideia'
+                        : 'Enviar melhoria',
+                    child: IconButton.filled(
+                      onPressed: canSend ? send : null,
+                      style: IconButton.styleFrom(
+                        backgroundColor: gold,
+                        foregroundColor: ink,
+                        minimumSize: const Size(34, 34),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                      ),
+                      icon: const Icon(Icons.arrow_upward, size: 18),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 9),
+        label(
+          'Você descreve. Seu time constrói.',
+          size: 9,
+          color: const Color(0xff71757e),
         ),
       ],
     ),
   );
-  Widget suggestion(String label, IconData icon, String value) => ActionChip(
-    label: Text(
-      label,
-      style: const TextStyle(
-        fontFamily: 'ArkomSans',
-        fontSize: 10,
-        color: muted,
-      ),
-    ),
-    avatar: Icon(icon, size: 12, color: muted),
-    onPressed: () {
-      goal.text = value;
-      setState(() {});
-    },
-    backgroundColor: Colors.transparent,
-    side: const BorderSide(color: line),
-    visualDensity: VisualDensity.compact,
-  );
-  Widget stage() {
-    final done = agentIds
-        .where(
-          (a) => model.traces.any(
-            (e) => e['agent'] == a && e['kind'] == 'agent.finished',
-          ),
-        )
-        .length;
-    return box(
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+
+  Widget workspace() => Column(
+    children: [
+      if (replaying)
+        Container(
+          color: const Color(0xff28251d),
+          padding: const EdgeInsets.fromLTRB(12, 2, 4, 2),
+          child: Row(
             children: [
-              text('02', size: 10, color: gold),
-              const SizedBox(width: 9),
-              text('Seu time, em ação.', size: 16, weight: FontWeight.w500),
-              const Spacer(),
-              text('$done / 4', size: 11, color: muted),
+              const Icon(Icons.replay, size: 14, color: gold),
+              const SizedBox(width: 8),
+              Expanded(
+                child: label(
+                  'Reprodução das ações · prévia atual',
+                  size: 10,
+                  color: gold,
+                  lines: 1,
+                ),
+              ),
+              label('$replayStep/$replayTotal', size: 10, color: gold),
+              iconAction('Encerrar reprodução', Icons.close, stopReplay),
             ],
           ),
-          const SizedBox(height: 7),
-          text(status, color: muted, size: 10),
+        ),
+      Expanded(
+        child: IndexedStack(
+          index: mode,
+          children: [
+            previewCanvas(),
+            CodeWorkspace(model: model),
+            history(),
+          ],
+        ),
+      ),
+      Container(
+        height: 30,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: line)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.lock_outline, size: 10, color: muted),
+            const SizedBox(width: 6),
+            Expanded(
+              child: label(
+                mode == 0
+                    ? 'Prévia local · integrações ainda não conectadas'
+                    : 'Seu projeto e histórico ficam salvos na Arkom',
+                size: 9,
+                color: muted,
+                lines: 1,
+              ),
+            ),
+            if (mode == 0 && hasPreview)
+              label('INTERATIVA', size: 8, color: agentColors[3], spacing: 1),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  Widget previewCanvas() => LayoutBuilder(
+    builder: (context, c) {
+      final compact = c.maxWidth < 500;
+      return Container(
+        color: const Color(0xff0b0c0e),
+        padding: EdgeInsets.all(compact ? 10 : 22),
+        child: Center(
+          child: AnimatedContainer(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 300),
+            width: mobilePreview ? math.min(390, c.maxWidth) : c.maxWidth,
+            decoration: BoxDecoration(
+              color: const Color(0xff101113),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xff303237)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 30,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (hasPreview)
+                  SolutionPreview(
+                    key: ValueKey('${model.id}-$previewRevision'),
+                    files: Map.of(model.files),
+                  )
+                else
+                  emptyCanvas(),
+                if (!newIdea) ActivityOnCanvas(activity: activity),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  Widget emptyCanvas() => Center(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              4,
+              (i) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: Gopher(index: i, size: 47),
+              ),
+            ),
+          ),
+          const SizedBox(height: 26),
+          label(
+            model.running && !newIdea
+                ? 'Sua ideia está ganhando forma.'
+                : 'Um espaço para a sua próxima ideia.',
+            size: 22,
+            weight: FontWeight.w300,
+          ),
           const SizedBox(height: 12),
-          AnimatedBuilder(
-            animation: motion,
-            builder: (context, _) => CustomPaint(
-              painter: Constellation(motion.value, model.running),
-              child: LayoutBuilder(
-                builder: (context, c) {
-                  final w = (c.maxWidth - 12) / 2;
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: List.generate(
-                      4,
-                      (i) =>
-                          SizedBox(width: w, child: agentCard(i, motion.value)),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 330),
+            child: Text(
+              model.running && !newIdea
+                  ? 'A interface aparece aqui assim que o time criar os primeiros arquivos.'
+                  : 'Comece com uma conversa. Acompanhe o time construir e experimente tudo por aqui.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, height: 1.7, color: muted),
+            ),
+          ),
+          const SizedBox(height: 22),
+          smallTag('GENESIS  /  ARKOM', Icons.auto_awesome),
+        ],
+      ),
+    ),
+  );
+
+  Widget history() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(22, 18, 22, 14),
+        child: Row(
+          children: [
+            const Icon(Icons.history, size: 18, color: gold),
+            const SizedBox(width: 10),
+            Expanded(
+              child: label(
+                'Histórico de ações',
+                size: 15,
+                weight: FontWeight.w500,
+              ),
+            ),
+            label('${model.traces.length} eventos', color: muted, size: 10),
+          ],
+        ),
+      ),
+      const Divider(height: 1, color: line),
+      Expanded(
+        child: selectedEvent != null
+            ? eventDetail()
+            : model.traces.isEmpty
+            ? Center(
+                child: label(
+                  'As ações do time serão registradas aqui.',
+                  color: muted,
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 12,
+                ),
+                itemCount: model.traces.length,
+                itemBuilder: (context, n) {
+                  final e = model.traces[model.traces.length - 1 - n];
+                  final i = agentIndex(e['agent']);
+                  return InkWell(
+                    onTap: () => setState(() => selectedEvent = e),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (i >= 0)
+                            Gopher(index: i, size: 38)
+                          else
+                            const SizedBox(
+                              width: 38,
+                              child: Icon(
+                                Icons.auto_awesome,
+                                color: gold,
+                                size: 18,
+                              ),
+                            ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    label(
+                                      agentName(e['agent']),
+                                      size: 11,
+                                      color: agentColor(e['agent']),
+                                      weight: FontWeight.w500,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    label(
+                                      '#${e['sequence']}',
+                                      size: 9,
+                                      color: muted,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                label(e['summary'] ?? '', size: 12),
+                                if (e['path'] != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 5),
+                                    child: label(
+                                      e['path'],
+                                      size: 10,
+                                      color: muted,
+                                      lines: 1,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Icon(
+                            Icons.chevron_right,
+                            size: 15,
+                            color: muted,
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: done / 4,
-              minHeight: 3,
-              color: gold,
-              backgroundColor: line,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Icon(Icons.hub_outlined, size: 13, color: gold),
-              const SizedBox(width: 6),
-              Expanded(
-                child: text('Coordenados pelo deepH', size: 10, color: muted),
-              ),
-              tag('GO', color: const Color(0xff73c9d8)),
-            ],
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(18),
-    );
-  }
-
-  Widget agentCard(int i, double phase) {
-    final id = agentIds[i];
-    final started = model.traces.any(
-      (e) => e['agent'] == id && e['kind'] == 'agent.started',
-    );
-    final done = model.traces.any(
-      (e) => e['agent'] == id && e['kind'] == 'agent.finished',
-    );
-    final active = model.running && started && !done;
-    final color = agentColors[i];
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 350),
-      padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
-      decoration: BoxDecoration(
-        gradient: RadialGradient(
-          colors: [
-            color.withValues(alpha: active ? .15 : .055),
-            const Color(0xff11151b).withValues(alpha: .8),
-          ],
-          radius: .95,
-        ),
-        border: Border.all(
-          color: active
-              ? color.withValues(alpha: .6)
-              : line.withValues(alpha: .8),
-        ),
-        borderRadius: BorderRadius.circular(13),
-        boxShadow: active
-            ? [BoxShadow(color: color.withValues(alpha: .06), blurRadius: 20)]
-            : [],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: active
-                      ? color
-                      : done
-                      ? const Color(0xff8ac6ac)
-                      : const Color(0xff414955),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 5),
-              Flexible(
-                child: text(
-                  active
-                      ? 'TRABALHANDO'
-                      : done
-                      ? 'CONCLUÍDO'
-                      : started
-                      ? 'PAUSADO'
-                      : 'DISPONÍVEL',
-                  size: 7,
-                  color: active ? color : muted,
-                  spacing: .8,
-                ),
-              ),
-            ],
-          ),
-          Transform.translate(
-            offset: Offset(0, active ? math.sin(phase * math.pi * 8) * 3 : 0),
-            child: Gopher(index: i, active: active, size: 88),
-          ),
-          text(agentNames[i], size: 13, weight: FontWeight.w600),
-          const SizedBox(height: 3),
-          text(agentJobs[i], size: 9, color: muted),
-        ],
-      ),
-    );
-  }
-
-  Widget ecosystem() => box(
-    Row(
-      children: [
-        const Icon(Icons.blur_on, size: 22, color: gold),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              text('Constrói com a Arkom.', size: 12, weight: FontWeight.w500),
-              const SizedBox(height: 5),
-              text(
-                'Catálogo + contratos + contexto técnico',
-                size: 9,
-                color: muted,
-              ),
-            ],
-          ),
-        ),
-        Tooltip(
-          message: 'Referências consultadas pelos agentes. As conexões de produção são uma próxima etapa.',
-          child: const Icon(Icons.info_outline, size: 15, color: muted),
-        ),
-      ],
-    ),
-    padding: const EdgeInsets.all(16),
-  );
-  Widget activity(double height) => box(
-    SizedBox(
-      height: height - 40,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              text('03', size: 10, color: gold),
-              const SizedBox(width: 9),
-              text('Acontecendo agora', size: 13, weight: FontWeight.w500),
-              const Spacer(),
-              const Icon(Icons.graphic_eq, color: gold, size: 16),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              text(
-                '${model.traces.length} eventos reais',
-                size: 9,
-                color: muted,
-              ),
-              const Spacer(),
-              Tooltip(
-                message: follow
-                    ? 'Pausar rolagem automática'
-                    : 'Acompanhar últimos eventos',
-                child: InkWell(
-                  onTap: () => setState(() => follow = !follow),
-                  child: text(
-                    follow ? 'Seguindo ↓' : 'Acompanhar ↓',
-                    size: 9,
-                    color: gold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1, color: line),
-          Expanded(
-            child: model.traces.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.radar,
-                          size: 38,
-                          color: Color(0xff4a4438),
-                        ),
-                        const SizedBox(height: 14),
-                        text(
-                          'Tudo começa com sua ideia.',
-                          size: 11,
-                          color: muted,
-                        ),
-                        const SizedBox(height: 7),
-                        text(
-                          'As ações do time aparecerão aqui.',
-                          size: 9,
-                          color: const Color(0xff626c7b),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    controller: feedScroll,
-                    padding: const EdgeInsets.only(top: 10),
-                    itemCount: model.traces.length,
-                    itemBuilder: (context, index) =>
-                        traceTile(model.traces[index]),
-                  ),
-          ),
-          if (model.running)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 10,
-                    height: 10,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      color: gold,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: text(
-                      'Recebendo ações do time…',
-                      size: 10,
-                      color: gold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    ),
-    padding: const EdgeInsets.all(20),
-  );
-  Widget traceTile(Map<String, dynamic> e) {
-    final kind = e['kind'] as String;
-    final color = kind.contains('failed')
-        ? const Color(0xffef9c8d)
-        : agentColor(e['agent']);
-    final date = DateTime.tryParse(e['at'] ?? '')?.toLocal();
-    final clock = date == null
-        ? ''
-        : '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:${date.second.toString().padLeft(2, '0')}';
-    final icon = kind == 'file.written'
-        ? Icons.code
-        : kind == 'test.passed'
-        ? Icons.check
-        : kind == 'file.read'
-        ? Icons.menu_book_outlined
-        : kind.contains('failed')
-        ? Icons.priority_high
-        : Icons.bolt;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          selectedEvent = e;
-          if (kind == 'file.written') {
-            view = 1;
-            model.selectedFile = e['path'];
-          } else if (kind.startsWith('test.')) {
-            view = 2;
-          } else {
-            view = 3;
-          }
-        });
-      },
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 25,
-              height: 25,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: .08),
-                borderRadius: BorderRadius.circular(7),
-                border: Border.all(color: color.withValues(alpha: .2)),
-              ),
-              child: Icon(icon, size: 13, color: color),
-            ),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      text(
-                        agentName(e['agent']),
-                        size: 10,
-                        color: color,
-                        weight: FontWeight.w600,
-                      ),
-                      const Spacer(),
-                      text(clock, size: 8, color: const Color(0xff67717d)),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    e['summary'] ?? '',
-                    style: const TextStyle(
-                      fontFamily: 'ArkomSans',
-                      fontSize: 10,
-                      height: 1.6,
-                      color: Color(0xffadb4bf),
-                    ),
-                  ),
-                  if (e['path'] != null) ...[
-                    const SizedBox(height: 5),
-                    Text(
-                      e['path'],
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: 'ArkomMono',
-                        fontSize: 8,
-                        color: Color(0xff748291),
-                      ),
-                    ),
-                  ],
-                  if (kind == 'agent.update')
-                    text(
-                      'Resumo do agente',
-                      size: 8,
-                      color: const Color(0xff626c79),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget workbench(bool compact) {
-    final entries = model.files.keys.toList()..sort();
-    final tests = model.traces
-        .where((e) => e['kind'] == 'test.passed' || e['kind'] == 'test.failed')
-        .toList();
-    return box(
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            runSpacing: 12,
-            spacing: 20,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  text('DO PLANO À ENTREGA', size: 8, color: gold, spacing: 2),
-                  const SizedBox(height: 7),
-                  text(
-                    'Seu projeto, por dentro.',
-                    size: 21,
-                    weight: FontWeight.w400,
-                  ),
-                ],
-              ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (model.projects.isNotEmpty)
-                    SizedBox(
-                      width: compact ? 200 : 260,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: model.id.isEmpty ? null : model.id,
-                        key: ValueKey(model.id),
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          border: OutlineInputBorder(
-                            borderSide: BorderSide(color: line),
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                        ),
-                        style: const TextStyle(
-                          fontFamily: 'ArkomSans',
-                          fontSize: 10,
-                        ),
-                        items: model.projects
-                            .map(
-                              (p) => DropdownMenuItem<String>(
-                                value: p['id'],
-                                child: Text(
-                                  p['goal'],
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            selectedEvent = null;
-                            model.select(value);
-                          }
-                        },
-                      ),
-                    ),
-                  if (model.id.isNotEmpty)
-                    button(
-                      'Baixar código',
-                      Icons.download_outlined,
-                      () => model.action('export'),
-                    ),
-                  if (model.running)
-                    button(
-                      'Interromper',
-                      Icons.stop_circle_outlined,
-                      model.canEdit && !model.busy
-                          ? () => model.action('cancel')
-                          : null,
-                    ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 6,
-            children: [
-              tab('Arquivos', Icons.folder_outlined, 0, '${entries.length}'),
-              tab('Alterações', Icons.difference_outlined, 1, ''),
-              tab('Testes', Icons.terminal, 2, '${tests.length}'),
-              tab('Evento', Icons.receipt_long_outlined, 3, ''),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            height: compact ? 350 : 330,
-            decoration: BoxDecoration(
-              color: const Color(0xff0b0e13),
-              border: Border.all(color: line),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Row(
-              children: [
-                if (!compact && view < 2)
-                  Container(
-                    width: 190,
-                    decoration: const BoxDecoration(
-                      border: Border(right: BorderSide(color: line)),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: ListView(
-                        children: entries
-                            .map(
-                              (f) => ListTile(
-                                dense: true,
-                                selected: model.selectedFile == f,
-                                selectedTileColor: gold.withValues(alpha: .06),
-                                leading: Icon(
-                                  f.endsWith('.go')
-                                      ? Icons.data_object
-                                      : Icons.description_outlined,
-                                  size: 13,
-                                  color: f.endsWith('.go')
-                                      ? const Color(0xff73c9d8)
-                                      : muted,
-                                ),
-                                title: Text(
-                                  f,
-                                  style: TextStyle(
-                                    fontFamily: 'ArkomSans',
-                                    fontSize: 9,
-                                    color: model.selectedFile == f
-                                        ? gold
-                                        : muted,
-                                  ),
-                                ),
-                                onTap: () => model.chooseFile(f),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                  ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(18),
-                    child: content(tests, compact, entries),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 14,
-            runSpacing: 8,
-            children: [
-              tag(
-                'Backend Go',
-                icon: Icons.code,
-                color: const Color(0xff73c9d8),
-              ),
-              tag(
-                'Ambiente isolado',
-                icon: Icons.shield_outlined,
-                color: muted,
-              ),
-              text(
-                model.build?['status'] == 'ready'
-                    ? 'Código validado. Integração e publicação são as próximas etapas.'
-                    : 'Arquivos e histórico preservados na Arkom.',
-                size: 10,
-                color: muted,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget tab(String label, IconData icon, int index, String count) =>
-      TextButton.icon(
-        onPressed: () => setState(() => view = index),
-        icon: Icon(icon, size: 14),
-        label: Text('$label${count.isNotEmpty ? '  $count' : ''}'),
-        style: TextButton.styleFrom(
-          foregroundColor: view == index ? gold : muted,
-          backgroundColor: view == index
-              ? gold.withValues(alpha: .08)
-              : Colors.transparent,
-          textStyle: const TextStyle(fontFamily: 'ArkomSans', fontSize: 11),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
-  Widget content(
-    List<Map<String, dynamic>> tests,
-    bool compact,
-    List<String> entries,
-  ) {
-    if (view == 0)
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (compact && entries.isNotEmpty)
-            DropdownButton<String>(
-              value: model.selectedFile,
-              isExpanded: true,
-              items: entries
-                  .map(
-                    (f) => DropdownMenuItem(value: f, child: text(f, size: 10)),
-                  )
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) model.chooseFile(v);
-              },
-            ),
-          Row(
-            children: [
-              Expanded(
-                child: text(
-                  model.selectedFile.isEmpty
-                      ? 'A construção vai ganhar forma aqui.'
-                      : model.selectedFile,
-                  size: 10,
-                  color: gold,
-                ),
-              ),
-              if (model.selectedFile.isNotEmpty)
-                IconButton(
-                  tooltip: 'Copiar código',
-                  onPressed: () => Clipboard.setData(
-                    ClipboardData(text: model.files[model.selectedFile] ?? ''),
-                  ),
-                  icon: const Icon(Icons.copy, size: 13, color: muted),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SelectableText(
-            model.files[model.selectedFile] ?? 'Os arquivos aparecem conforme o time os escreve.\nVocê não precisa entender código para criar.',
-            style: const TextStyle(
-              fontFamily: 'ArkomMono',
-              fontSize: 11,
-              height: 1.7,
-              color: Color(0xffb6c6d6),
-            ),
-          ),
-        ],
-      );
-    if (view == 1) {
-      final writes = model.traces
-          .where(
-            (e) =>
-                e['kind'] == 'file.written' && e['path'] == model.selectedFile,
-          )
-          .toList();
-      final e = selectedEvent?['kind'] == 'file.written'
-          ? selectedEvent
-          : writes.lastOrNull;
-      if (e == null)
-        return text(
-          'Clique em uma escrita no histórico para ver o antes e depois.',
-          color: muted,
-        );
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          text('${e['path']} · evento ${e['sequence']}', color: gold, size: 11),
-          const SizedBox(height: 16),
-          text('ANTES', size: 9, color: const Color(0xffd89b91)),
-          const SizedBox(height: 8),
-          code(e['before'] ?? 'Arquivo novo'),
-          const SizedBox(height: 20),
-          text('DEPOIS', size: 9, color: const Color(0xff8ac6ac)),
-          const SizedBox(height: 8),
-          code(e['after'] ?? ''),
-        ],
-      );
-    }
-    if (view == 2) {
-      if (tests.isEmpty)
-        return text(
-          'Os resultados reais dos testes aparecerão aqui.',
-          color: muted,
-        );
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: tests.reversed
-            .map(
-              (e) => Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    tag(
-                      '${e['kind'] == 'test.passed' ? 'PASSOU' : 'PRECISA DE CORREÇÃO'} · ${agentName(e['agent'])}',
-                      color: e['kind'] == 'test.passed'
-                          ? const Color(0xff8ac6ac)
-                          : const Color(0xffef9c8d),
-                    ),
-                    const SizedBox(height: 10),
-                    code(e['output'] ?? ''),
-                  ],
-                ),
-              ),
-            )
-            .toList(),
-      );
-    }
-    final e = selectedEvent;
-    if (e == null)
-      return text('Selecione um evento na atividade do time.', color: muted);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        text('${agentName(e['agent'])} · ${e['kind']}', color: gold),
-        const SizedBox(height: 15),
-        text(e['summary'] ?? ''),
-        const SizedBox(height: 12),
-        text(e['at'] ?? '', size: 10, color: muted),
-        if (e['output'] != null) code(e['output']),
-      ],
-    );
-  }
-
-  Widget code(String s) => SelectableText(
-    s,
-    style: const TextStyle(
-      fontFamily: 'ArkomMono',
-      fontSize: 10,
-      height: 1.7,
-      color: Color(0xffadbaca),
-    ),
-  );
-  Widget footer(bool compact) => Wrap(
-    alignment: WrapAlignment.spaceBetween,
-    spacing: 20,
-    runSpacing: 10,
-    children: [
-      text(
-        'ARKOM  /  GENESIS     ·     Sua ideia encontra um time.',
-        size: 9,
-        color: const Color(0xff626b78),
-        spacing: .5,
-      ),
-      TextButton(
-        onPressed: () => model.call('qualification'),
-        child: const Text(
-          'Ajustes de qualificação SDR/CRM ↗',
-          style: TextStyle(fontFamily: 'ArkomSans', fontSize: 10, color: muted),
-        ),
       ),
     ],
+  );
+
+  Widget eventDetail() {
+    final e = selectedEvent!;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextButton.icon(
+            onPressed: () => setState(() => selectedEvent = null),
+            icon: const Icon(Icons.arrow_back, size: 16),
+            label: const Text('Voltar ao histórico'),
+          ),
+          const SizedBox(height: 20),
+          label(
+            '${agentName(e['agent'])} · ${e['kind']}',
+            size: 12,
+            color: agentColor(e['agent']),
+          ),
+          const SizedBox(height: 12),
+          label(e['summary'] ?? '', size: 16),
+          const SizedBox(height: 8),
+          label(e['at'] ?? '', size: 10, color: muted),
+          if (e['path'] != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: label(e['path'], color: gold),
+            ),
+          if (e['kind'] == 'file.written') ...[
+            label('ANTES', size: 9, color: muted),
+            const SizedBox(height: 8),
+            code(e['before'] ?? 'Arquivo novo'),
+            const SizedBox(height: 20),
+            label('DEPOIS', size: 9, color: agentColors[3]),
+            const SizedBox(height: 8),
+            code(e['after'] ?? ''),
+          ],
+          if (e['output'] != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: code(e['output']),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget code(String value) => SelectableText(
+    value,
+    style: const TextStyle(
+      fontFamily: 'ArkomMono',
+      fontSize: 11,
+      height: 1.8,
+      color: Color(0xffb9c9d7),
+    ),
   );
 }

@@ -9,6 +9,7 @@ class StudioController extends ChangeNotifier {
   Map<String, dynamic>? build;
   final Map<String, String> files = {};
   final List<Map<String, dynamic>> traces = [];
+  String lastDelivery = '';
   String role = 'viewer', connection = 'waiting', error = '', selectedFile = '';
   bool busy = false, authenticated = false, _disposed = false;
   int _refresh = 0;
@@ -20,6 +21,7 @@ class StudioController extends ChangeNotifier {
     if (!_disposed) accept(jsonDecode(raw));
   });
   void accept(Map<String, dynamic> data) {
+    lastDelivery = data['type'] ?? '';
     switch (data['type']) {
       case 'session':
         build = null;

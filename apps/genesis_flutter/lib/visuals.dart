@@ -3,10 +3,10 @@ import 'dart:math' as math;
 import 'package:material_ui/material_ui.dart';
 
 const gold = Color(0xffd4b477),
-    ink = Color(0xff090b0e),
-    panel = Color(0xff11151b),
+    ink = Color(0xff0b0c0e),
+    panel = Color(0xff121315),
     muted = Color(0xff8b929f),
-    line = Color(0xff252a32);
+    line = Color(0xff292b30);
 const agentColors = [
   gold,
   Color(0xff73c9d8),
@@ -31,11 +31,13 @@ class Gopher extends StatelessWidget {
   final int index;
   final bool active;
   final double size;
+  final double workPhase;
   const Gopher({
     super.key,
     required this.index,
     this.active = false,
     this.size = 110,
+    this.workPhase = 0,
   });
   @override
   Widget build(BuildContext context) => Semantics(
@@ -44,7 +46,7 @@ class Gopher extends StatelessWidget {
       width: size,
       height: size,
       child: CustomPaint(
-        painter: GopherPainter(agentColors[index], index, active),
+        painter: GopherPainter(agentColors[index], index, active, workPhase),
       ),
     ),
   );
@@ -54,7 +56,8 @@ class GopherPainter extends CustomPainter {
   final Color color;
   final int role;
   final bool active;
-  GopherPainter(this.color, this.role, this.active);
+  final double workPhase;
+  GopherPainter(this.color, this.role, this.active, this.workPhase);
   @override
   void paint(Canvas c, Size s) {
     c.scale(s.width / 120, s.height / 120);
@@ -123,7 +126,13 @@ class GopherPainter extends CustomPainter {
       ..strokeWidth = 8
       ..strokeCap = StrokeCap.round;
     c.drawLine(const Offset(25, 80), const Offset(16, 89), p);
-    c.drawLine(const Offset(95, 80), const Offset(104, 89), p);
+    c.drawLine(
+      const Offset(95, 80),
+      active
+          ? Offset(107, 67 + math.sin(workPhase * math.pi * 2) * 7)
+          : const Offset(104, 89),
+      p,
+    );
     c.drawLine(const Offset(42, 106), const Offset(36, 110), p);
     c.drawLine(const Offset(78, 106), const Offset(84, 110), p);
     if (role == 0) {
@@ -190,7 +199,7 @@ class GopherPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(GopherPainter old) =>
-      old.color != color || old.active != active;
+      old.color != color || old.active != active || old.workPhase != workPhase;
 }
 
 class Constellation extends CustomPainter {

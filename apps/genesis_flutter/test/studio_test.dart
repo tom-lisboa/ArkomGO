@@ -106,91 +106,152 @@ void main() {
     expect(c.traces.length, 6);
     expect(c.files['backend/lots.go'], 'package revised');
   });
-  for (final width in [1280.0, 390.0]) {
-    testWidgets(
-      'completed solution exposes interactive preview at width $width',
-      (tester) async {
-        tester.view.physicalSize = Size(width, 1100);
-        tester.view.devicePixelRatio = 1;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        final c = fixture();
-        await tester.pumpWidget(GenesisApp(controller: c));
-        await tester.pump();
-        c.accept({
-          'type': 'update',
-          'build': {...c.build!, 'status': 'ready', 'sequence': 6},
-          'traces': [
-            {
-              'sequence': 6,
-              'kind': 'file.written',
-              'path': 'frontend/index.html',
-              'after': '<h1>Calculadora</h1>',
-              'agent': 'interface',
-              'summary': 'Interface criada',
-              'at': '2026-11-11T21:18:20Z',
-            },
-          ],
-        });
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(
-          find.text('Veja e experimente o que você criou.'),
-          findsOneWidget,
-        );
-        expect(find.text('Prévia interativa da solução'), findsOneWidget);
-        await tester.tap(find.text('Recolher prévia'));
-        await tester.pump();
-        expect(find.text('Abrir minha solução'), findsOneWidget);
-        expect(find.text('Prévia interativa da solução'), findsNothing);
-        expect(tester.takeException(), isNull);
-        await tester.pumpWidget(const SizedBox());
-        c.dispose();
-      },
-    );
-  }
   for (final width in [1280.0, 900.0, 390.0]) {
-    testWidgets('studio at width $width renders and updates live', (
+    testWidgets('workspace switches solution/code/history at width $width', (
       tester,
     ) async {
-      tester.view.physicalSize = Size(width, 1100);
+      tester.view.physicalSize = Size(width, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       final c = fixture();
-      await tester.pumpWidget(GenesisApp(controller: c));
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(tester.takeException(), isNull);
-      if (width == 1280 && Platform.isMacOS) {
-        await expectLater(
-          find.byType(GenesisApp),
-          matchesGoldenFile('goldens/studio-desktop.png'),
-        );
-      }
-      if (width == 390 && Platform.isMacOS) {
-        await expectLater(
-          find.byType(GenesisApp),
-          matchesGoldenFile('goldens/studio-mobile.png'),
-        );
-      }
       c.accept({
-        'type': 'update',
-        'build': c.build,
-        'traces': [
-          {
-            'sequence': 6,
-            'kind': 'test.passed',
-            'agent': 'backend',
-            'summary': 'Testes aprovados em isolamento.',
-            'output': 'PASS',
-            'at': '2026-11-11T21:18:20Z',
-          },
-        ],
+        'type': 'snapshot',
+        'build': {...c.build!, 'status': 'ready'},
+        'files': {...c.files, 'frontend/index.html': '<h1>Leilões</h1>'},
+        'traces': [],
       });
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpWidget(GenesisApp(controller: c));
+      await tester.pump(const Duration(milliseconds: 400));
       expect(tester.takeException(), isNull);
-      expect(c.traces.length, 6);
+      expect(find.text('Prévia interativa da solução'), findsOneWidget);
+      final preview = tester.element(find.text('Prévia interativa da solução'));
+      if (Platform.isMacOS && width != 900) {
+        await expectLater(
+          find.byType(GenesisApp),
+          matchesGoldenFile(
+            'goldens/studio-${width == 1280 ? 'desktop' : 'mobile'}.png',
+          ),
+        );
+      }
+      await tester.tap(find.byTooltip('Código'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Prévia interativa da solução'), findsNothing);
+      expect(find.textContaining('package auction'), findsOneWidget);
+      await tester.tap(find.byTooltip('Solução'));
+      await tester.pump();
+      expect(
+        tester.element(find.text('Prévia interativa da solução')),
+        same(preview),
+      );
+      if (width == 390) {
+        await tester.tap(find.byTooltip('Conversar com o Genesis'));
+        await tester.pump();
+        expect(find.byType(TextField), findsOneWidget);
+        await tester.tap(find.byTooltip('Solução'));
+        await tester.pump();
+        expect(
+          tester.element(find.text('Prévia interativa da solução')),
+          same(preview),
+        );
+      }
+      await tester.tap(find.byTooltip('Histórico de ações'));
+      await tester.pump();
+      expect(find.text('Histórico de ações'), findsOneWidget);
+      expect(
+        find.text('Criou o modelo de lotes com isolamento por empresa.'),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.text('Criou o modelo de lotes com isolamento por empresa.'),
+      );
+      await tester.pump();
+      expect(find.text('ANTES'), findsOneWidget);
+      expect(find.text('DEPOIS'), findsOneWidget);
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       c.dispose();
     });
   }
+
+  testWidgets('live agent appears then leaves canvas; history persists', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final c = fixture();
+    await tester.pumpWidget(GenesisApp(controller: c));
+    await tester.pump();
+    expect(
+      find.text('Criou o modelo de lotes com isolamento por empresa.'),
+      findsNothing,
+    );
+    c.accept({
+      'type': 'update',
+      'build': {...c.build!, 'sequence': 6},
+      'traces': [
+        {
+          'sequence': 6,
+          'kind': 'file.written',
+          'path': 'frontend/index.html',
+          'after': '<h1>Leilões</h1>',
+          'agent': 'interface',
+          'summary': 'Organizou a página de oportunidades.',
+        },
+      ],
+    });
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Organizou a página de oportunidades.'), findsOneWidget);
+    expect(find.text('Prévia interativa da solução'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 400));
+    if (Platform.isMacOS) {
+      await expectLater(
+        find.byType(GenesisApp),
+        matchesGoldenFile('goldens/studio-live.png'),
+      );
+    }
+    await tester.pump(const Duration(seconds: 7));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Organizou a página de oportunidades.'), findsNothing);
+    await tester.tap(find.byTooltip('Histórico de ações'));
+    await tester.pump();
+    expect(find.text('Organizou a página de oportunidades.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+  });
+  testWidgets(
+    'replay is labeled and can be stopped without changing stored traces',
+    (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final c = fixture();
+      c.accept({
+        'type': 'snapshot',
+        'build': {...c.build!, 'status': 'ready'},
+        'traces': [],
+      });
+      final count = c.traces.length;
+      await tester.pumpWidget(GenesisApp(controller: c));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Mais opções'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rever ações dos Gophers'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Reprodução das ações · prévia atual'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
+      expect(c.traces.length, count);
+      await tester.tap(find.byTooltip('Encerrar reprodução'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Reprodução das ações · prévia atual'), findsNothing);
+      expect(c.traces.length, count);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+    },
+  );
 }
