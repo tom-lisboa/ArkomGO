@@ -75,8 +75,15 @@ class _StudioState extends State<Studio> {
   List<Map<String, dynamic>> get tests => model.traces
       .where((e) => e['kind'] == 'test.passed' || e['kind'] == 'test.failed')
       .toList();
+  List<Map<String, dynamic>> get frontendBuilds => model.traces
+      .where(
+        (e) =>
+            e['kind'] == 'frontend.build.passed' ||
+            e['kind'] == 'frontend.build.failed',
+      )
+      .toList();
   bool get hasPreview =>
-      !newIdea && model.files.containsKey('frontend/index.html');
+      !newIdea && (model.files['frontend/index.html'] ?? '').trim().isNotEmpty;
   bool get canSend =>
       model.canEdit &&
       !model.busy &&
@@ -178,6 +185,8 @@ class _StudioState extends State<Studio> {
                 'file.written',
                 'test.passed',
                 'test.failed',
+                'frontend.build.passed',
+                'frontend.build.failed',
                 'agent.finished',
               ].contains(e['kind']),
         )
@@ -935,6 +944,13 @@ class _StudioState extends State<Studio> {
               '${model.files.length} arquivos',
               Icons.description_outlined,
             ),
+            if (model.build?['frontend_framework'] == 'svelte')
+              smallTag('Svelte', Icons.widgets_outlined),
+            if (frontendBuilds.isNotEmpty)
+              smallTag(
+                '${frontendBuilds.where((e) => e['kind'] == 'frontend.build.passed').length}/${frontendBuilds.length} compilações Svelte',
+                Icons.code,
+              ),
             if (tests.isNotEmpty)
               smallTag(
                 '${tests.where((e) => e['kind'] == 'test.passed').length}/${tests.length} testes',

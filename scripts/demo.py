@@ -38,6 +38,7 @@ if not (root/'apps/portal/public/genesis-flutter/index.html').is_file():sys.exit
 workspace=run/'deeph'
 shutil.copytree(root/'services/sdr/demo/deeph',workspace,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.deeph'))
 env.update(SDR_CRM_DEV_ENABLED='true',SDR_GENESIS_DEMO='true',SDR_PIPELINE_ENABLED='true',SDR_OPENAI_MODEL=env.get('SDR_OPENAI_MODEL') or 'gpt-5.4-mini',SDR_LOCAL_SECRETS_DIR=str(secret_dir),SDR_LOCAL_WORKER_LISTEN='127.0.0.1:8081',SDR_DEEPH_WORKSPACE=str(workspace),ARKOM_CRM_DEV_LISTEN='127.0.0.1:8098',ARKOM_LOCAL_DEMO='true')
+env['ARKOM_FRONTEND_TOOLCHAIN']=str(root/'packages/genesis-frontend')
 env['PATH']=str(root/'.local/bin')+os.pathsep+env.get('PATH','')
 # Other optional channels are not enabled by this launcher.
 for flag in ['SDR_VOICE_ENABLED','SDR_CALENDAR_ENABLED','SDR_CUSTOMER_DATA_ENABLED','SDR_MEDIA_ENABLED','SDR_METRICS_ENABLED']:env[flag]='false'

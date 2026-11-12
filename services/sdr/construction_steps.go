@@ -53,6 +53,15 @@ func (b *ConstructionBuild) steps() []constructionStepView {
 	}
 	for _, s := range construction.Steps() {
 		v := constructionStepView{ID: s.ID, Title: s.Title, Acceptance: s.Acceptance, Status: "pending"}
+		if construction.IsSvelte(b.Files) {
+			if s.ID == "interface" {
+				v.Title = "Construir interface Svelte"
+				v.Acceptance = "Componentes Svelte compilados; revisão final pendente."
+			}
+			if s.ID == "reviewer" {
+				v.Acceptance = "Contrato válido, testes Go aprovados e Svelte compilado."
+			}
+		}
 		for _, e := range b.Traces {
 			if e.StepID != s.ID {
 				continue
@@ -151,13 +160,17 @@ func (a *App) finishConstructionStep(id, executionID, stepID string, err, contex
 	}
 	var contract *application.Contract
 	if stepID == "reviewer" && err == nil && contextErr == nil {
-		contract, err = application.Seal(b.ApplicationID, b.Revision, b.Files)
+		if !construction.FrontendCurrent(b.Files) {
+			err = errors.New("frontend_build_stale")
+		} else {
+			contract, err = application.Seal(b.ApplicationID, b.Revision, b.Files)
+		}
 	}
 	if saveErr := a.transact(func() {
 		b.Contract = contract
 		b.Status = "awaiting_step"
 		kind, summary := "step.completed", "Etapa validada. Revise os traces antes de iniciar a próxima."
-		evidence, _ := json.Marshal(map[string]any{"source_digest": application.Digest(b.Files), "files_count": len(b.Files), "acceptance": construction.Steps()[construction.StepIndex(stepID)].Acceptance})
+		evidence, _ := json.Marshal(map[string]any{"source_digest": application.Digest(b.Files), "files_count": len(b.Files), "acceptance": b.steps()[construction.StepIndex(stepID)].Acceptance})
 		if err != nil {
 			b.Status = "failed"
 			kind = "step.failed"
@@ -173,6 +186,9 @@ func (a *App) finishConstructionStep(id, executionID, stepID string, err, contex
 		if err == nil && contextErr == nil && stepID == "reviewer" {
 			b.Status = "ready"
 			summary = "Entrega validada: contrato final e testes Go aprovados."
+			if construction.IsSvelte(b.Files) {
+				summary = "Entrega validada: contrato, testes Go e compilação Svelte aprovados. Inspeção visual pendente."
+			}
 		}
 		b.appendStepEvent(kind, stepID, summary, string(evidence), a.now().UTC())
 		a.record(AuditEntry{Org: b.Org, Actor: "deeph", Action: "construction." + kind, Operation: id})

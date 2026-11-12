@@ -1,0 +1,9 @@
+{
+  "name": "@arkom/genesis-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test compiler.test.mjs" },
+  "dependencies": { "esbuild": "0.28.2", "svelte": "5.57.3" },
+  "devDependencies": { "jsdom": "25.0.1" }
+}

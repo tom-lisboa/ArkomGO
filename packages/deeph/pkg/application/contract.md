@@ -17,6 +17,10 @@ Escreva application.json na raiz do projeto, junto de DESIGN.md. Exemplo:
 Todos os campos são obrigatórios. Campos desconhecidos, nulos em coleções,
 chaves duplicadas e versões desconhecidas são recusados. Nome: 1–100 caracteres.
 Backend Go com módulo arkom.local/solution; entrada web frontend/index.html.
+Em projetos com frontend/svelte.json, essa entrada é compilada pelo host a partir
+de frontend/src/App.svelte. Escreva componentes Svelte e consulte
+reference/frontend-svelte.md; não edite index.html/bundle/build.json gerados.
+Projetos anteriores em HTML continuam usando seus arquivos originais.
 Até 32 rotas com método explícito GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS e caminho
 sob /api/. Segmentos literais usam letras ASCII, dígitos, hífen ou sublinhado.
 Parâmetros de um segmento usam {id}; identificadores e operation_id usam

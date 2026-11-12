@@ -63,6 +63,9 @@ func TestCodeActionsAndTraceProvenance(t *testing.T) {
 			}
 			return Turn{Summary: "Desenho", Actions: []Action{{"write", "DESIGN.md", "Plano específico"}, {"write", "application.json", testManifest}}, Verdict: "ready"}
 		case "backend":
+			if len(r.Feedback) > 0 {
+				return Turn{Verdict: "ready"}
+			}
 			return Turn{Actions: []Action{{"write", "../../outside.go", "bad"}, {"write", "backend/platform/contracts.go", "bad"}, {"write", "backend/domain.go", "package solution\nfunc Value() int { return 42 }"}}, Verdict: "ready"}
 		case "interface":
 			return Turn{Actions: []Action{{"write", "frontend/index.html", "<h1>Produto novo</h1>"}}, Verdict: "ready"}
@@ -212,6 +215,9 @@ func TestRunStepStopsAtCheckpointAndRestrictsPlanning(t *testing.T) {
 		if len(r.Feedback) == 0 {
 			return Turn{Actions: []Action{{"read", "reference/catalog.json", ""}, {"read", "reference/platform-contracts.go", ""}}, Verdict: "continue"}
 		}
+		if calls == 3 {
+			return Turn{Verdict: "ready"}
+		}
 		return Turn{Actions: []Action{{"write", "DESIGN.md", "Primeira entrega: somar dois valores; histórico fica para depois."}, {"write", "application.json", testManifest}, {"write", "backend/premature.go", "package solution"}, {"write", "frontend/index.html", "<h1>Too early</h1>"}, {"test", "", ""}}, Verdict: "ready"}
 	}}
 	engine.Emit = func(e Event) error {
@@ -221,7 +227,7 @@ func TestRunStepStopsAtCheckpointAndRestrictsPlanning(t *testing.T) {
 		return nil
 	}
 	files, err := engine.RunStep(context.Background(), "Criar calculadora", nil, "architect")
-	if err != nil || calls != 2 || tester.calls != 0 || rejected != 3 || files["backend/premature.go"] != "" || files["frontend/index.html"] != "" {
+	if err != nil || calls != 3 || tester.calls != 0 || rejected != 3 || files["backend/premature.go"] != "" || files["frontend/index.html"] != "" {
 		t.Fatal(err, calls, tester.calls, rejected, files)
 	}
 	if _, err := engine.RunStep(context.Background(), "idea", nil, "not-a-step"); err == nil {

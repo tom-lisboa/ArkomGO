@@ -32,15 +32,19 @@ func (p *stepProvider) Next(_ context.Context, r construction.Request) (construc
 	case "backend":
 		actions = []construction.Action{{Tool: "write", Path: "backend/add.go", Content: "package solution\nfunc Add(a,b int)int{return a+b}"}, {Tool: "write", Path: "backend/add_test.go", Content: "package solution\nimport \"testing\"\nfunc TestAdd(t *testing.T){if Add(12,30)!=42{t.Fatal(\"sum\")}}"}}
 	case "interface":
+		if construction.IsSvelte(r.Files) {
+			return construction.Turn{Actions: []construction.Action{{Tool: "write", Path: "frontend/src/App.svelte", Content: "<h1>Calculadora</h1>"}}, Verdict: "ready"}, nil
+		}
 		actions = []construction.Action{{Tool: "write", Path: "frontend/index.html", Content: "<h1>Calculadora</h1>"}}
 	}
 	return construction.Turn{Actions: actions, Verdict: "ready"}, nil
 }
 
 type stepTester struct {
-	mu    sync.Mutex
-	fail  bool
-	calls int
+	mu           sync.Mutex
+	fail         bool
+	calls        int
+	frontendFail bool
 }
 
 func (t *stepTester) Test(context.Context, map[string]string) (string, error) {
@@ -101,7 +105,7 @@ func TestConstructionStepsFollowCommittedTracesAndRequireExplicitAdvance(t *test
 	if input["step_id"] != "backend" {
 		t.Fatal(input)
 	}
-	if len(out["files"].(map[string]any)) != len(construction.Seed())+2 {
+	if len(out["files"].(map[string]any)) != len(construction.NewSeed())+2 {
 		t.Fatal("planning wrote implementation", out["files"])
 	}
 	p.mu.Lock()
@@ -300,5 +304,92 @@ func TestConstructionStepCannotFinishWithoutEngineReceipt(t *testing.T) {
 	a.finishConstructionStep(b.ID, "attempt", "architect", nil, nil)
 	if b.Status != "failed" || b.nextStepID() != "architect" || b.steps()[0].Status != "failed" {
 		t.Fatal("completion without persisted evidence", b)
+	}
+}
+
+func (t *stepTester) CompileFrontend(context.Context, map[string]string) (construction.FrontendResult, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.frontendFail {
+		return construction.FrontendResult{Errors: []map[string]any{{"message": "invalid component", "line": 2}}}, errors.New("frontend_compilation_failed")
+	}
+	return construction.FrontendResult{OK: true, Javascript: `document.getElementById("app").textContent="Calculadora"`}, nil
+}
+
+func TestSvelteFailureStaysAtInterfaceAndRetryPersistsBuildEvidence(t *testing.T) {
+	a, creds, _ := genesisApp(t)
+	admin := login(t, a, creds, "alfa.admin")
+	p, tt := &stepProvider{}, &stepTester{frontendFail: true}
+	stepSetup(a, p, tt)
+	id := startSteps(t, a, admin)
+	base := "/v1/sdr/genesis-demo/construction/" + id
+	out := stepCheckpoint(t, a, admin, id, "awaiting_step")
+	if out["build"].(map[string]any)["frontend_framework"] != "svelte" {
+		t.Fatal("new project is not Svelte")
+	}
+	for _, stage := range []string{"backend", "interface"} {
+		if stepInput(out)["step_id"] != stage {
+			t.Fatal(out)
+		}
+		if code, reply := req(a, "POST", base+"/advance", admin, "", stepInput(out)); code != 202 {
+			t.Fatal(code, reply)
+		}
+		want := "awaiting_step"
+		if stage == "interface" {
+			want = "failed"
+		}
+		out = stepCheckpoint(t, a, admin, id, want)
+	}
+	assertStepEvidence(t, out, "interface", "failed")
+	if stepInput(out)["step_id"] != "interface" || out["files"].(map[string]any)["frontend/index.html"] != nil {
+		t.Fatal("failed build advanced or published a preview")
+	}
+	tt.mu.Lock()
+	tt.frontendFail = false
+	tt.mu.Unlock()
+	if code, reply := req(a, "POST", base+"/advance", admin, "", stepInput(out)); code != 202 {
+		t.Fatal(code, reply)
+	}
+	out = stepCheckpoint(t, a, admin, id, "awaiting_step")
+	if stepInput(out)["step_id"] != "reviewer" {
+		t.Fatal(out)
+	}
+	var failed, passed bool
+	for _, raw := range out["traces"].([]any) {
+		e := raw.(map[string]any)
+		if e["kind"] == "frontend.build.failed" {
+			failed = true
+		}
+		if e["kind"] == "frontend.build.passed" {
+			passed = true
+		}
+	}
+	files := map[string]string{}
+	for name, value := range out["files"].(map[string]any) {
+		files[name] = value.(string)
+	}
+	if !failed || !passed || !construction.FrontendCurrent(files) {
+		t.Fatal("missing persisted compiler evidence")
+	}
+}
+
+func TestLegacyRevisionPreservesHTMLFrontend(t *testing.T) {
+	a, creds, _ := genesisApp(t)
+	admin := login(t, a, creds, "alfa.admin")
+	stepSetup(a, &stepProvider{}, &stepTester{})
+	files := construction.Seed()
+	files["frontend/index.html"] = "<h1>Original</h1>"
+	parent := &ConstructionBuild{ID: "legacy-html", ApplicationID: "app_legacy", Revision: 1, Org: "org_demo_alfa", Status: "ready", Files: files}
+	if err := a.transact(func() { a.state.Platform.Constructions = map[string]*ConstructionBuild{parent.ID: parent} }); err != nil {
+		t.Fatal(err)
+	}
+	code, reply := req(a, "POST", "/v1/sdr/genesis-demo/construction", admin, "", map[string]any{"goal": "Revisar aplicação antiga", "parent_id": parent.ID})
+	if code != 202 {
+		t.Fatal(code, reply)
+	}
+	out := stepCheckpoint(t, a, admin, reply["id"].(string), "awaiting_step")
+	saved := out["files"].(map[string]any)
+	if out["build"].(map[string]any)["frontend_framework"] != "html" || saved[construction.FrontendContractPath] != nil || saved["frontend/index.html"] != files["frontend/index.html"] {
+		t.Fatal("legacy revision silently migrated", out)
 	}
 }
