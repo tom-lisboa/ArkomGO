@@ -3,7 +3,7 @@ flowchart TB
     Estudio --> API[API autenticada por empresa]
     API --> Motor[deepH Construction Engine]
     Catalogo[Catalogo e contratos Arkom] --> Motor
-    Motor --> Arquiteto[Arquiteto: desenho]
+    Motor --> Arquiteto[Arquiteto: desenho e application.json]
     Arquiteto --> Go[Construtor: backend Go e testes]
     Go --> Designer[Designer: HTML CSS JS]
     Designer --> Revisor[Revisor: correcoes e validacao]
@@ -16,4 +16,6 @@ flowchart TB
     Estudio --> Exportar[Download dos arquivos]
     Estudio --> Continuar[Novo pedido sobre copia do projeto]
     Continuar --> API
-    Revisor -. proxima etapa .-> Runtime[Runtime Arkom e adaptadores autenticados]
+    Revisor --> Contrato[Contrato validado: identidade revisao rotas capacidades]
+    Contrato --> Estado
+    Contrato -. proxima etapa .-> Runtime[Runtime Arkom e adaptadores autenticados]

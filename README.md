@@ -7,6 +7,7 @@ Este repositório reúne o **estado de desenvolvimento de 11/11/2026** do portal
 ## Comece por aqui
 
 - [Genesis Flutter e eventos em tempo real](apps/genesis_flutter/README.md)
+- [Contrato versionado das aplicações geradas](docs/GENESIS-CONTRATO-APLICACAO.md)
 - [Estúdio de construção: código, Gophers e traces](docs/GENESIS-CONSTRUCAO.md)
 - [Primeira etapa agêntica: regra SDR/CRM em Go](docs/GENESIS-ETAPA-1.md)
 - [Estrutura e responsabilidades](docs/ARQUITETURA.md)
