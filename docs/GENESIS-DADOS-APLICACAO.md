@@ -44,6 +44,10 @@ as etapas/traces reais já existentes. Revisões prontas antigas não são modif
 Os traces mostram a construção e os testes; criações de dados da aplicação ficam
 na auditoria da execução, sem injetar conteúdo do cliente no contexto dos agentes.
 
+Formulários da interface recebem o evento JavaScript `submit` após validação
+dos campos. O envio de dados usa `fetch` pelas rotas declaradas. A prévia continua
+sem permitir submissão/navegação nativa de formulários.
+
 A [coleção de anotações de referência](../packages/deeph/pkg/construction/testdata/records)
 implementa POST/GET /api/notes e uma interface de criar/listar. É uma fixture de
 verificação, não um projeto criado automaticamente pelos agentes no estúdio.
