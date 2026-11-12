@@ -11,7 +11,8 @@
 | Alterar critérios de qualificação SDR/CRM por Genesis | Implementado: contrato, artefato Go testado, prévia, aprovação, versão e restauração |
 | Gerar código Go e interface web por agentes, com traces | Implementado no estúdio de construção; testes isolados e exportação |
 | Construção por etapas ligada aos traces | Implementado: planejamento, checkpoints, avanço explícito e retomada |
-| Backend Go na prévia | Implementado: processo isolado, rotas autenticadas e dados temporários |
+| Backend Go na prévia | Implementado: processo isolado e rotas autenticadas |
+| Persistência mínima da aplicação | Implementado: um documento JSON por empresa/aplicação, com commit e auditoria |
 | Contrato versionado de aplicações geradas | Implementado: identidade, revisão, rotas, capacidades, validação e exportação |
 | Publicar e operar aplicações novas dentro da Arkom | Ainda não implementado |
 | Catálogo operacional das 23 soluções | Ainda não integrado por completo |
@@ -36,5 +37,6 @@ Critério do produto: o cliente deve conseguir criar, usar e pedir mudanças em 
 ## Regra de evolução
 
 Uma entrega pequena por vez, com critério verificável e resultado registrado.
-Próximo passo do backend: persistência isolada por empresa/aplicação, começando
-por salvar e recuperar um dado. Não antecipar adaptadores e publicação.
+A [primeira persistência](GENESIS-DADOS-APLICACAO.md) já salva e recupera um
+documento por empresa/aplicação. Próximas entregas devem ampliar isso em pequenos
+incrementos, sem antecipar adaptadores e publicação.

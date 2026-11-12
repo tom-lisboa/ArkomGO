@@ -36,5 +36,8 @@ A validação do manifesto não prova que um handler atende a rota: implementaç
 comportamento devem ter testes Go. Para a prévia executável, use package solution
 e func NewHandler(tenant platform.Tenant) http.Handler em backend/*.go. O host
 cria o processo e fornece a empresa; a interface chama fetch nas rotas /api/
-declaradas. Não abra portas nem crie main. Dados duram somente durante a prévia;
-persistência durável e adaptadores de capacidades ainda não estão disponíveis.
+declaradas. Não abra portas nem crie main. Memória comum dura somente durante a
+prévia. Para conservar um documento JSON de até 16 KiB, use platform.LoadData e
+platform.SaveData com o contexto do handler; consulte reference/platform-data.go.
+A confirmação depende do commit no host. Adaptadores de capacidades externas
+ainda não estão disponíveis.

@@ -53,11 +53,15 @@ func previewBuild(t *testing.T, a *App) *ConstructionBuild {
 	a.state.Platform.Constructions = map[string]*ConstructionBuild{b.ID: b}
 	return b
 }
-func waitPreview(t *testing.T, a *App, key string) {
+func waitPreview(t *testing.T, a *App, key string, ids ...string) {
+	id := "calculator"
+	if len(ids) > 0 {
+		id = ids[0]
+	}
 	t.Helper()
 	deadline := time.Now().Add(110 * time.Second)
 	for time.Now().Before(deadline) {
-		code, out := req(a, "GET", "/v1/sdr/genesis-demo/construction/calculator/runtime", key, "", nil)
+		code, out := req(a, "GET", "/v1/sdr/genesis-demo/construction/"+id+"/runtime", key, "", nil)
 		if code != 200 {
 			t.Fatal(code, out)
 		}
@@ -97,7 +101,7 @@ func TestPreviewRuntimeAuthorizationAndLifecycle(t *testing.T) {
 		t.Fatal(code)
 	}
 	waitPreview(t, a, admin)
-	for _, in := range []construction.RuntimeRequest{{"POST", "/api/not-declared", ""}, {"POST", "http://127.0.0.1:8080/api/calculate", ""}, {"POST", "/api/a/../calculate", ""}, {"GET", "/api/calculate", ""}, {"HEAD", "/api/history", ""}, {"POST", "/api/%63alculate", ""}} {
+	for _, in := range []construction.RuntimeRequest{{Method: "POST", Path: "/api/not-declared"}, {Method: "POST", Path: "http://127.0.0.1:8080/api/calculate"}, {Method: "POST", Path: "/api/a/../calculate"}, {Method: "GET", Path: "/api/calculate"}, {Method: "HEAD", Path: "/api/history"}, {Method: "POST", Path: "/api/%63alculate"}} {
 		if code, _ := req(a, "POST", base+"/request", admin, "", in); code != 422 {
 			t.Fatal("route bypass", in, code)
 		}
@@ -151,6 +155,8 @@ func TestRuntimeIntegrationCalculator(t *testing.T) {
 	}
 	a, creds, _ := genesisApp(t)
 	b := previewBuild(t, a)
+	// Keep the original SDK executable: older sealed revisions have no data contract.
+	delete(b.Files, construction.DataContractPath)
 	// Inject test-only probes; the reference calculator stays simple.
 	b.Files["backend/calculator.go"] = strings.Replace(b.Files["backend/calculator.go"], "http.NewServeMux()", `http.NewServeMux()
  mux.HandleFunc("POST /api/probe", probe)

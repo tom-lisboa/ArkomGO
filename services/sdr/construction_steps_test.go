@@ -101,7 +101,7 @@ func TestConstructionStepsFollowCommittedTracesAndRequireExplicitAdvance(t *test
 	if input["step_id"] != "backend" {
 		t.Fatal(input)
 	}
-	if len(out["files"].(map[string]any)) != 4 {
+	if len(out["files"].(map[string]any)) != len(construction.Seed())+2 {
 		t.Fatal("planning wrote implementation", out["files"])
 	}
 	p.mu.Lock()

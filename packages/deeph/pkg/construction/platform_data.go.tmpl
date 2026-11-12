@@ -1,0 +1,42 @@
+package platform
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+)
+
+const MaxDataBytes = 16 * 1024
+
+var ErrDataUnavailable = errors.New("application_data_unavailable")
+var ErrInvalidData = errors.New("invalid_application_data")
+
+// DataStore is bound by the host to this company and application, never to an ID
+// supplied by application code. Save stages a write; the host commits only after
+// a successful handler response. Tests may inject their own isolated store.
+type DataStore interface {
+	Load(context.Context) (json.RawMessage, bool, error)
+	Save(context.Context, json.RawMessage) error
+}
+type dataStoreKey struct{}
+
+func WithDataStore(ctx context.Context, store DataStore) context.Context {
+	return context.WithValue(ctx, dataStoreKey{}, store)
+}
+func LoadData(ctx context.Context) (json.RawMessage, bool, error) {
+	store, ok := ctx.Value(dataStoreKey{}).(DataStore)
+	if !ok {
+		return nil, false, ErrDataUnavailable
+	}
+	return store.Load(ctx)
+}
+func SaveData(ctx context.Context, value json.RawMessage) error {
+	if len(value) > MaxDataBytes || !json.Valid(value) {
+		return ErrInvalidData
+	}
+	store, ok := ctx.Value(dataStoreKey{}).(DataStore)
+	if !ok {
+		return ErrDataUnavailable
+	}
+	return store.Save(ctx, value)
+}

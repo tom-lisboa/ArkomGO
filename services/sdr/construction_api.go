@@ -181,6 +181,9 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 				initial[k] = v
 			}
 		}
+		for name, data := range construction.Seed() {
+			initial[name] = data
+		}
 		provider, tester, err := a.prepareConstruction("architect")
 		if err != nil {
 			fail(w, 503, err.Error())
