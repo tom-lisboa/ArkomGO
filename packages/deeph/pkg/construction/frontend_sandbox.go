@@ -107,6 +107,14 @@ func frontendCommand(ctx context.Context, dir, toolchain string) (*exec.Cmd, err
 (deny file-read* (subpath "/Users") (subpath "/Volumes") (subpath "/private/var/folders") (subpath "/private/var/root") (subpath "/private/tmp") (subpath "/Library/Keychains"))
 (allow file-read* (subpath ` + strconv.Quote(toolchain) + `) (subpath ` + strconv.Quote(dir) + `))
 (deny file-write*)(allow file-write* (subpath ` + strconv.Quote(dir) + `) (literal "/dev/null"))`
+		// Node realpath() walks ancestors of its entrypoint and temporary files.
+		// Metadata on those exact directories is sufficient; do not grant reads
+		// of their contents or other user files.
+		for _, root := range []string{toolchain, dir} {
+			for parent := filepath.Dir(root); parent != "/" && parent != "."; parent = filepath.Dir(parent) {
+				profile += "\n(allow file-read-metadata (literal " + strconv.Quote(parent) + "))"
+			}
+		}
 		policy := filepath.Join(dir, "policy.sb")
 		if err := os.WriteFile(policy, []byte(profile), 0600); err != nil {
 			return nil, err
