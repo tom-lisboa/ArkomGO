@@ -1,6 +1,7 @@
 package main
 
 import (
+	"deeph/pkg/construction"
 	"encoding/json"
 	"fmt"
 	"sdr-next-pilot/pkg/sdrsdk"
@@ -132,6 +133,7 @@ type InternalNote struct {
 }
 type PlatformState struct {
 	PreviewData     map[string]map[string]*previewDocument
+	PreviewRecords  map[string]map[string][]construction.Record
 	Constructions   map[string]*ConstructionBuild
 	GenesisChanges  map[string]*GenesisChange
 	Qualifications  map[string][]QualificationVersion

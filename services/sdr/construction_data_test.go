@@ -250,9 +250,12 @@ func TestPreviewDataRejectsLateAndConflictingWrites(t *testing.T) {
 	}
 }
 func noteBuild(t *testing.T, a *App) *ConstructionBuild {
+	return dataFixtureBuild(t, a, "note")
+}
+func dataFixtureBuild(t *testing.T, a *App, fixture string) *ConstructionBuild {
 	t.Helper()
 	files := construction.Seed()
-	root := "../../packages/deeph/pkg/construction/testdata/note"
+	root := "../../packages/deeph/pkg/construction/testdata/" + fixture
 	if err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -267,11 +270,11 @@ func noteBuild(t *testing.T, a *App) *ConstructionBuild {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	contract, err := application.Seal("app_note", 1, files)
+	contract, err := application.Seal("app_"+fixture, 1, files)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := &ConstructionBuild{ID: "note", ApplicationID: "app_note", Revision: 1, Org: "org_demo_alfa", Status: "ready", Files: files, Contract: contract}
+	b := &ConstructionBuild{ID: fixture, ApplicationID: "app_" + fixture, Revision: 1, Org: "org_demo_alfa", Status: "ready", Files: files, Contract: contract}
 	a.state.Platform.Constructions = map[string]*ConstructionBuild{b.ID: b}
 	return b
 }

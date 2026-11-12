@@ -1,0 +1,1 @@
+{"schema_version":"arkom.application.v1","catalog_version":"arkom-capabilities-v1","name":"Minhas anotações","backend":"go","entrypoint":"frontend/index.html","routes":[{"method":"GET","path":"/api/notes","operation_id":"list_notes"},{"method":"POST","path":"/api/notes","operation_id":"create_note"}],"capabilities":[]}

@@ -1,0 +1,53 @@
+package platform
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"time"
+)
+
+const MaxRecords = 20
+const MaxRecordBytes = 2 * 1024
+
+var ErrRecordsUnavailable = errors.New("application_records_unavailable")
+var ErrInvalidRecord = errors.New("invalid_application_record")
+var ErrRecordsLimit = errors.New("application_records_limit")
+var ErrRecordAlreadyCreated = errors.New("application_record_already_created")
+
+type Record struct {
+	ID        string          `json:"id"`
+	Value     json.RawMessage `json:"value"`
+	CreatedAt time.Time       `json:"created_at"`
+}
+
+// One collection per company/application, selected by the host. Create stages
+// at most one new record per request; durability requires a successful host commit.
+type RecordStore interface {
+	List(context.Context) ([]Record, error)
+	Create(context.Context, json.RawMessage) (Record, error)
+}
+type recordStoreKey struct{}
+
+func WithRecordStore(ctx context.Context, store RecordStore) context.Context {
+	return context.WithValue(ctx, recordStoreKey{}, store)
+}
+func ListRecords(ctx context.Context) ([]Record, error) {
+	store, ok := ctx.Value(recordStoreKey{}).(RecordStore)
+	if !ok {
+		return nil, ErrRecordsUnavailable
+	}
+	return store.List(ctx)
+}
+func CreateRecord(ctx context.Context, value json.RawMessage) (Record, error) {
+	// Bound the canonical encoding, including JSON escapes, before staging it.
+	encoded, err := json.Marshal(value)
+	if len(value) == 0 || err != nil || len(encoded) > MaxRecordBytes {
+		return Record{}, ErrInvalidRecord
+	}
+	store, ok := ctx.Value(recordStoreKey{}).(RecordStore)
+	if !ok {
+		return Record{}, ErrRecordsUnavailable
+	}
+	return store.Create(ctx, encoded)
+}

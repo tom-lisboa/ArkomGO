@@ -224,6 +224,17 @@ func (a *App) runtimeHTTP(w http.ResponseWriter, r *http.Request, u User, parts 
 	if storageEnabled {
 		in.Data, version = a.previewData(u.Org, appID)
 	}
+	recordsEnabled := construction.RecordsCompatible(b.Files)
+	var recordSnapshot *construction.RecordsSnapshot
+	if recordsEnabled {
+		// Keep a distinct expectation; only the serialized copy goes to the child.
+		recordSnapshot = a.previewRecords(u.Org, appID)
+		in.Records = a.previewRecords(u.Org, appID)
+		if in.Records != nil {
+			in.Records.NextID = recordSnapshot.NextID
+			in.Records.NextCreatedAt = recordSnapshot.NextCreatedAt
+		}
+	}
 	p.busy = true
 	proc := p.process
 	a.runtimeMu.Unlock()
@@ -252,22 +263,24 @@ func (a *App) runtimeHTTP(w http.ResponseWriter, r *http.Request, u User, parts 
 	// The data envelope belongs only to the host; never return it to the iframe.
 	pending := out.DataWrite
 	out.DataWrite = nil
-	if pending != nil && out.Status >= 200 && out.Status < 300 {
-		if !storageEnabled {
+	created := out.RecordCreate
+	out.RecordCreate = nil
+	if (pending != nil || created != nil) && out.Status >= 200 && out.Status < 300 {
+		if (pending != nil && !storageEnabled) || (created != nil && !recordsEnabled) {
 			fail(w, 409, "preview_data_unavailable")
 			return
 		}
-		if err := a.savePreviewData(u, appID, version, pending.Value); err != nil {
+		if err := a.savePreviewMutations(u, appID, version, pending, recordSnapshot, created); err != nil {
 			// Discard any application memory that might assume this failed write succeeded.
 			p.cancel()
 			proc.Close()
 			p.status = "failed"
 			p.message = "O dado não foi salvo. Reinicie a prévia e tente novamente."
 			code := 503
-			if err.Error() == "preview_data_conflict" {
+			if err.Error() == "preview_data_conflict" || err.Error() == "preview_records_limit" {
 				code = 409
 			}
-			if err.Error() == "preview_data_invalid" {
+			if err.Error() == "preview_data_invalid" || err.Error() == "preview_records_invalid" {
 				code = 502
 			}
 			fail(w, code, err.Error())

@@ -1,0 +1,68 @@
+package main
+
+import (
+	"arkom.local/solution/platform"
+	"context"
+	"encoding/json"
+	"sync"
+)
+
+type collectionRecords struct {
+	mu       sync.Mutex
+	snapshot recordsSnapshot
+	pending  *record
+}
+
+func publicRecord(v record) platform.Record {
+	return platform.Record{ID: v.ID, Value: append(json.RawMessage(nil), v.Value...), CreatedAt: v.CreatedAt}
+}
+func (c *collectionRecords) List(ctx context.Context) ([]platform.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]platform.Record, 0, len(c.snapshot.Items)+1)
+	for _, v := range c.snapshot.Items {
+		out = append(out, publicRecord(v))
+	}
+	if c.pending != nil {
+		out = append(out, publicRecord(*c.pending))
+	}
+	return out, nil
+}
+func (c *collectionRecords) Create(ctx context.Context, value json.RawMessage) (platform.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return platform.Record{}, err
+	}
+	encoded, err := json.Marshal(value)
+	if len(value) == 0 || err != nil || len(encoded) > platform.MaxRecordBytes {
+		return platform.Record{}, platform.ErrInvalidRecord
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.pending != nil {
+		return platform.Record{}, platform.ErrRecordAlreadyCreated
+	}
+	if len(c.snapshot.Items) >= platform.MaxRecords {
+		return platform.Record{}, platform.ErrRecordsLimit
+	}
+	c.pending = &record{ID: c.snapshot.NextID, Value: encoded, CreatedAt: c.snapshot.NextCreatedAt}
+	return publicRecord(*c.pending), nil
+}
+func requestRecords(ctx context.Context, snapshot *recordsSnapshot) (context.Context, func() *record) {
+	if snapshot == nil {
+		return ctx, func() *record { return nil }
+	}
+	c := &collectionRecords{snapshot: *snapshot}
+	return platform.WithRecordStore(ctx, c), func() *record {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if c.pending == nil {
+			return nil
+		}
+		v := *c.pending
+		v.Value = append(json.RawMessage(nil), v.Value...)
+		return &v
+	}
+}

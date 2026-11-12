@@ -3,6 +3,16 @@
 'use strict';
 const policy="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' data:; style-src 'unsafe-inline' data:; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
 function previewClient(){
+ // Native form submission is disabled in the opaque preview. Deliver only the
+ // application's submit event; data still goes through the authenticated bridge.
+ document.addEventListener('click',event=>{
+  const button=event.target.closest?.('button,input');
+  if(event.defaultPrevented||event.button!==0||!button?.form||button.disabled||!['submit','image'].includes(button.type))return;
+  event.preventDefault();
+  const form=button.form;
+  if(!form.noValidate&&!button.formNoValidate&&!form.reportValidity())return;
+  form.dispatchEvent(new SubmitEvent('submit',{bubbles:true,cancelable:true,submitter:button}));
+ });
  const pending=new Set();
  window.fetch=async function(input,options={}){
   const path=typeof input==='string'?input:'';

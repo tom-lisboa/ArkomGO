@@ -81,6 +81,9 @@ func (Sandbox) Test(ctx context.Context, files map[string]string) (string, error
 		if p == DataContractPath {
 			data = DataContracts
 		}
+		if p == RecordsContractPath {
+			data = RecordsContracts
+		}
 		target := filepath.Join(dir, strings.TrimPrefix(p, "backend/"))
 		if err = os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 			return "", err

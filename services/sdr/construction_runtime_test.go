@@ -157,6 +157,7 @@ func TestRuntimeIntegrationCalculator(t *testing.T) {
 	b := previewBuild(t, a)
 	// Keep the original SDK executable: older sealed revisions have no data contract.
 	delete(b.Files, construction.DataContractPath)
+	delete(b.Files, construction.RecordsContractPath)
 	// Inject test-only probes; the reference calculator stays simple.
 	b.Files["backend/calculator.go"] = strings.Replace(b.Files["backend/calculator.go"], "http.NewServeMux()", `http.NewServeMux()
  mux.HandleFunc("POST /api/probe", probe)

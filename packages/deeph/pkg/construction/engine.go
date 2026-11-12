@@ -21,7 +21,7 @@ type CRM interface { FindLead(context.Context, Tenant, string) (Lead,error) }
 `
 
 func Seed() map[string]string {
-	return map[string]string{"backend/go.mod": "module arkom.local/solution\n\ngo 1.24.0\n", "backend/platform/contracts.go": Contracts, DataContractPath: DataContracts}
+	return map[string]string{"backend/go.mod": "module arkom.local/solution\n\ngo 1.24.0\n", "backend/platform/contracts.go": Contracts, DataContractPath: DataContracts, RecordsContractPath: RecordsContracts}
 }
 func clone(m map[string]string) map[string]string {
 	out := map[string]string{}
@@ -102,6 +102,7 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 	references := clone(e.References)
 	references["reference/application-contract.md"] = application.Reference
 	references["reference/platform-data.go"] = DataContracts
+	references["reference/platform-records.go"] = RecordsContracts
 	consulted := map[string]bool{}
 	refs := []string{}
 	for k := range references {

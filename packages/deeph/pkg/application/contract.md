@@ -39,5 +39,9 @@ cria o processo e fornece a empresa; a interface chama fetch nas rotas /api/
 declaradas. Não abra portas nem crie main. Memória comum dura somente durante a
 prévia. Para conservar um documento JSON de até 16 KiB, use platform.LoadData e
 platform.SaveData com o contexto do handler; consulte reference/platform-data.go.
-A confirmação depende do commit no host. Adaptadores de capacidades externas
+Para uma coleção de anotações/registros, use platform.CreateRecord e
+platform.ListRecords; consulte reference/platform-records.go. Uma coleção por
+empresa/aplicação, até 20 registros de 2 KiB de JSON canônico cada, um novo registro
+por requisição. ID e data vêm do host; a listagem preserva a ordem de criação.
+O documento anterior permanece separado. A confirmação depende do commit no host. Adaptadores de capacidades externas
 ainda não estão disponíveis.

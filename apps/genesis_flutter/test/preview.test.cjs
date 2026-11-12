@@ -28,11 +28,29 @@ test('runtime bridge checks source, opaque origin, connection and payload; child
  assert.equal(compiled.querySelector('meta[http-equiv]').content,policy);
  assert.ok(compiled.head.innerHTML.indexOf('Content-Security-Policy')<compiled.head.innerHTML.indexOf('<script>'));
  const {MessageChannel}=require('node:worker_threads');
- const child={window:{},Response,MessageChannel,setTimeout,clearTimeout,parent:{postMessage:async(data,origin,ports)=>{assert.equal(origin,'*');await receive({...event,data,ports})}}};
+ const child={window:{},document:win.document,Response,MessageChannel,setTimeout,clearTimeout,parent:{postMessage:async(data,origin,ports)=>{assert.equal(origin,'*');await receive({...event,data,ports})}}};
  vm.runInNewContext(compiled.querySelector('script').textContent,child);
  const result=await child.window.fetch('/api/calculate',{method:'POST',body:request.body});
  assert.equal(result.status,200);assert.deepEqual(await result.json(),{result:42});
  await assert.rejects(()=>child.window.fetch('https://example.com/api/calculate'),/somente/);
  frame.remove();await receive(event);assert.equal(calls.length,2);
  outer.window.close();
+});
+
+test('preview delivers validated form events without enabling native submissions',()=>{
+ const files={'frontend/index.html':'<form id="notes"><input required name="text"><button type="submit"><span>Adicionar</span></button><button type="button">Atualizar</button></form>'};
+ const dom=new JSDOM(compilePreview(files,Parser,true),{runScripts:'outside-only'});
+ const win=dom.window,doc=win.document;win.eval(doc.querySelector('script').textContent);
+ const form=doc.querySelector('form'),submit=doc.querySelector('button'),input=doc.querySelector('input');
+ let submitted=0;
+ form.addEventListener('submit',event=>{submitted++;assert.equal(event.submitter,submit);event.preventDefault()});
+ function click(target){const event=new win.MouseEvent('click',{bubbles:true,cancelable:true,button:0});target.dispatchEvent(event);return event;}
+ assert.equal(click(submit).defaultPrevented,true);assert.equal(submitted,0,'required field must be checked');
+ input.value='uma anotação';
+ assert.equal(click(submit.querySelector('span')).defaultPrevented,true);assert.equal(submitted,1);
+ click(doc.querySelector('button[type="button"]'));assert.equal(submitted,1);
+ submit.addEventListener('click',event=>event.preventDefault(),{once:true});click(submit);assert.equal(submitted,1,'respect application click handlers');
+ form.noValidate=true;input.value='';click(submit);assert.equal(submitted,2);
+ assert.match(doc.querySelector('meta[http-equiv]').content,/form-action 'none'/);
+ dom.window.close();
 });
