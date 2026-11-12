@@ -19,7 +19,7 @@ cp .env.example .env
 python3 scripts/build-demo.py
 ```
 
-Preencha `OPENAI_API_KEY` no `.env`, sem publicá-lo. O modelo deve ser válido para sua conta. O script de build gera somente binários locais e instala dependências do portal; não inicia chamadas de IA.
+Preencha `OPENAI_API_KEY` no `.env`, sem publicá-lo. O modelo deve ser válido para sua conta. O script de build gera somente binários locais e instala dependências do portal e do compilador Svelte; não inicia chamadas de IA.
 
 ```sh
 python3 scripts/demo.py
@@ -64,7 +64,7 @@ Esta é uma demo local, não um pacote pronto para produção. O login Alfa simp
 
 ## Estúdio de construção
 
-Abra `/demo/genesis` e descreva a aplicação. O backend usa a mesma configuração OpenAI da demo e inicia os papéis de construção do deepH. O macOS requer `/usr/bin/sandbox-exec` e uma instalação Go em `/usr` ou `/opt/homebrew`; toolchains baixadas sob o diretório do usuário não são executadas no isolamento. No Linux, prepare Docker e a imagem `golang:1.26`; esse executor ainda requer homologação específica. Sem executor isolado a API recusa iniciar.
+Abra `/demo/genesis` e descreva a aplicação. O backend usa a mesma configuração OpenAI da demo e inicia os papéis de construção do deepH. O macOS requer `/usr/bin/sandbox-exec` e uma instalação Go em `/usr` ou `/opt/homebrew`; toolchains baixadas sob o diretório do usuário não são executadas no isolamento. Para as novas interfaces Svelte, também instale as dependências de `packages/genesis-frontend` com `npm ci --ignore-scripts` (o script de build já faz isso). O launcher configura `ARKOM_FRONTEND_TOOLCHAIN` para esse diretório. No macOS, Node deve estar em `/usr` ou `/opt/homebrew`. No Linux, prepare Docker e as imagens `golang:1.26` e `node:24-bookworm-slim`; esse executor ainda requer homologação específica. Sem executor isolado a API recusa iniciar.
 
 Arquivos e traces ficam no SQLite da demo. O download entrega um ZIP de fontes; ele ainda não instala a aplicação. Para pedir uma melhoria, escreva o novo pedido no campo principal e escolha **Continuar destes arquivos**. Veja [escopo e limites da construção](GENESIS-CONSTRUCAO.md).
 
@@ -73,3 +73,7 @@ Arquivos e traces ficam no SQLite da demo. O download entrega um ZIP de fontes; 
 Instale Flutter 3.50.0 e disponibilize `flutter` no PATH, ou informe `FLUTTER_BIN`. O script `build-demo.py` agora também compila o Genesis. Para reconstruir somente essa tela, execute `python3 scripts/build-genesis-flutter.py`. O launcher exige os assets gerados antes de iniciar. Fontes e CanvasKit são servidos pelo portal; não é necessário iniciar outro servidor Flutter.
 
 O estúdio usa sessão em memória e stream autenticado SSE por projeto. Mais detalhes e comandos de teste em [apps/genesis_flutter](../apps/genesis_flutter/README.md).
+
+### Frontends gerados em Svelte
+
+Novos projetos usam Svelte 5. A etapa de interface compila os componentes e devolve erros/avisos nos traces. Revisões e retomadas de projetos antigos em HTML preservam o formato anterior. Veja [a base Svelte e seus limites](GENESIS-SVELTE.md).

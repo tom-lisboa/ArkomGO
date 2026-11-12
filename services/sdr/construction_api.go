@@ -42,7 +42,7 @@ type ConstructionBuild struct {
 }
 
 func (b *ConstructionBuild) summary() map[string]any {
-	return map[string]any{"id": b.ID, "goal": b.Goal, "status": b.Status, "parent_id": b.ParentID, "created_at": b.CreatedAt, "updated_at": b.UpdatedAt, "files_count": len(b.Files), "sequence": len(b.Traces), "application_id": b.ApplicationID, "revision": b.Revision, "contract_status": b.contractStatus(), "runtime_compatible": construction.RuntimeCompatible(b.Files), "steps_version": b.StepsVersion, "steps": b.steps(), "next_step_id": b.nextStepID()}
+	return map[string]any{"id": b.ID, "goal": b.Goal, "status": b.Status, "parent_id": b.ParentID, "created_at": b.CreatedAt, "updated_at": b.UpdatedAt, "files_count": len(b.Files), "sequence": len(b.Traces), "application_id": b.ApplicationID, "revision": b.Revision, "contract_status": b.contractStatus(), "runtime_compatible": construction.RuntimeCompatible(b.Files), "frontend_framework": frontendFramework(b.Files), "steps_version": b.StepsVersion, "steps": b.steps(), "next_step_id": b.nextStepID()}
 }
 func (a *App) constructionTrace(id string, event construction.Event) error {
 	return a.constructionRunTrace(id, "", event)
@@ -168,7 +168,7 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			fail(w, 409, "construction_limit")
 			return true
 		}
-		initial := construction.Seed()
+		initial := construction.NewSeed()
 		var parent *ConstructionBuild
 		if body.ParentID != "" {
 			parent = a.state.Platform.Constructions[body.ParentID]
@@ -334,4 +334,11 @@ func (b *ConstructionBuild) contractStatus() string {
 		return "invalid"
 	}
 	return "pending"
+}
+
+func frontendFramework(files map[string]string) string {
+	if construction.IsSvelte(files) {
+		return "svelte"
+	}
+	return "html"
 }

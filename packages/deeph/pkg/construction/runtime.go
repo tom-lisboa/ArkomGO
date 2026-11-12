@@ -125,7 +125,7 @@ func (p *processRuntime) Call(ctx context.Context, r RuntimeRequest) (RuntimeRep
 // StartRuntime executes only the immutable, validated snapshot supplied by the host.
 // No credentials, network, database or host application memory enter the child.
 func StartRuntime(ctx context.Context, org string, c *application.Contract, files map[string]string) (Runtime, error) {
-	if c == nil || !c.Matches(c.ApplicationID, c.Revision, files) {
+	if c == nil || !c.Matches(c.ApplicationID, c.Revision, files) || !FrontendCurrent(files) {
 		return nil, errors.New("runtime_contract_invalid")
 	}
 	if len(c.Manifest.Capabilities) != 0 {

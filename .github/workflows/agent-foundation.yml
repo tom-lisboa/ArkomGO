@@ -53,6 +53,26 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node --test apps/genesis_flutter/test/*.test.cjs
       - run: python3 scripts/build-genesis-flutter.py
+  svelte:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: packages/deeph/go.sum
+      - run: npm ci --ignore-scripts --no-audit --no-fund && npm test
+        working-directory: packages/genesis-frontend
+      - run: docker pull node:24-bookworm-slim
+      - run: go test ./pkg/construction -run TestFrontendSandboxIntegration -count=1 -timeout=3m
+        working-directory: packages/deeph
+        env:
+          ARKOM_FRONTEND_INTEGRATION: 'true'
+          ARKOM_FRONTEND_TOOLCHAIN: ${{ github.workspace }}/packages/genesis-frontend
   runtime:
     runs-on: ubuntu-latest
     timeout-minutes: 10
