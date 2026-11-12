@@ -73,3 +73,33 @@ test('reports sources that are not reachable from the host entrypoint', async ()
   assert.deepEqual(result.warnings.filter(v=>v.code==='unused_source').map(v=>v.file).sort(),['frontend/src/main.ts','frontend/src/theme.css']);
   assert.equal(result.css,'');
 });
+
+test('runs a compiled Svelte form through the existing preview API bridge', async () => {
+  const { createRequire } = await import('node:module');
+  const { MessageChannel } = await import('node:worker_threads');
+  const { compilePreview } = createRequire(import.meta.url)('../../apps/genesis_flutter/web/preview.js');
+  const result = await compileFrontend({'frontend/src/App.svelte': `<script>let number=$state(19);let result=$state('');async function submit(event){event.preventDefault();const r=await fetch('/api/sum',{method:'POST',body:JSON.stringify({a:number,b:23})});result=String((await r.json()).result);}</script><form onsubmit={submit}><label>Primeiro número<input type="number" bind:value={number} /></label><button>Somar</button></form><output>{result}</output>`});
+  const parser = new JSDOM('');
+  const html = compilePreview({'frontend/index.html':'<div id="app"></div><script src="./bundle.js"></script>','frontend/bundle.js':result.javascript},parser.window.DOMParser,true);
+  parser.window.close();
+  const errors=[];const requests=[];
+  const virtualConsole=new VirtualConsole();virtualConsole.on('jsdomError',error=>errors.push(error.message));
+  const dom=new JSDOM(html,{runScripts:'dangerously',resources:'usable',pretendToBeVisual:true,virtualConsole,beforeParse(window){
+    window.Response=Response;window.MessageChannel=MessageChannel;
+    window.postMessage=(message,origin,ports)=>{
+      requests.push(message.request);
+      ports[0].postMessage({status:200,content_type:'application/json',body:'{"result":42}'});ports[0].close();
+    };
+  }});
+  try {
+    await new Promise(resolve=>dom.window.addEventListener('load',resolve,{once:true}));
+    dom.window.document.querySelector('button').click();
+    const deadline=Date.now()+2000;
+    while (dom.window.document.querySelector('output').textContent!=='42' && Date.now()<deadline) await new Promise(resolve=>setTimeout(resolve,10));
+    assert.equal(dom.window.document.querySelector('output').textContent,'42');
+    assert.equal(requests.length,1);
+    assert.equal(requests[0].path,'/api/sum');
+    assert.deepEqual(JSON.parse(requests[0].body),{a:19,b:23});
+    assert.deepEqual(errors,[]);
+  } finally { dom.window.close(); }
+});
