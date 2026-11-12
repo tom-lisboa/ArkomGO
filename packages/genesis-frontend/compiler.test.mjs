@@ -66,3 +66,10 @@ test('compiles frontend fetching declared API without evaluating the request', a
   assert.equal(dom.window.document.querySelector('[role="status"]').textContent,'Salvo');
   dom.window.close();
 });
+
+
+test('reports sources that are not reachable from the host entrypoint', async () => {
+  const result = await compileFrontend({'frontend/src/App.svelte':'<h1>App</h1>', 'frontend/src/main.ts':"import './theme.css';", 'frontend/src/theme.css':'body{color:red}'});
+  assert.deepEqual(result.warnings.filter(v=>v.code==='unused_source').map(v=>v.file).sort(),['frontend/src/main.ts','frontend/src/theme.css']);
+  assert.equal(result.css,'');
+});

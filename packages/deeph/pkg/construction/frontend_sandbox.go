@@ -86,16 +86,9 @@ func (Sandbox) CompileFrontend(ctx context.Context, files map[string]string) (Fr
 func frontendCommand(ctx context.Context, dir, toolchain string) (*exec.Cmd, error) {
 	switch runtime.GOOS {
 	case "darwin":
-		node, err := exec.LookPath("node")
-		if err != nil {
-			return nil, errors.New("frontend_compiler_unavailable")
-		}
-		node, err = filepath.EvalSymlinks(node)
+		node, err := frontendNode()
 		if err != nil {
 			return nil, err
-		}
-		if !strings.HasPrefix(node, "/usr/") && !strings.HasPrefix(node, "/opt/homebrew/") {
-			return nil, errors.New("system_node_toolchain_required")
 		}
 		profile := `(version 1)(allow default)(deny network*)(deny mach-lookup)(deny signal)(allow signal (target self))
 (deny file-read* (subpath "/Users") (subpath "/Volumes") (subpath "/private/var/folders") (subpath "/private/var/root") (subpath "/private/tmp") (subpath "/Library/Keychains"))
@@ -122,4 +115,21 @@ func frontendCommand(ctx context.Context, dir, toolchain string) (*exec.Cmd, err
 	default:
 		return nil, errors.New("isolated_runner_unavailable")
 	}
+}
+
+// Interactive shells often put a home-managed Node before the system install.
+// Resolve symlinks before checking the isolation boundary; never expand access
+// to the user's home just to accommodate that PATH entry.
+func frontendNode() (string, error) {
+	preferred, _ := exec.LookPath("node")
+	for _, candidate := range []string{preferred, "/opt/homebrew/bin/node", "/usr/local/bin/node", "/usr/bin/node"} {
+		resolved, err := filepath.EvalSymlinks(candidate)
+		if err != nil || (!strings.HasPrefix(resolved, "/usr/") && !strings.HasPrefix(resolved, "/opt/homebrew/")) {
+			continue
+		}
+		if _, err := exec.LookPath(resolved); err == nil {
+			return resolved, nil
+		}
+	}
+	return "", errors.New("system_node_toolchain_required")
 }

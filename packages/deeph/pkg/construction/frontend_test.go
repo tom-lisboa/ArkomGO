@@ -4,9 +4,29 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+func TestFrontendNodeIgnoresHomeManagedPATH(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("macOS system toolchain selection")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "node"), []byte("#!/bin/sh\nexit 99\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	node, err := frontendNode()
+	if err != nil {
+		t.Skip("no system Node installed", err)
+	}
+	if !strings.HasPrefix(node, "/usr/") && !strings.HasPrefix(node, "/opt/homebrew/") {
+		t.Fatal("selected non-system Node", node)
+	}
+}
 
 type frontendTester struct {
 	fakeTester

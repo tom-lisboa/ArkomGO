@@ -61,11 +61,15 @@ export async function compileFrontend(files) {
       });
     }
   };
-  const result = await build({entryPoints:['genesis-entry'],bundle:true,write:false,outdir:'/output',entryNames:'bundle',format:'iife',platform:'browser',conditions:['browser'],target:['es2022'],minify:true,sourcemap:false,legalComments:'inline',logLevel:'silent',plugins:[plugin],absWorkingDir:root,define:{'process.env.NODE_ENV':'"production"'}});
+  const result = await build({entryPoints:['genesis-entry'],bundle:true,write:false,metafile:true,outdir:'/output',entryNames:'bundle',format:'iife',platform:'browser',conditions:['browser'],target:['es2022'],minify:true,sourcemap:false,legalComments:'inline',logLevel:'silent',plugins:[plugin],absWorkingDir:root,define:{'process.env.NODE_ENV':'"production"'}});
   const outputs = Object.fromEntries(result.outputFiles.map(v=>[path.basename(v.path),v.text]));
   if (!outputs['bundle.js'] || result.outputFiles.some(v=>v.contents.length>256*1024) || result.outputFiles.reduce((n,v)=>n+v.contents.length,0)>384*1024) throw Error('O frontend compilado ultrapassa o limite. Reduza esta entrega.');
   if (Object.keys(outputs).some(name=>!['bundle.js','bundle.css'].includes(name))) throw Error('Saída de compilação inesperada.');
   warnings.push(...result.warnings.map(v=>diagnostic(v)));
+  const used = new Set(Object.keys(result.metafile.inputs).filter(name=>name.startsWith('application:')).map(name=>name.slice('application:'.length)));
+  for (const name of Object.keys(sources)) {
+    if (!used.has(name)) warnings.push({file:name,line:0,column:0,code:'unused_source',message:'Este arquivo não faz parte do bundle. O host monta App.svelte; importe CSS e componentes a partir dele ou de seus módulos.'});
+  }
   return {javascript:outputs['bundle.js'],css:outputs['bundle.css'] || '',warnings:warnings.slice(0,30)};
 }
 
