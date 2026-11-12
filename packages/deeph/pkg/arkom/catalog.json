@@ -1,0 +1,12 @@
+{
+  "version": "arkom-capabilities-v1",
+  "backend_language": "go",
+  "deployment": "arkom",
+  "capabilities": [
+    {"id":"sdr.memory.v1","service":"services/sdr","contract":"pkg/sdrsdk/types.go","status":"implemented","description":"Fatos explícitos com evidência e validade por conversa"},
+    {"id":"crm.qualification.v1","service":"services/sdr","contract":"crm.go","status":"implemented","description":"Critérios de qualificação antes de enfileirar uma oportunidade"},
+    {"id":"crm.opportunity.v1","service":"services/crm","contract":"INTEGRACAO.md","status":"requires_tenant_route","description":"Evento durável para CRMGO; dados comerciais no Clickmax"},
+    {"id":"business.context.v1","service":"services/sdr","contract":"business.go","status":"implemented","description":"Conhecimento publicado da empresa"}
+  ],
+  "scope": "Primeiro recorte SDR/CRM; não representa as 23 soluções integradas."
+}

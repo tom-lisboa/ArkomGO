@@ -61,3 +61,15 @@ Os testes CRM que exigem PostgreSQL só exercitam esse caminho quando `ARKOM_CRM
 ## Limites operacionais
 
 Esta é uma demo local, não um pacote pronto para produção. O login Alfa simplificado depende de flags explícitas e loopback. Um produto público exige sessão comercial, provisionamento por empresa, gestão de credenciais, domínio, limites, auditoria e operação contínua. Publicar este repositório no GitHub não publica a aplicação na internet.
+
+## Estúdio de construção
+
+Abra `/demo/genesis` e descreva a aplicação. O backend usa a mesma configuração OpenAI da demo e inicia os papéis de construção do deepH. O macOS requer `/usr/bin/sandbox-exec` e uma instalação Go em `/usr` ou `/opt/homebrew`; toolchains baixadas sob o diretório do usuário não são executadas no isolamento. No Linux, prepare Docker e a imagem `golang:1.26`; esse executor ainda requer homologação específica. Sem executor isolado a API recusa iniciar.
+
+Arquivos e traces ficam no SQLite da demo. O download entrega um ZIP de fontes; ele ainda não instala a aplicação. Para pedir uma melhoria, escreva o novo pedido no campo principal e escolha **Continuar destes arquivos**. Veja [escopo e limites da construção](GENESIS-CONSTRUCAO.md).
+
+### Genesis em Flutter Web
+
+Instale Flutter 3.50.0 e disponibilize `flutter` no PATH, ou informe `FLUTTER_BIN`. O script `build-demo.py` agora também compila o Genesis. Para reconstruir somente essa tela, execute `python3 scripts/build-genesis-flutter.py`. O launcher exige os assets gerados antes de iniciar. Fontes e CanvasKit são servidos pelo portal; não é necessário iniciar outro servidor Flutter.
+
+O estúdio usa sessão em memória e stream autenticado SSE por projeto. Mais detalhes e comandos de teste em [apps/genesis_flutter](../apps/genesis_flutter/README.md).

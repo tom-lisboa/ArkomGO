@@ -12,17 +12,27 @@ Os nomes Git, banco de dados, SDK e workspace não precisam fazer parte da jorna
 
 **SDR e workers.** `services/sdr` autentica sessões, mantém o contexto publicado, histórico e estado do piloto em SQLite. Os workers de contexto e execução usam os contratos de `pkg/sdrsdk`, com credenciais próprias e listener separado. Fluxos de negócio e controles de aprovação já existem no motor de plataforma. Sua existência não significa que o plano Genesis já seja executável.
 
-**Genesis.** A ponte Go inicia um processo deepH com o fluxo `contexto > sdr + crm > revisor`. Contexto é preparado primeiro; os especialistas SDR e CRM produzem propostas; o revisor consolida o resultado. O provedor HTTP local chama OpenAI pelo SDK existente. O resultado atual é um plano, e não uma alteração aplicada. Os relatórios ficam em arquivos locais e o índice de execuções permanece em memória; ainda não é uma fila durável de construção.
+**Genesis — qualificação.** A ponte Go inicia um processo deepH com o fluxo `contexto > sdr + crm > revisor`. Contexto é preparado primeiro; os especialistas SDR e CRM produzem propostas; o revisor consolida o resultado. O provedor HTTP local chama OpenAI pelo SDK existente. O revisor produz um plano e, para critérios de qualificação SDR/CRM, uma especificação estrita. O pacote Arkom do deepH gera e testa um artefato Go; a prévia e aprovação permitem publicar essa regra no motor Go existente. Consulte [a etapa 1](GENESIS-ETAPA-1.md). Os relatórios ficam em arquivos locais e o índice de execuções permanece em memória; ainda não é uma fila durável de construção. Propostas de alteração, versões e auditoria são persistidas no SQLite do SDR.
+
+**Genesis — construção.** O novo estúdio usa o `construction.Engine` do deepH como biblioteca no serviço Go. Quatro papéis sequenciais escrevem arquivos específicos do pedido, consultam contratos e corrigem falhas de testes isolados. Arquivos e eventos são persistidos juntos no SQLite, com isolamento de acesso por empresa, cancelamento, continuação e exportação. O frontend apresenta Gophers, atividade, código e alterações. Código pronto ainda precisa de adaptadores autenticados e implantação. Consulte [construção e traces](GENESIS-CONSTRUCAO.md).
 
 **CRMGO.** `services/crm` recebe chamadas da Bia e eventos de qualificação. O PostgreSQL mantém as rotas por organização e instalação, além do estado das entregas. Contatos, pipelines, etapas e cards estão no Clickmax. Portanto, nesta etapa a Arkom controla o acesso e a orquestração, mas o armazenamento comercial depende do Clickmax.
 
 **Backend em refatoração.** `services/core` preserva o trabalho de diretório comum, identidade, barramento, calendários, integrações e Bia. É uma base distinta do SDR Next; a consolidação não unifica automaticamente os dois modelos de dados nem os dois runtimes. Documentos internos dessa pasta registram a evolução das outras soluções, incluindo CLIPS e a entrada comum.
 
+## Direção do frontend: Flutter
+
+Decisão de produto em 11/11/2026: concentrar a etapa atual no backend Go e no deepH; migrar integralmente o frontend da plataforma para Flutter quando começar a etapa de interface. O primeiro recorte foi antecipado: o estúdio Genesis em `/demo/genesis` agora é Flutter Web, dentro do shell Next.js da Arkom. O restante do portal e o fluxo legado de qualificação continuam em React. O SDK Flutter 3.50.0 está instalado em `.local/flutter` nesta estação.
+
+A integração deve permanecer por API autenticada: identidade da empresa, permissões, arquivos, estados, traces, cancelamento e exportação pertencem ao backend. O estúdio Flutter já consome esses contratos e acompanha eventos persistidos por SSE; os demais clientes Flutter deverão consumir os mesmos contratos sem acessar credenciais de serviços ou bancos. A identidade visual Arkom e os Gophers continuam como requisitos de produto, independentes do framework.
+
+A compatibilidade do futuro frontend Flutter com o Remix Lovable ainda exige desenho e validação; esta decisão não significa que o código Flutter já seja exportável para Lovable. Os arquivos HTML/CSS/JS gerados no ensaio atual são artefatos do protótipo, não a arquitetura definitiva do frontend. Referência fornecida: [instalação oficial do Flutter com VS Code](https://docs.flutter.dev/install/with-vs-code).
+
 ## Limites por empresa
 
 A sessão identifica organização e perfil. Serviços resolvem a instalação e as credenciais pelo backend. O navegador usa a sessão da Arkom; chaves OpenAI, Clickmax e tokens entre serviços permanecem no servidor. A entrada simplificada Alfa depende de flags DEV e loopback e não é o cadastro comercial definitivo.
 
-A configuração de autonomia deve ser aplicada pelo backend, por tipo de operação. A próxima entrega Genesis deverá mostrar uma prévia, receber a aprovação necessária, executar uma mudança limitada, verificar o efeito e registrar uma versão recuperável.
+A configuração de autonomia deve ser aplicada pelo backend, por tipo de operação. A primeira alteração de qualificação já mostra prévia, exige aprovação e registra uma versão recuperável. Esse caminho será ampliado para outras capacidades.
 
 ## As 23 soluções e o Remix
 

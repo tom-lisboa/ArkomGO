@@ -84,11 +84,15 @@ func (a *App) queueQualifiedCRM(conversation *Conversation) {
 	}
 	now := a.now().UTC()
 	facts := a.state.Pipeline.Memory[conversation.ID]
-	for _, key := range []string{"company", "goal"} {
-		fact := facts[key]
-		if strings.TrimSpace(fact.Value) == "" || !fact.ExpiresAt.After(now) {
-			return
+	policy := a.qualification(conversation.Org)
+	validFacts := map[string]string{}
+	for key, fact := range facts {
+		if fact.ExpiresAt.After(now) {
+			validFacts[key] = fact.Value
 		}
+	}
+	if policy.Spec.Validate() != nil || len(policy.Spec.Missing(validFacts)) > 0 {
+		return
 	}
 
 	id := fmt.Sprintf("crm-qualification-%x", sha256.Sum256([]byte(route.Installation+":"+conversation.ID)))
@@ -103,7 +107,7 @@ func (a *App) queueQualifiedCRM(conversation *Conversation) {
 		Type: "bia-sdr.crm.opportunity-qualified.v1", Subject: conversation.ID, OccurredAt: now,
 		Data: map[string]string{
 			"bia_installation_id": route.Installation, "clickmax_lead_id": lead,
-			"title": "Lead qualificado pela Bia",
+			"title": policy.Spec.Title,
 		},
 	}
 }

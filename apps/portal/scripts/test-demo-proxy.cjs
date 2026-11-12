@@ -7,7 +7,7 @@ const source=ts.transpileModule(fs.readFileSync('src/app/api/demo/backend/[...pa
 function setup(enabled='true'){
  const exports={},forwarded=[];
  vm.runInNewContext(source,{exports,URL,Response,Headers,process:{env:{ARKOM_LOCAL_DEMO:enabled}},fetch:async(url,options)=>{forwarded.push({url,options});return Response.json({ok:true})}});
- return {handler:exports.POST,forwarded};
+ return {handler:exports.POST,get:exports.GET,forwarded};
 }
 function request(origin='http://127.0.0.1:3007'){
  // Reproduce Next's normalized URL while preserving the incoming Host.
@@ -28,4 +28,11 @@ test('cross-origin requests, unsupported routes and disabled demo never reach ba
  const disabled=setup('false');
  assert.equal((await disabled.handler(request(),params)).status,404);
  assert.equal(disabled.forwarded.length,0);
+});
+
+test('event proxy forwards replay cursor and abort signal without buffering',async()=>{
+ const {get,forwarded}=setup();const abort=new AbortController();
+ const req={method:'GET',nextUrl:new URL('http://127.0.0.1:3007/api/demo/backend/v1/sdr/genesis-demo/construction/build/events?after=3'),headers:new Headers({'last-event-id':'3',authorization:'Bearer fixture'}),signal:abort.signal};
+ const r=await get(req,{params:Promise.resolve({path:['v1','sdr','genesis-demo','construction','build','events']})});
+ assert.equal(forwarded[0].options.signal,abort.signal);assert.equal(forwarded[0].options.headers.get('last-event-id'),'3');assert.equal(r.headers.get('x-accel-buffering'),'no');assert.match(r.headers.get('cache-control'),/no-transform/);
 });

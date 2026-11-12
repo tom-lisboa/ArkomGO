@@ -113,42 +113,44 @@ type cursor struct {
 	Messages      []Message
 }
 type App struct {
-	crmRoutes          map[string]crmRoute
-	voice              *voiceService
-	directory          directoryResolver
-	calendarEnabled    bool
-	calendarGoogle     *calendarGoogleService
-	customerSchema     *customerGraphSchema
-	customerEnabled    bool
-	customerDirectory  string
-	customerBusy       chan struct{}
-	pendingMetrics     []sdrsdk.WorkerMetricEvent
-	metricsLastPrune   time.Time
-	ops                *metricsOpsState
-	mu                 sync.Mutex
-	state              State
-	sessions           map[string]session
-	passwords          map[string][32]byte
-	users              map[string]User
-	harness            map[[32]byte]string
-	cursors            map[string]cursor
-	file               string
-	now                func() time.Time
-	failSave           bool
-	db                 *sql.DB
-	lockFile           *os.File
-	memoryLimits       map[string]limitWindow
-	wa                 WAEngine
-	pipelineEnabled    bool
-	executionModel     string
-	workerSecrets      map[string][32]byte
-	workerHealth       map[string]WorkerHealth
-	transportMu        sync.Mutex
-	transportErrors    map[string]string
-	mediaEnabled       bool
-	mediaBlobs         map[string][]byte
-	mediaUploadSlots   chan struct{}
-	mediaDownloadSlots chan struct{}
+	constructionChanged chan struct{}
+	constructionStreams map[string]int
+	crmRoutes           map[string]crmRoute
+	voice               *voiceService
+	directory           directoryResolver
+	calendarEnabled     bool
+	calendarGoogle      *calendarGoogleService
+	customerSchema      *customerGraphSchema
+	customerEnabled     bool
+	customerDirectory   string
+	customerBusy        chan struct{}
+	pendingMetrics      []sdrsdk.WorkerMetricEvent
+	metricsLastPrune    time.Time
+	ops                 *metricsOpsState
+	mu                  sync.Mutex
+	state               State
+	sessions            map[string]session
+	passwords           map[string][32]byte
+	users               map[string]User
+	harness             map[[32]byte]string
+	cursors             map[string]cursor
+	file                string
+	now                 func() time.Time
+	failSave            bool
+	db                  *sql.DB
+	lockFile            *os.File
+	memoryLimits        map[string]limitWindow
+	wa                  WAEngine
+	pipelineEnabled     bool
+	executionModel      string
+	workerSecrets       map[string][32]byte
+	workerHealth        map[string]WorkerHealth
+	transportMu         sync.Mutex
+	transportErrors     map[string]string
+	mediaEnabled        bool
+	mediaBlobs          map[string][]byte
+	mediaUploadSlots    chan struct{}
+	mediaDownloadSlots  chan struct{}
 }
 
 func token() string {

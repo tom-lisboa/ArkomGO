@@ -28,11 +28,13 @@ if crm:
 ports=[3007,8080,8081,8099]+([8098] if crm else [])
 for port in ports:
  with socket.socket() as check:
+  check.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
   try:check.bind(('127.0.0.1',port))
   except OSError:sys.exit(f'Porta {port} ocupada. Encerre a demo anterior antes de iniciar outra.')
 for name in ['bia','deeph']+(['crm'] if crm else []):
  if not (root/'.local/bin'/name).is_file():sys.exit('Execute python3 scripts/build-demo.py primeiro.')
 if not (root/'apps/portal/node_modules/next/dist/bin/next').is_file():sys.exit('Instale as dependências do portal com scripts/build-demo.py.')
+if not (root/'apps/portal/public/genesis-flutter/index.html').is_file():sys.exit('Compile o Genesis com python3 scripts/build-genesis-flutter.py antes de iniciar.')
 workspace=run/'deeph'
 shutil.copytree(root/'services/sdr/demo/deeph',workspace,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.deeph'))
 env.update(SDR_CRM_DEV_ENABLED='true',SDR_GENESIS_DEMO='true',SDR_PIPELINE_ENABLED='true',SDR_OPENAI_MODEL=env.get('SDR_OPENAI_MODEL') or 'gpt-5.4-mini',SDR_LOCAL_SECRETS_DIR=str(secret_dir),SDR_LOCAL_WORKER_LISTEN='127.0.0.1:8081',SDR_DEEPH_WORKSPACE=str(workspace),ARKOM_CRM_DEV_LISTEN='127.0.0.1:8098',ARKOM_LOCAL_DEMO='true')

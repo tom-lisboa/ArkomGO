@@ -131,6 +131,9 @@ type InternalNote struct {
 	At           time.Time `json:"at"`
 }
 type PlatformState struct {
+	Constructions   map[string]*ConstructionBuild
+	GenesisChanges  map[string]*GenesisChange
+	Qualifications  map[string][]QualificationVersion
 	Workspaces      map[string]*PlatformWorkspace
 	Executions      map[string]*PlatformExecution
 	Notes           map[string]InternalNote
@@ -299,6 +302,13 @@ func validatePlatform(c PlatformConfig) []string {
 	return issues
 }
 func (a *App) initPlatform() {
+	for _, b := range a.state.Platform.Constructions {
+		if b.Status == "running" {
+			b.Status = "interrupted"
+			b.UpdatedAt = a.now().UTC()
+		}
+	}
+
 	p := &a.state.Platform
 	if p.Workspaces == nil {
 		p.Workspaces = map[string]*PlatformWorkspace{}

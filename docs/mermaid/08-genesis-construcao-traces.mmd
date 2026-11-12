@@ -1,0 +1,19 @@
+flowchart TB
+    Cliente[Pedido do cliente] --> Estudio[Estudio Genesis: Gophers e traces]
+    Estudio --> API[API autenticada por empresa]
+    API --> Motor[deepH Construction Engine]
+    Catalogo[Catalogo e contratos Arkom] --> Motor
+    Motor --> Arquiteto[Arquiteto: desenho]
+    Arquiteto --> Go[Construtor: backend Go e testes]
+    Go --> Designer[Designer: HTML CSS JS]
+    Designer --> Revisor[Revisor: correcoes e validacao]
+    Go --> Sandbox[Testes isolados sem rede]
+    Revisor --> Sandbox
+    Sandbox --> Resultado[Saida real dos testes]
+    Resultado --> Motor
+    Motor --> Estado[(SQLite: arquivos e eventos)]
+    Estado --> Estudio
+    Estudio --> Exportar[Download dos arquivos]
+    Estudio --> Continuar[Novo pedido sobre copia do projeto]
+    Continuar --> API
+    Revisor -. proxima etapa .-> Runtime[Runtime Arkom e adaptadores autenticados]

@@ -3,6 +3,7 @@ module sdr-next-pilot
 go 1.26.0
 
 require (
+	deeph v0.0.0
 	github.com/coder/websocket v1.8.15
 	github.com/graph-gophers/graphql-go v1.11.0
 	github.com/openai/openai-go/v3 v3.89.0
@@ -25,3 +26,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+replace deeph => ../../packages/deeph

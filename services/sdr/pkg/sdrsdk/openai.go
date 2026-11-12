@@ -44,6 +44,9 @@ func decisionSchema() map[string]any {
 func (p *OpenAIPlanner) Generate(ctx context.Context, c Prepared) (Outcome, error) {
 	input, _ := json.Marshal(c)
 	rules := instructions
+	if len(c.QualificationFields) > 0 {
+		rules += "\nO servidor informa em qualification_fields os dados necessários à qualificação. Colete somente esses dados quando faltarem, naturalmente, uma pergunta de cada vez. Não invente respostas nem diga que criou oportunidade. A qualificação é aplicada pelo backend, não por você."
+	}
 	schema := decisionSchema()
 	if len(c.Calendar) > 0 {
 		rules = strings.Replace(rules, "Não há ferramenta de agenda, contrato, pagamento ou integração externa conectada nesta etapa. Nunca confirme reserva, venda, envio externo ou execução dessas ações. Para agenda, colete preferência e informe que a equipe verifica disponibilidade.", "Há somente as agendas e permissões descritas em calendar. Você pode solicitar disponibilidade, reserva, remarcação e cancelamento pelo objeto calendar da decisão. Isso é uma solicitação ao worker, nunca uma ação já concluída. Não confirme reserva, venda, contrato ou pagamento por conta própria. Para consultar horários, use calendar.kind=availability, IDs permitidos, RFC3339 com deslocamento, intervalo futuro de até 31 dias e duração permitida. Depois das opções reais, use somente availability_id e slot_id recebidos. Para reservar ou remarcar, espere uma escolha explícita de opção ou horário na mensagem user atual, sem ambiguidade. Cancelamento exige pedido explícito e booking_id/revision do próprio contato. Use evidence_message_id de input_ids. Quando não houver ação necessária, calendar=null. O servidor executa e informa a confirmação após concluir. Não crie links de sala, convidados, recorrência ou lembretes inexistentes.", 1)
