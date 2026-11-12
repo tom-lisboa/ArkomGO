@@ -197,3 +197,35 @@ func TestFrontendSandboxIntegration(t *testing.T) {
 		}
 	}
 }
+
+func TestBackendCannotRewriteSvelteOrMislabelGoTestEvidence(t *testing.T) {
+	initial := NewSeed()
+	initial["frontend/src/App.svelte"] = "<h1>Preservado</h1>"
+	tester := &fakeTester{}
+	var rejected, goEvidence bool
+	provider := fakeProvider{func(r Request) Turn {
+		if len(r.Feedback) == 0 {
+			return Turn{Actions: []Action{{Tool: "read", Path: "reference/catalog.json"}, {Tool: "read", Path: "reference/platform-contracts.go"}}, Verdict: "continue"}
+		}
+		return Turn{Actions: []Action{{Tool: "write", Path: "frontend/src/App.svelte", Content: "<h1>Indevido</h1>"}, {Tool: "test", Path: "frontend/src/App.svelte"}}, Verdict: "ready"}
+	}}
+	e := Engine{Provider: provider, Tester: tester, References: map[string]string{"reference/catalog.json": "{}", "reference/platform-contracts.go": Contracts}, Emit: func(v Event) error {
+		if v.Kind == "tool.rejected" && v.Path == "frontend/src/App.svelte" {
+			rejected = true
+		}
+		if v.Kind == "test.passed" && v.Path != "" {
+			if v.Path != "backend" {
+				t.Error("Go result attributed to frontend", v.Path)
+			}
+			goEvidence = true
+		}
+		if v.Kind == "frontend.build.passed" {
+			t.Error("invented frontend compilation")
+		}
+		return nil
+	}}
+	out, err := e.RunStep(context.Background(), "corrigir somente interface", initial, "backend")
+	if err != nil || !rejected || !goEvidence || tester.calls != 2 || out["frontend/src/App.svelte"] != initial["frontend/src/App.svelte"] {
+		t.Fatal(err, rejected, goEvidence, tester.calls)
+	}
+}

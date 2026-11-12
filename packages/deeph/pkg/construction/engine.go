@@ -136,6 +136,10 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 					instruction = "Construa somente componentes Svelte e CSS/JS/TS em frontend/src/ para a entrega delimitada. Leia reference/frontend-svelte.md. Consulte os contratos do backend existente, trate estados de interface e execute test para compilar. Não escreva os artefatos gerados."
 				}
 			}
+			instruction += fmt.Sprintf("\nEtapa atual: %s. Rodada %d de %d. Conclua somente a responsabilidade desta etapa com verdict ready; pendências de outras etapas ficam para seus responsáveis. Se o código desta etapa já atende ao plano, valide-o sem reescrever. Na última rodada, retorne ready se sua parte está pronta, ou blocked com a lacuna concreta.", stage.ID, round+1, stage.rounds)
+			if stage.ID == "backend" {
+				instruction += "\nSe a revisão solicitada é apenas visual ou de frontend, preserve o backend existente, rode os testes Go e conclua sua parte com ready. A ferramenta test aqui executa somente os testes Go, nunca Svelte. Não tente corrigir arquivos frontend; isso pertence à próxima etapa."
+			}
 			requestFiles := clone(files)
 			if IsSvelte(files) {
 				for _, name := range frontendArtifacts {
@@ -200,6 +204,9 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 					}
 					if !allowed(stage.ID, a.Path) || (IsSvelte(files) && strings.HasPrefix(a.Path, "frontend/") && !frontendSource(a.Path)) || len(a.Content) > 48000 {
 						feedback = append(feedback, "Escrita recusada: "+a.Path)
+						if stage.ID == "backend" && strings.HasPrefix(a.Path, "frontend/") {
+							feedback = append(feedback, "Você está na etapa backend. Este arquivo pertence à etapa interface, que ainda será executada. Não repita esta escrita. Valide somente o Go existente e conclua sua etapa com ready se ele está correto.")
+						}
 						ev.Kind = "tool.rejected"
 						ev.Summary = "Caminho ou tamanho não permitido"
 						break
@@ -253,6 +260,7 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 					if err := emit(Event{Kind: "test.started", Agent: stage.ID, Summary: "Executando testes Go em isolamento"}); err != nil {
 						return files, err
 					}
+					ev.Path = "backend"
 					output, err := e.Tester.Test(ctx, clone(files))
 					ev.Kind = "test.passed"
 					ev.Summary = "Testes Go passaram"
