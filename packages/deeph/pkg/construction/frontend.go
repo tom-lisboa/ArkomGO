@@ -99,7 +99,11 @@ func (e *Engine) compileFrontend(ctx context.Context, files map[string]string, a
 	}
 	if err != nil {
 		output, _ := json.Marshal(result.Errors)
-		if saveErr := emit(Event{Kind: "frontend.build.failed", Agent: agent, Summary: "O frontend precisa de correção", Output: string(output) + "\n" + err.Error()}); saveErr != nil {
+		summary := "O frontend precisa de correção"
+		if errors.Is(err, ErrFrontendRunner) {
+			summary = "O executor Svelte está indisponível; corrija o ambiente antes de retomar"
+		}
+		if saveErr := emit(Event{Kind: "frontend.build.failed", Agent: agent, Summary: summary, Output: string(output) + "\n" + err.Error()}); saveErr != nil {
 			return saveErr
 		}
 		return fmt.Errorf("%w: %s", err, output)

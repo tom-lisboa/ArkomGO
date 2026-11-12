@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,8 @@ import (
 	"strings"
 	"time"
 )
+
+var ErrFrontendRunner = errors.New("frontend_runner_unavailable")
 
 type frontendBuffer struct{ bytes.Buffer }
 
@@ -27,11 +30,11 @@ func (Sandbox) CompileFrontend(ctx context.Context, files map[string]string) (Fr
 	var result FrontendResult
 	toolchain, err := filepath.EvalSymlinks(os.Getenv("ARKOM_FRONTEND_TOOLCHAIN"))
 	if err != nil || !filepath.IsAbs(toolchain) {
-		return result, errors.New("frontend_compiler_unavailable")
+		return result, fmt.Errorf("%w: frontend_compiler_unavailable", ErrFrontendRunner)
 	}
 	for _, name := range []string{"compiler.mjs", "node_modules/svelte/package.json", "node_modules/esbuild/package.json"} {
 		if _, err := os.Stat(filepath.Join(toolchain, name)); err != nil {
-			return result, errors.New("frontend_compiler_unavailable")
+			return result, fmt.Errorf("%w: frontend_compiler_unavailable", ErrFrontendRunner)
 		}
 	}
 	sources := map[string]string{}
@@ -63,7 +66,7 @@ func (Sandbox) CompileFrontend(ctx context.Context, files map[string]string) (Fr
 	defer cancel()
 	cmd, err := frontendCommand(ctx, dir, toolchain)
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("%w: %v", ErrFrontendRunner, err)
 	}
 	isolateProcess(cmd)
 	cmd.Stdin = bytes.NewReader(input)
@@ -75,7 +78,17 @@ func (Sandbox) CompileFrontend(ctx context.Context, files map[string]string) (Fr
 	err = cmd.Run()
 	finishProcess(cmd)
 	if json.Unmarshal(stdout.Bytes(), &result) != nil {
-		return result, errors.New("frontend_compilation_failed")
+		detail := strings.TrimSpace(stderr.String())
+		for _, privatePath := range []string{toolchain, dir, os.Getenv("HOME")} {
+			if privatePath != "" {
+				detail = strings.ReplaceAll(detail, privatePath, "[host]")
+			}
+		}
+		if len(detail) > 2000 {
+			detail = detail[:2000]
+		}
+		result.Errors = []map[string]any{{"code": "frontend_runner_unavailable", "message": detail}}
+		return result, fmt.Errorf("%w: compiler process failed", ErrFrontendRunner)
 	}
 	if err != nil || !result.OK {
 		return result, errors.New("frontend_compilation_failed")

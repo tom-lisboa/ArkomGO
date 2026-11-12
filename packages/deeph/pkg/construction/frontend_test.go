@@ -30,12 +30,16 @@ func TestFrontendNodeIgnoresHomeManagedPATH(t *testing.T) {
 
 type frontendTester struct {
 	fakeTester
-	fail   bool
-	builds int
+	fail          bool
+	builds        int
+	runnerFailure bool
 }
 
 func (f *frontendTester) CompileFrontend(_ context.Context, files map[string]string) (FrontendResult, error) {
 	f.builds++
+	if f.runnerFailure {
+		return FrontendResult{}, ErrFrontendRunner
+	}
 	if f.fail || files["frontend/src/App.svelte"] == "broken" {
 		return FrontendResult{Errors: []map[string]any{{"file": "frontend/src/App.svelte", "message": "parse failed", "line": 2}}}, errors.New("frontend_compilation_failed")
 	}
@@ -163,6 +167,15 @@ func TestSvelteNeverFinishesWithUnpersistedCompilation(t *testing.T) {
 	_, err := e.RunStep(context.Background(), "create UI", NewSeed(), "interface")
 	if err == nil {
 		t.Fatal("unpersisted success accepted")
+	}
+}
+
+func TestSvelteStopsOnRunnerFailureInsteadOfRewritingSources(t *testing.T) {
+	tester := &frontendTester{runnerFailure: true}
+	e := Engine{Provider: frontendProvider(), Tester: tester, References: map[string]string{"reference/catalog.json": "{}", "reference/platform-contracts.go": Contracts}}
+	_, err := e.RunStep(context.Background(), "create UI", NewSeed(), "interface")
+	if !errors.Is(err, ErrFrontendRunner) || tester.builds != 1 {
+		t.Fatal(err, tester.builds)
 	}
 }
 func TestFrontendSandboxIntegration(t *testing.T) {

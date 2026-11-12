@@ -239,6 +239,9 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 					}
 					if IsSvelte(files) && (stage.ID == "interface" || stage.ID == "reviewer") {
 						if err := e.compileFrontend(ctx, files, stage.ID, emit); err != nil {
+							if errors.Is(err, ErrFrontendRunner) {
+								return files, err
+							}
 							feedback = append(feedback, "Corrija o frontend: "+err.Error())
 							continue
 						}
@@ -283,6 +286,9 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 				}
 				if IsSvelte(files) && (stage.ID == "interface" || stage.ID == "reviewer") {
 					if err := e.compileFrontend(ctx, files, stage.ID, emit); err != nil {
+						if errors.Is(err, ErrFrontendRunner) {
+							return files, err
+						}
 						feedback = append(feedback, "Corrija o frontend antes de concluir: "+err.Error())
 						continue
 					}
