@@ -30,26 +30,42 @@ func (a *App) previewData(org, appID string) (*construction.DataSnapshot, int) {
 // The mutation and its audit receipt use the same existing SQLite transaction.
 // A nil database must never be mistaken for durable storage.
 func (a *App) savePreviewData(u User, appID string, expected int, value json.RawMessage) error {
+	return a.savePreviewMutations(u, appID, expected, &construction.DataWrite{Value: value}, nil, nil)
+}
+
+// Called under a.mu; document and collection writes, when both are staged,
+// must commit together so a failed request never leaves a partial mutation.
+func (a *App) savePreviewMutations(u User, appID string, expected int, data *construction.DataWrite, snapshot *construction.RecordsSnapshot, created *construction.Record) error {
 	if a.db == nil || a.constructionClosed {
 		return errors.New("preview_data_unavailable")
 	}
-	if !construction.ValidData(value) {
+	if data != nil && !construction.ValidData(data.Value) {
 		return errors.New("preview_data_invalid")
 	}
 	_, version := a.previewData(u.Org, appID)
-	if version != expected {
+	if data != nil && version != expected {
 		return errors.New("preview_data_conflict")
 	}
+	if created != nil {
+		if err := a.validatePreviewRecord(u.Org, appID, snapshot, created); err != nil {
+			return err
+		}
+	}
 	if err := a.transact(func() {
-		if a.state.Platform.PreviewData == nil {
-			a.state.Platform.PreviewData = map[string]map[string]*previewDocument{}
+		if data != nil {
+			if a.state.Platform.PreviewData == nil {
+				a.state.Platform.PreviewData = map[string]map[string]*previewDocument{}
+			}
+			if a.state.Platform.PreviewData[u.Org] == nil {
+				a.state.Platform.PreviewData[u.Org] = map[string]*previewDocument{}
+			}
+			a.state.Platform.PreviewData[u.Org][appID] = &previewDocument{Value: append(json.RawMessage(nil), data.Value...), Version: version + 1, UpdatedAt: a.now().UTC()}
+			// Content is deliberately absent from audit entries and construction traces.
+			a.record(AuditEntry{Org: u.Org, Actor: u.ID, Action: "preview.data_saved", Operation: appID, Revision: version + 1})
 		}
-		if a.state.Platform.PreviewData[u.Org] == nil {
-			a.state.Platform.PreviewData[u.Org] = map[string]*previewDocument{}
+		if created != nil {
+			a.appendPreviewRecord(u, appID, *created)
 		}
-		a.state.Platform.PreviewData[u.Org][appID] = &previewDocument{Value: append(json.RawMessage(nil), value...), Version: version + 1, UpdatedAt: a.now().UTC()}
-		// Content is deliberately absent from audit entries and construction traces.
-		a.record(AuditEntry{Org: u.Org, Actor: u.ID, Action: "preview.data_saved", Operation: appID, Revision: version + 1})
 	}); err != nil {
 		return errors.New("preview_data_unavailable")
 	}

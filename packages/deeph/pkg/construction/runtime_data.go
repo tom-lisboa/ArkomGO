@@ -31,15 +31,19 @@ func ValidData(value json.RawMessage) bool        { return len(value) <= MaxData
 // Data is host-owned input; it cannot be supplied by the public HTTP envelope.
 func runtimeWireRequest(r RuntimeRequest) any {
 	return struct {
-		Method string        `json:"method"`
-		Path   string        `json:"path"`
-		Body   string        `json:"body"`
-		Data   *DataSnapshot `json:"data,omitempty"`
-	}{r.Method, r.Path, r.Body, r.Data}
+		Method  string           `json:"method"`
+		Path    string           `json:"path"`
+		Body    string           `json:"body"`
+		Data    *DataSnapshot    `json:"data,omitempty"`
+		Records *RecordsSnapshot `json:"records,omitempty"`
+	}{r.Method, r.Path, r.Body, r.Data, r.Records}
 }
 func writeRuntimeAdapter(dir string, files map[string]string) error {
 	if value, exists := files[DataContractPath]; exists && value != DataContracts {
 		return errors.New("runtime_data_contract_invalid")
+	}
+	if value, exists := files[RecordsContractPath]; exists && value != RecordsContracts {
+		return errors.New("runtime_records_contract_invalid")
 	}
 	target := filepath.Join(dir, "cmd/arkom-runtime")
 	if err := os.MkdirAll(target, 0755); err != nil {
@@ -56,5 +60,16 @@ func requestData(ctx context.Context, _ *dataSnapshot) (context.Context, func() 
 	return ctx, func() *dataWrite { return nil }
 }`
 	}
-	return os.WriteFile(filepath.Join(target, "data.go"), []byte(adapter), 0644)
+	if err := os.WriteFile(filepath.Join(target, "data.go"), []byte(adapter), 0644); err != nil {
+		return err
+	}
+	adapter = runtimeRecords
+	if !RecordsCompatible(files) {
+		adapter = `package main
+import "context"
+func requestRecords(ctx context.Context, _ *recordsSnapshot) (context.Context, func() *record) {
+	return ctx, func() *record { return nil }
+}`
+	}
+	return os.WriteFile(filepath.Join(target, "records.go"), []byte(adapter), 0644)
 }

@@ -19,19 +19,21 @@ import (
 	"time"
 )
 
-const RuntimeReference = `PRÉVIA EXECUTÁVEL: escreva os arquivos Go da raiz backend/ no package solution e exponha func NewHandler(tenant platform.Tenant) http.Handler, importando arkom.local/solution/platform. O host cria um processo isolado por empresa e revisão, chama NewHandler uma vez e encaminha somente rotas declaradas em application.json. Use tenant.OrganizationID como identidade confiável, nunca um ID vindo do corpo. Implemente handlers net/http e testes httptest. Não abra portas nem escreva main: backend/cmd/arkom-runtime é reservado ao host. A interface usa fetch('/api/...',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(...)}) e trata falhas. Somente JSON/texto até 32KB por pedido e 64KB por resposta; sem rede externa. Estado em memória dura até parar ou expirar a prévia (5 minutos). Para salvar um documento JSON (até 16 KiB) use platform.LoadData(r.Context()) e platform.SaveData(r.Context(), json.RawMessage), consulte reference/platform-data.go. O documento é isolado por empresa e application_id, compartilhado entre revisões, e sobrevive ao reinício. SaveData prepara uma escrita: o host só confirma após resposta 2xx e commit; qualquer falha deve ser tratada pela interface. Use somente dentro do handler, sem goroutines em background. Memória comum continua temporária. Adaptadores de capacidades ainda não estão disponíveis: aplicações com capabilities não vazias precisam desses adaptadores antes de executar.`
+const RuntimeReference = `PRÉVIA EXECUTÁVEL: escreva os arquivos Go da raiz backend/ no package solution e exponha func NewHandler(tenant platform.Tenant) http.Handler, importando arkom.local/solution/platform. O host cria um processo isolado por empresa e revisão, chama NewHandler uma vez e encaminha somente rotas declaradas em application.json. Use tenant.OrganizationID como identidade confiável, nunca um ID vindo do corpo. Implemente handlers net/http e testes httptest. Não abra portas nem escreva main: backend/cmd/arkom-runtime é reservado ao host. A interface usa fetch('/api/...',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(...)}) e trata falhas. Somente JSON/texto até 32KB por pedido e 64KB por resposta; sem rede externa. Estado em memória dura até parar ou expirar a prévia (5 minutos). Para salvar um documento JSON (até 16 KiB) use platform.LoadData(r.Context()) e platform.SaveData(r.Context(), json.RawMessage), consulte reference/platform-data.go. O documento é isolado por empresa e application_id, compartilhado entre revisões, e sobrevive ao reinício. SaveData prepara uma escrita: o host só confirma após resposta 2xx e commit; qualquer falha deve ser tratada pela interface. Use somente dentro do handler, sem goroutines em background. Para criar e listar vários registros persistentes use platform.CreateRecord(r.Context(), json.RawMessage) e platform.ListRecords(r.Context()); consulte reference/platform-records.go. Há uma coleção separada do documento, até 20 registros de 2 KiB de JSON canônico cada, em ordem de criação. O host gera ID e data; cada requisição pode criar somente um registro e a confirmação também depende de resposta 2xx e commit. Trate ErrRecordsLimit/ErrInvalidRecord e confirme o status no frontend. Não há edição, exclusão ou migração automática do documento. Memória comum continua temporária. Adaptadores de capacidades ainda não estão disponíveis: aplicações com capabilities não vazias precisam desses adaptadores antes de executar.`
 
 type RuntimeRequest struct {
-	Data   *DataSnapshot `json:"-"`
-	Method string        `json:"method"`
-	Path   string        `json:"path"`
-	Body   string        `json:"body"`
+	Records *RecordsSnapshot `json:"-"`
+	Data    *DataSnapshot    `json:"-"`
+	Method  string           `json:"method"`
+	Path    string           `json:"path"`
+	Body    string           `json:"body"`
 }
 type RuntimeReply struct {
-	DataWrite   *DataWrite `json:"data_write,omitempty"`
-	Status      int        `json:"status"`
-	Body        string     `json:"body"`
-	ContentType string     `json:"content_type"`
+	RecordCreate *Record    `json:"record_create,omitempty"`
+	DataWrite    *DataWrite `json:"data_write,omitempty"`
+	Status       int        `json:"status"`
+	Body         string     `json:"body"`
+	ContentType  string     `json:"content_type"`
 }
 type Runtime interface {
 	Call(context.Context, RuntimeRequest) (RuntimeReply, error)
