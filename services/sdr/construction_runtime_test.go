@@ -154,7 +154,7 @@ func TestRuntimeIntegrationCalculator(t *testing.T) {
 	// Inject test-only probes; the reference calculator stays simple.
 	b.Files["backend/calculator.go"] = strings.Replace(b.Files["backend/calculator.go"], "http.NewServeMux()", `http.NewServeMux()
  mux.HandleFunc("POST /api/probe", probe)
- mux.HandleFunc("POST /api/hang", func(http.ResponseWriter,*http.Request){select{}})`, 1)
+ mux.HandleFunc("POST /api/hang", func(http.ResponseWriter,*http.Request){for{}})`, 1)
 	b.Files["backend/probe.go"] = `package solution
  import("encoding/json";"net";"net/http";"os";"time")
  func probe(w http.ResponseWriter,r *http.Request){var in struct{Secret,Outside,Address string};json.NewDecoder(r.Body).Decode(&in);_,read:=os.ReadFile(in.Secret);write:=os.WriteFile(in.Outside,[]byte("escape"),0600);conn,network:=net.DialTimeout("tcp",in.Address,time.Second);if conn!=nil{conn.Close()};w.Header().Set("Content-Type","application/json");json.NewEncoder(w).Encode(map[string]bool{"read":read==nil,"write":write==nil,"network":network==nil,"environment":os.Getenv("ARKOM_TEST_SECRET")!=""})}`
@@ -219,9 +219,13 @@ func TestRuntimeIntegrationCalculator(t *testing.T) {
 	if _, err := os.Stat(outside); !os.IsNotExist(err) {
 		t.Fatal("external write escaped isolation", err)
 	}
+	hangStarted := time.Now()
 	code, out = req(a, "POST", base+"/request", admin, "", construction.RuntimeRequest{Method: "POST", Path: "/api/hang"})
 	if code != 502 {
 		t.Fatal("hung handler not terminated", code, out)
+	}
+	if elapsed := time.Since(hangStarted); elapsed < 4*time.Second || elapsed > 15*time.Second {
+		t.Fatalf("expected enforced five-second timeout, got %s", elapsed)
 	}
 	select {
 	case <-proc.Done():
