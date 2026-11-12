@@ -1,0 +1,1 @@
+{"schema_version":"arkom.application.v1","catalog_version":"arkom-capabilities-v1","name":"Anotação persistente","backend":"go","entrypoint":"frontend/index.html","routes":[{"method":"GET","path":"/api/note","operation_id":"read_note"},{"method":"POST","path":"/api/note","operation_id":"save_note"}],"capabilities":[]}

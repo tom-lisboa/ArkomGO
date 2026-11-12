@@ -16,6 +16,7 @@ type runtimeStarter func(context.Context, string, *application.Contract, map[str
 type previewRuntime struct {
 	org, status, message string
 	cancel               context.CancelFunc
+	context              context.Context
 	process              construction.Runtime
 	busy                 bool
 }
@@ -156,7 +157,7 @@ func (a *App) runtimeHTTP(w http.ResponseWriter, r *http.Request, u User, parts 
 		}
 		contract := *b.Contract
 		ctx, cancel := context.WithCancel(context.Background())
-		p = &previewRuntime{org: u.Org, status: "starting", cancel: cancel}
+		p = &previewRuntime{org: u.Org, status: "starting", cancel: cancel, context: ctx}
 		a.runtimes[b.ID] = p
 		start := a.runtimeStart
 		if start == nil {
@@ -217,17 +218,61 @@ func (a *App) runtimeHTTP(w http.ResponseWriter, r *http.Request, u User, parts 
 		fail(w, 422, err.Error())
 		return
 	}
+	appID, digest := b.ApplicationID, b.Contract.SourceDigest
+	storageEnabled := construction.DataCompatible(b.Files)
+	version := 0
+	if storageEnabled {
+		in.Data, version = a.previewData(u.Org, appID)
+	}
 	p.busy = true
 	proc := p.process
 	a.runtimeMu.Unlock()
 	a.mu.Unlock()
 	out, err := proc.Call(r.Context(), in)
+	a.mu.Lock()
 	a.runtimeMu.Lock()
+	defer a.mu.Unlock()
+	defer a.runtimeMu.Unlock()
 	p.busy = false
-	a.runtimeMu.Unlock()
 	if err != nil {
 		fail(w, 502, "runtime_request_failed")
 		return
+	}
+	current := a.state.Platform.Constructions[parts[0]]
+	if a.runtimes[parts[0]] != p || p.status != "running" || p.context.Err() != nil || current == nil || current.Org != u.Org || current.ApplicationID != appID || current.contractStatus() != "validated" || current.Contract.SourceDigest != digest {
+		fail(w, 409, "runtime_session_changed")
+		return
+	}
+	select {
+	case <-proc.Done():
+		fail(w, 409, "runtime_session_changed")
+		return
+	default:
+	}
+	// The data envelope belongs only to the host; never return it to the iframe.
+	pending := out.DataWrite
+	out.DataWrite = nil
+	if pending != nil && out.Status >= 200 && out.Status < 300 {
+		if !storageEnabled {
+			fail(w, 409, "preview_data_unavailable")
+			return
+		}
+		if err := a.savePreviewData(u, appID, version, pending.Value); err != nil {
+			// Discard any application memory that might assume this failed write succeeded.
+			p.cancel()
+			proc.Close()
+			p.status = "failed"
+			p.message = "O dado não foi salvo. Reinicie a prévia e tente novamente."
+			code := 503
+			if err.Error() == "preview_data_conflict" {
+				code = 409
+			}
+			if err.Error() == "preview_data_invalid" {
+				code = 502
+			}
+			fail(w, code, err.Error())
+			return
+		}
 	}
 	write(w, 200, out)
 }

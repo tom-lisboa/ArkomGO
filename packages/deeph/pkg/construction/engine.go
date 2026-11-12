@@ -21,7 +21,7 @@ type CRM interface { FindLead(context.Context, Tenant, string) (Lead,error) }
 `
 
 func Seed() map[string]string {
-	return map[string]string{"backend/go.mod": "module arkom.local/solution\n\ngo 1.24.0\n", "backend/platform/contracts.go": Contracts}
+	return map[string]string{"backend/go.mod": "module arkom.local/solution\n\ngo 1.24.0\n", "backend/platform/contracts.go": Contracts, DataContractPath: DataContracts}
 }
 func clone(m map[string]string) map[string]string {
 	out := map[string]string{}
@@ -82,8 +82,26 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 		}
 		return nil
 	}
+	// Resuming an older checkpoint must persist host contract upgrades too;
+	// tests and exported/sealed files must use the same platform sources.
+	if initial != nil {
+		names := []string{}
+		for name := range Seed() {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			value := Seed()[name]
+			if initial[name] != value {
+				if err := emit(Event{Kind: "file.written", Agent: "system", Path: name, Before: initial[name], After: value, Summary: "Atualizou contrato controlado pela plataforma"}); err != nil {
+					return files, err
+				}
+			}
+		}
+	}
 	references := clone(e.References)
 	references["reference/application-contract.md"] = application.Reference
+	references["reference/platform-data.go"] = DataContracts
 	consulted := map[string]bool{}
 	refs := []string{}
 	for k := range references {

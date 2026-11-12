@@ -1,0 +1,53 @@
+package main
+
+import (
+	"arkom.local/solution/platform"
+	"context"
+	"encoding/json"
+	"sync"
+)
+
+// One request-local snapshot. Nothing here opens a file, socket or database.
+type documentData struct {
+	mu       sync.Mutex
+	snapshot dataSnapshot
+	pending  *dataWrite
+}
+
+func (d *documentData) Load(ctx context.Context) (json.RawMessage, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.pending != nil {
+		return append(json.RawMessage(nil), d.pending.Value...), true, nil
+	}
+	return append(json.RawMessage(nil), d.snapshot.Value...), d.snapshot.Found, nil
+}
+func (d *documentData) Save(ctx context.Context, value json.RawMessage) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if len(value) > platform.MaxDataBytes || !json.Valid(value) {
+		return platform.ErrInvalidData
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.pending = &dataWrite{Value: append(json.RawMessage(nil), value...)}
+	return nil
+}
+func requestData(ctx context.Context, snapshot *dataSnapshot) (context.Context, func() *dataWrite) {
+	if snapshot == nil {
+		return ctx, func() *dataWrite { return nil }
+	}
+	d := &documentData{snapshot: *snapshot}
+	return platform.WithDataStore(ctx, d), func() *dataWrite {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		if d.pending == nil {
+			return nil
+		}
+		return &dataWrite{Value: append(json.RawMessage(nil), d.pending.Value...)}
+	}
+}

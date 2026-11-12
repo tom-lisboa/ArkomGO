@@ -1102,7 +1102,7 @@ class _StudioState extends State<Studio> {
               child: label(
                 mode == 0
                     ? (model.runtimeStatus == 'running'
-                          ? 'Backend Go conectado · dados temporários'
+                          ? 'Backend Go conectado'
                           : model.runtimeStatus == 'starting'
                           ? 'Preparando backend Go…'
                           : 'Prévia local · integrações ainda não conectadas')

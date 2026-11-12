@@ -36,7 +36,8 @@ const response = await fetch('/api/calculate', {
 const result = await response.json();
 ```
 
-O transporte aceita caminho, método e corpo JSON/texto. Cabeçalhos personalizados,
+O transporte aceita caminho, método e corpo JSON/texto. O host pode incluir internamente o snapshot do documento da aplicação;
+esse envelope não vem do navegador nem é devolvido a ele. Cabeçalhos personalizados,
 cookies, streaming, binários, WebSocket e chamadas externas não fazem parte deste
 contrato. O host envia `Content-Type: application/json` ao handler. A resposta
 expõe status, corpo e tipo `application/json` ou `text/plain`.
@@ -68,8 +69,9 @@ Não há fallback para execução sem isolamento. Linux exige Docker e a imagem
 - Duração de cinco minutos, incluindo preparação; depois é possível reiniciar.
 - Um pedido em execução por prévia, até cinco segundos. Timeout encerra o processo.
 - Corpo de pedido até 32 KiB e resposta até 64 KiB; caminho até 2 KiB.
-- Estado de negócio em memória é temporário. Parar, expirar ou reiniciar o serviço
-  apaga esse estado. O código e o histórico de construção continuam persistidos.
+- Estado comum em memória é temporário. Parar, expirar ou reiniciar o serviço
+  apaga esse estado. Um [documento salvo explicitamente](GENESIS-DADOS-APLICACAO.md)
+  por empresa/aplicação permanece, assim como o código e o histórico da construção.
 - Aplicações com `capabilities` não vazias são recusadas até existirem adaptadores
   autorizados. Esta etapa não conecta CRM, pagamentos ou outros serviços.
 
@@ -103,7 +105,7 @@ O job `runtime` do GitHub Actions executa com Docker:
 
 ```sh
 cd services/sdr
-ARKOM_RUNTIME_INTEGRATION=true go test -run TestRuntimeIntegration -count=1 -timeout=4m .
+ARKOM_RUNTIME_INTEGRATION=true go test -run TestRuntimeIntegration -count=1 -timeout=7m .
 ```
 
 Esse teste inicia Go de verdade, calcula 12 + 30, consulta o histórico em memória,

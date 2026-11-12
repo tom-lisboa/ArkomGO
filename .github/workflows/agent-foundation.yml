@@ -63,7 +63,7 @@ jobs:
           go-version: '1.26.x'
           cache-dependency-path: services/sdr/go.sum
       - run: docker pull golang:1.26
-      - run: go test -run TestRuntimeIntegration -count=1 -timeout=4m .
+      - run: go test -run TestRuntimeIntegration -count=1 -timeout=7m .
         working-directory: services/sdr
         env:
           ARKOM_RUNTIME_INTEGRATION: 'true'

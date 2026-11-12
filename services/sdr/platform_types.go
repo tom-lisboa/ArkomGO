@@ -131,6 +131,7 @@ type InternalNote struct {
 	At           time.Time `json:"at"`
 }
 type PlatformState struct {
+	PreviewData     map[string]map[string]*previewDocument
 	Constructions   map[string]*ConstructionBuild
 	GenesisChanges  map[string]*GenesisChange
 	Qualifications  map[string][]QualificationVersion

@@ -12,15 +12,24 @@ import (
 	"strings"
 )
 
+type dataSnapshot struct {
+	Found bool            `json:"found"`
+	Value json.RawMessage `json:"value,omitempty"`
+}
+type dataWrite struct {
+	Value json.RawMessage `json:"value"`
+}
 type request struct {
+	Data   *dataSnapshot `json:"data,omitempty"`
 	Method string
 	Path   string
 	Body   string
 }
 type response struct {
-	Status      int    `json:"status"`
-	Body        string `json:"body"`
-	ContentType string `json:"content_type"`
+	DataWrite   *dataWrite `json:"data_write,omitempty"`
+	Status      int        `json:"status"`
+	Body        string     `json:"body"`
+	ContentType string     `json:"content_type"`
 }
 type writer struct {
 	header http.Header
@@ -46,14 +55,16 @@ func (w *writer) Write(b []byte) (int, error) {
 func invoke(h http.Handler, in request) (out response) {
 	defer func() {
 		if recover() != nil {
-			out = response{500, "handler_failed", "text/plain"}
+			out = response{Status: 500, Body: "handler_failed", ContentType: "text/plain"}
 		}
 	}()
 	r, e := http.NewRequest(in.Method, "http://application.invalid"+in.Path, strings.NewReader(in.Body))
 	if e != nil {
-		return response{400, "bad_request", "text/plain"}
+		return response{Status: 400, Body: "bad_request", ContentType: "text/plain"}
 	}
 	r.Header.Set("Content-Type", "application/json")
+	ctx, pending := requestData(r.Context(), in.Data)
+	r = r.WithContext(ctx)
 	w := &writer{header: make(http.Header)}
 	h.ServeHTTP(w, r)
 	if w.status == 0 {
@@ -63,11 +74,15 @@ func invoke(h http.Handler, in request) (out response) {
 	if strings.HasPrefix(w.header.Get("Content-Type"), "application/json") {
 		ct = "application/json"
 	}
-	return response{w.status, w.body.String(), ct}
+	out = response{Status: w.status, Body: w.body.String(), ContentType: ct}
+	if w.status >= 200 && w.status < 300 {
+		out.DataWrite = pending()
+	}
+	return out
 }
 func main() {
 	scan := bufio.NewScanner(os.Stdin)
-	scan.Buffer(make([]byte, 4096), 256*1024)
+	scan.Buffer(make([]byte, 4096), 384*1024)
 	if !scan.Scan() {
 		return
 	}
@@ -82,7 +97,7 @@ func main() {
 		return
 	}
 	enc := json.NewEncoder(os.Stdout)
-	enc.Encode(response{200, "ready", "text/plain"})
+	enc.Encode(response{Status: 200, Body: "ready", ContentType: "text/plain"})
 	for scan.Scan() {
 		var in request
 		if json.Unmarshal(scan.Bytes(), &in) != nil {

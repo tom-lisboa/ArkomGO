@@ -1,0 +1,9 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Anotação</title>
+<style>body{background:#111216;color:#eee;font:16px system-ui;max-width:600px;margin:60px auto;padding:20px}textarea{box-sizing:border-box;width:100%;height:150px;background:#202127;color:#eee;padding:12px;border:1px solid #555;border-radius:8px}button{background:#e3bd73;color:#161616;padding:12px;border:0;border-radius:8px;margin:12px 8px 0 0}#status{min-height:24px}</style>
+<h1>Uma anotação que permanece</h1><p>Inicie o backend da prévia. Salve, encerre e inicie novamente para recuperar o texto.</p>
+<textarea id="note" maxlength="2000" aria-label="Anotação"></textarea><button id="save">Salvar</button><button id="load">Recuperar</button><p id="status" role="status"></p>
+<script>
+const note=document.querySelector('#note'),status=document.querySelector('#status');
+async function run(save){status.textContent=save?'Salvando…':'Recuperando…';try{const response=await fetch('/api/note',save?{method:'POST',body:JSON.stringify({text:note.value})}:{});if(!response.ok)throw Error('A operação não foi concluída.');const data=await response.json();if(!save)note.value=data.note.text;status.textContent=save?'Anotação salva.':'Anotação recuperada.'}catch(e){status.textContent=e.message}}
+document.querySelector('#save').onclick=()=>run(true);document.querySelector('#load').onclick=()=>run(false);
+</script></html>

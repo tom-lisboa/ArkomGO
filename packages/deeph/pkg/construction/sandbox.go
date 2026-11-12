@@ -78,6 +78,9 @@ func (Sandbox) Test(ctx context.Context, files map[string]string) (string, error
 		if p == "backend/platform/contracts.go" {
 			data = Contracts
 		}
+		if p == DataContractPath {
+			data = DataContracts
+		}
 		target := filepath.Join(dir, strings.TrimPrefix(p, "backend/"))
 		if err = os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 			return "", err
@@ -88,10 +91,7 @@ func (Sandbox) Test(ctx context.Context, files map[string]string) (string, error
 	}
 	// Compile the host adapter alongside executable applications to catch wrong signatures.
 	if RuntimeCompatible(files) {
-		if err = os.MkdirAll(filepath.Join(dir, "cmd/arkom-runtime"), 0755); err != nil {
-			return "", err
-		}
-		if err = os.WriteFile(filepath.Join(dir, "cmd/arkom-runtime/main.go"), []byte(runtimeMain), 0644); err != nil {
+		if err = writeRuntimeAdapter(dir, files); err != nil {
 			return "", err
 		}
 	}

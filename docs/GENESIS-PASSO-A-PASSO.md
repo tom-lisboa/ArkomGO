@@ -78,10 +78,10 @@ falha de testes, retomada, eventos de tentativas antigas e recuperação após r
 No Flutter, testes em 1280 e 390 px abrem os traces de um passo, filtram o histórico
 e verificam que o tempo não avança as etapas. Nenhuma nova geração paga foi usada.
 
-O próximo incremento do backend é a persistência de dados das aplicações. Deve
-começar com uma entrega pequena e critério observável: salvar e recuperar um dado
-com isolamento por empresa e aplicação. Banco, adaptadores e publicação não fazem
-parte desta mudança.
+A entrega seguinte adicionou [persistência mínima](GENESIS-DADOS-APLICACAO.md):
+salvar e recuperar um documento com isolamento por empresa e aplicação.
+O controle de etapas permanece ligado aos traces. Adaptadores e publicação
+continuam em entregas posteriores.
 
 A organização em marcos pequenos, critérios de conclusão e validações se inspira
 na [documentação oficial da OpenAI](https://developers.openai.com/blog/run-long-horizon-tasks-with-codex).
