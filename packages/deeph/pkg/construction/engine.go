@@ -165,6 +165,7 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 			if err := emit(Event{Kind: "agent.update", Agent: stage.ID, Summary: turn.Summary}); err != nil {
 				return files, err
 			}
+			rejected := false
 			for _, a := range turn.Actions {
 				if err := ctx.Err(); err != nil {
 					return files, err
@@ -276,9 +277,16 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 					ev.Summary = "Ferramenta indisponível"
 					feedback = append(feedback, "Ferramenta não permitida: "+a.Tool)
 				}
+				if ev.Kind == "tool.rejected" {
+					rejected = true
+				}
 				if err := emit(ev); err != nil {
 					return files, err
 				}
+			}
+			if turn.Verdict == "ready" && rejected {
+				feedback = append(feedback, "Não foi possível concluir: uma ação desta rodada foi recusada. Leia o motivo, execute somente as ações permitidas da sua etapa e confirme os arquivos efetivamente salvos antes de retornar ready novamente.")
+				continue
 			}
 			if turn.Verdict == "blocked" {
 				return files, errors.New("agent_reported_blocker")

@@ -3,6 +3,7 @@ package construction
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -98,6 +99,9 @@ func TestSvelteRejectsHostFilesAndCannotFinishOnCompilerFailure(t *testing.T) {
 	provider := fakeProvider{func(r Request) Turn {
 		if len(r.Feedback) == 0 {
 			return Turn{Actions: []Action{{Tool: "read", Path: "reference/catalog.json"}, {Tool: "read", Path: "reference/platform-contracts.go"}}, Verdict: "continue"}
+		}
+		if strings.Contains(strings.Join(r.Feedback, "\n"), "Escrita recusada") {
+			return Turn{Actions: []Action{{Tool: "write", Path: "frontend/src/App.svelte", Content: "broken"}}, Verdict: "ready"}
 		}
 		return Turn{Actions: []Action{{Tool: "write", Path: FrontendContractPath, Content: "forged"}, {Tool: "write", Path: "frontend/bundle.js", Content: "forged"}, {Tool: "write", Path: "frontend/index.html", Content: "<h1>Bypass</h1>"}, {Tool: "write", Path: "frontend/package.json", Content: "{}"}, {Tool: "write", Path: "frontend/src/App.svelte", Content: "broken"}}, Verdict: "ready"}
 	}}
@@ -207,6 +211,9 @@ func TestBackendCannotRewriteSvelteOrMislabelGoTestEvidence(t *testing.T) {
 		if len(r.Feedback) == 0 {
 			return Turn{Actions: []Action{{Tool: "read", Path: "reference/catalog.json"}, {Tool: "read", Path: "reference/platform-contracts.go"}}, Verdict: "continue"}
 		}
+		if strings.Contains(strings.Join(r.Feedback, "\n"), "Escrita recusada") {
+			return Turn{Verdict: "ready"}
+		}
 		return Turn{Actions: []Action{{Tool: "write", Path: "frontend/src/App.svelte", Content: "<h1>Indevido</h1>"}, {Tool: "test", Path: "frontend/src/App.svelte"}}, Verdict: "ready"}
 	}}
 	e := Engine{Provider: provider, Tester: tester, References: map[string]string{"reference/catalog.json": "{}", "reference/platform-contracts.go": Contracts}, Emit: func(v Event) error {
@@ -227,5 +234,44 @@ func TestBackendCannotRewriteSvelteOrMislabelGoTestEvidence(t *testing.T) {
 	out, err := e.RunStep(context.Background(), "corrigir somente interface", initial, "backend")
 	if err != nil || !rejected || !goEvidence || tester.calls != 2 || out["frontend/src/App.svelte"] != initial["frontend/src/App.svelte"] {
 		t.Fatal(err, rejected, goEvidence, tester.calls)
+	}
+}
+
+func TestRejectedRevisionCannotFinishUsingOldSvelteSources(t *testing.T) {
+	for _, repair := range []bool{false, true} {
+		t.Run(fmt.Sprint(repair), func(t *testing.T) {
+			initial := NewSeed()
+			initial["frontend/src/App.svelte"] = "<h1>Old</h1>"
+			tester := &frontendTester{}
+			round, finished := 0, 0
+			provider := fakeProvider{func(r Request) Turn {
+				round++
+				if round == 1 {
+					return Turn{Actions: []Action{{Tool: "read", Path: "reference/catalog.json"}, {Tool: "read", Path: "reference/platform-contracts.go"}, {Tool: "write", Path: "frontend/src/App.svelte", Content: "<h1>New</h1>"}}, Verdict: "ready"}
+				}
+				if round == 2 && (tester.builds != 0 || finished != 0 || r.Files["frontend/src/App.svelte"] != initial["frontend/src/App.svelte"]) {
+					t.Error("rejected write was promoted", tester.builds, finished)
+				}
+				name := "frontend/index.html"
+				if repair {
+					name = "frontend/src/App.svelte"
+				}
+				return Turn{Actions: []Action{{Tool: "write", Path: name, Content: "<h1>New</h1>"}}, Verdict: "ready"}
+			}}
+			e := Engine{Provider: provider, Tester: tester, References: map[string]string{"reference/catalog.json": "{}", "reference/platform-contracts.go": Contracts}, Emit: func(v Event) error {
+				if v.Kind == "agent.finished" {
+					finished++
+				}
+				return nil
+			}}
+			out, err := e.RunStep(context.Background(), "change UI", initial, "interface")
+			if repair {
+				if err != nil || finished != 1 || out["frontend/src/App.svelte"] != "<h1>New</h1>" || !FrontendCurrent(out) {
+					t.Fatal(err, finished)
+				}
+			} else if err == nil || finished != 0 || tester.builds != 0 {
+				t.Fatal("rejected revision accepted", err, finished, tester.builds)
+			}
+		})
 	}
 }
