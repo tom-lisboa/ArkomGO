@@ -13,6 +13,10 @@ Os quatro papéis são etapas sequenciais do `packages/deeph/pkg/construction.En
 
 A liberdade de construção está no código de domínio, na interface e nas revisões. Os papéis orientam o trabalho, mas todos podem colaborar nos arquivos permitidos do projeto; a separação por papel não bloqueia uma melhoria entre camadas. O módulo Go, os contratos de plataforma e os limites de execução pertencem à Arkom. Esta versão usa somente a biblioteca padrão Go e arquivos web sem dependências externas.
 
+## Contrato da aplicação
+
+Novas construções exigem `application.json` com nome, esquema versionado, rotas e capacidades. A Arkom atribui identidade e revisão, valida a declaração e vincula o contrato final aos arquivos por SHA-256. Veja [o contrato de aplicação](GENESIS-CONTRATO-APLICACAO.md).
+
 ## Reuso do ecossistema
 
 Antes de escrever, o motor exige leitura de `reference/catalog.json` e `reference/platform-contracts.go`. Também oferece referências versionadas dos tipos do SDR e da integração CRMGO. O catálogo ainda cobre apenas as capacidades verificadas na etapa anterior; não representa integração completa das 23 soluções.

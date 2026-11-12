@@ -49,6 +49,9 @@ func TestProviderRetryIsBounded(t *testing.T) {
 		t.Fatal("retry budget", p.calls, err)
 	}
 }
+
+const testManifest = `{"schema_version":"arkom.application.v1","catalog_version":"arkom-capabilities-v1","name":"Teste","backend":"go","entrypoint":"frontend/index.html","routes":[],"capabilities":[]}`
+
 func TestCodeActionsAndTraceProvenance(t *testing.T) {
 	tester := &fakeTester{}
 	events := []Event{}
@@ -58,7 +61,7 @@ func TestCodeActionsAndTraceProvenance(t *testing.T) {
 			if len(r.Feedback) == 0 {
 				return Turn{Actions: []Action{{"read", "reference/catalog.json", ""}, {"read", "reference/platform-contracts.go", ""}}, Verdict: "continue"}
 			}
-			return Turn{Summary: "Desenho", Actions: []Action{{"write", "DESIGN.md", "Plano específico"}}, Verdict: "ready"}
+			return Turn{Summary: "Desenho", Actions: []Action{{"write", "DESIGN.md", "Plano específico"}, {"write", "application.json", testManifest}}, Verdict: "ready"}
 		case "backend":
 			return Turn{Actions: []Action{{"write", "../../outside.go", "bad"}, {"write", "backend/platform/contracts.go", "bad"}, {"write", "backend/domain.go", "package solution\nfunc Value() int { return 42 }"}}, Verdict: "ready"}
 		case "interface":
@@ -92,7 +95,7 @@ func TestCodeActionsAndTraceProvenance(t *testing.T) {
 			rejected++
 		}
 	}
-	if reads != 2 || writes != 3 || rejected != 2 || tester.calls != 2 || retries != 1 {
+	if reads != 2 || writes != 4 || rejected != 2 || tester.calls != 2 || retries != 1 {
 		t.Fatal(reads, writes, rejected, tester.calls)
 	}
 }
@@ -102,7 +105,7 @@ func TestFailedTestsCannotProduceReady(t *testing.T) {
 			if len(r.Feedback) == 0 {
 				return Turn{Actions: []Action{{"read", "reference/catalog.json", ""}, {"read", "reference/platform-contracts.go", ""}}, Verdict: "continue"}
 			}
-			return Turn{Actions: []Action{{"write", "DESIGN.md", "plan"}}, Verdict: "ready"}
+			return Turn{Actions: []Action{{"write", "DESIGN.md", "plan"}, {"write", "application.json", testManifest}}, Verdict: "ready"}
 		}
 		return Turn{Verdict: "ready"}
 	}}
@@ -117,7 +120,7 @@ func TestFailedTestsCannotProduceReady(t *testing.T) {
 	}
 }
 func TestPathsAndHostOwnedSources(t *testing.T) {
-	for _, p := range []string{"/tmp/x.go", "backend/../../x.go", "backend/.env.go", "backend/a.py", "frontend/../backend/x.go", "backend/a\\b.go", ".env", "backend/go.mod"} {
+	for _, p := range []string{"/tmp/x.go", "backend/../../x.go", "backend/.env.go", "backend/a.py", "frontend/../backend/x.go", "backend/a\\b.go", ".env", "backend/go.mod", "application-contract.json"} {
 		if ValidPath(p) {
 			t.Fatal(p)
 		}
@@ -149,5 +152,49 @@ func TestIsolation(t *testing.T){if _,e:=os.ReadFile(%s);e==nil{t.Fatal("host da
 	files["backend/domain_test.go"] = "package solution\nimport \"testing\"\nfunc TestFailure(t *testing.T){t.Fatal(\"expected failure\")}"
 	if _, err = (Sandbox{}).Test(context.Background(), files); err == nil {
 		t.Fatal("failed tests accepted")
+	}
+}
+
+func TestManifestMustBeCorrectedBeforeReady(t *testing.T) {
+	for _, repair := range []bool{false, true} {
+		t.Run(fmt.Sprint(repair), func(t *testing.T) {
+			attempts := 0
+			p := fakeProvider{func(r Request) Turn {
+				switch r.Agent {
+				case "architect":
+					if len(r.Feedback) == 0 {
+						return Turn{Actions: []Action{{"read", "reference/catalog.json", ""}, {"read", "reference/platform-contracts.go", ""}}, Verdict: "continue"}
+					}
+					return Turn{Actions: []Action{{"write", "DESIGN.md", "plan"}, {"write", "application.json", testManifest}}, Verdict: "ready"}
+				case "backend":
+					return Turn{Actions: []Action{{"write", "backend/domain.go", "package solution"}}, Verdict: "ready"}
+				case "interface":
+					return Turn{Actions: []Action{{"write", "frontend/index.html", "<h1>App</h1>"}, {"write", "application.json", strings.Replace(testManifest, `"capabilities":[]`, `"capabilities":["fake.v1"]`, 1)}}, Verdict: "ready"}
+				default:
+					attempts++
+					if repair && attempts > 1 {
+						return Turn{Actions: []Action{{"write", "application.json", testManifest}}, Verdict: "ready"}
+					}
+					return Turn{Verdict: "ready"}
+				}
+			}}
+			rejected := 0
+			engine := Engine{Provider: p, Tester: &fakeTester{}, References: map[string]string{"reference/catalog.json": "{}", "reference/platform-contracts.go": Contracts}, Emit: func(e Event) error {
+				if e.Kind == "contract.rejected" {
+					rejected++
+				}
+				return nil
+			}}
+			_, err := engine.Run(context.Background(), "new app", nil)
+			if repair && err != nil {
+				t.Fatal(err)
+			}
+			if !repair && (err == nil || !strings.Contains(err.Error(), "agent_round_limit: reviewer")) {
+				t.Fatal("invalid contract became ready", err)
+			}
+			if rejected == 0 {
+				t.Fatal("missing rejection trace")
+			}
+		})
 	}
 }

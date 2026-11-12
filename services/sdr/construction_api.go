@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"deeph/pkg/application"
 	"deeph/pkg/arkom"
 	"deeph/pkg/construction"
 	"embed"
@@ -33,19 +34,22 @@ type ConstructionTrace struct {
 	At       time.Time `json:"at"`
 }
 type ConstructionBuild struct {
-	ID        string              `json:"id"`
-	Org       string              `json:"organization_id"`
-	Goal      string              `json:"goal"`
-	Status    string              `json:"status"`
-	ParentID  string              `json:"parent_id,omitempty"`
-	CreatedAt time.Time           `json:"created_at"`
-	UpdatedAt time.Time           `json:"updated_at"`
-	Files     map[string]string   `json:"files"`
-	Traces    []ConstructionTrace `json:"traces"`
+	ID            string                `json:"id"`
+	ApplicationID string                `json:"application_id,omitempty"`
+	Revision      int                   `json:"revision,omitempty"`
+	Contract      *application.Contract `json:"contract,omitempty"`
+	Org           string                `json:"organization_id"`
+	Goal          string                `json:"goal"`
+	Status        string                `json:"status"`
+	ParentID      string                `json:"parent_id,omitempty"`
+	CreatedAt     time.Time             `json:"created_at"`
+	UpdatedAt     time.Time             `json:"updated_at"`
+	Files         map[string]string     `json:"files"`
+	Traces        []ConstructionTrace   `json:"traces"`
 }
 
 func (b *ConstructionBuild) summary() map[string]any {
-	return map[string]any{"id": b.ID, "goal": b.Goal, "status": b.Status, "parent_id": b.ParentID, "created_at": b.CreatedAt, "updated_at": b.UpdatedAt, "files_count": len(b.Files), "sequence": len(b.Traces)}
+	return map[string]any{"id": b.ID, "goal": b.Goal, "status": b.Status, "parent_id": b.ParentID, "created_at": b.CreatedAt, "updated_at": b.UpdatedAt, "files_count": len(b.Files), "sequence": len(b.Traces), "application_id": b.ApplicationID, "revision": b.Revision, "contract_status": b.contractStatus()}
 }
 func (a *App) constructionTrace(id string, event construction.Event) error {
 	a.mu.Lock()
@@ -82,13 +86,22 @@ func (a *App) runConstruction(ctx context.Context, id string, planner *sdrsdk.Op
 	a.mu.Unlock()
 	engine := construction.Engine{Provider: constructionProvider{planner}, Tester: construction.Sandbox{}, References: refs, Emit: func(e construction.Event) error { return a.constructionTrace(id, e) }}
 	_, err := engine.Run(ctx, goal, initial)
+	a.finishConstruction(id, err, ctx.Err())
+}
+
+func (a *App) finishConstruction(id string, err, contextErr error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	b := a.state.Platform.Constructions[id]
 	if b == nil || b.Status != "running" {
 		return
 	}
+	var contract *application.Contract
+	if err == nil && contextErr == nil {
+		contract, err = application.Seal(b.ApplicationID, b.Revision, b.Files)
+	}
 	saveErr := a.transact(func() {
+		b.Contract = contract
 		b.Status = "ready"
 		summary := "Código construído e testes Go aprovados; implantação ainda não realizada."
 		if err != nil {
@@ -99,7 +112,7 @@ func (a *App) runConstruction(ctx context.Context, id string, planner *sdrsdk.Op
 				summary += " Motivo: " + err.Error()
 			}
 		}
-		if ctx.Err() != nil {
+		if contextErr != nil {
 			b.Status = "cancelled"
 			summary = "Construção interrompida; arquivos preservados."
 		}
@@ -171,8 +184,9 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			return true
 		}
 		initial := construction.Seed()
+		var parent *ConstructionBuild
 		if body.ParentID != "" {
-			parent := a.state.Platform.Constructions[body.ParentID]
+			parent = a.state.Platform.Constructions[body.ParentID]
 			if parent == nil || parent.Org != u.Org {
 				fail(w, 404, "not_found")
 				return true
@@ -191,7 +205,8 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			fail(w, 503, "genesis_unavailable")
 			return true
 		}
-		b := &ConstructionBuild{ID: "build_" + token(), Org: u.Org, Goal: body.Goal, ParentID: body.ParentID, Status: "running", CreatedAt: a.now().UTC(), UpdatedAt: a.now().UTC(), Files: initial, Traces: []ConstructionTrace{}}
+		applicationID, revision := a.constructionIdentity(u.Org, parent)
+		b := &ConstructionBuild{ApplicationID: applicationID, Revision: revision, ID: "build_" + token(), Org: u.Org, Goal: body.Goal, ParentID: body.ParentID, Status: "running", CreatedAt: a.now().UTC(), UpdatedAt: a.now().UTC(), Files: initial, Traces: []ConstructionTrace{}}
 		if a.transact(func() {
 			if a.state.Platform.Constructions == nil {
 				a.state.Platform.Constructions = map[string]*ConstructionBuild{}
@@ -214,6 +229,22 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 	b := a.state.Platform.Constructions[parts[0]]
 	if b == nil || b.Org != u.Org {
 		fail(w, 404, "not_found")
+		return true
+	}
+	if len(parts) == 2 && parts[1] == "contract" && r.Method == "GET" {
+		result := map[string]any{"application_id": b.ApplicationID, "revision": b.Revision, "status": b.contractStatus(), "contract": nil}
+		if b.contractStatus() == "validated" {
+			result["contract"] = b.Contract
+		}
+		if b.ApplicationID != "" {
+			manifest, err := application.ValidateFiles(b.Files)
+			if err != nil {
+				result["validation_error"] = err.Error()
+			} else {
+				result["manifest"] = manifest
+			}
+		}
+		write(w, 200, result)
 		return true
 	}
 	if len(parts) == 1 && r.Method == "GET" {
@@ -268,6 +299,11 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			f, _ := z.Create(name)
 			_, _ = f.Write([]byte(b.Files[name]))
 		}
+		if b.contractStatus() == "validated" {
+			raw, _ := json.MarshalIndent(b.Contract, "", "  ")
+			f, _ := z.Create("application-contract.json")
+			_, _ = f.Write(raw)
+		}
 		manifest, _ := json.MarshalIndent(b.summary(), "", "  ")
 		f, _ := z.Create("construction-manifest.json")
 		_, _ = f.Write(manifest)
@@ -280,4 +316,37 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 	}
 	fail(w, 405, "method_not_allowed")
 	return true
+}
+
+// Called with a.mu held; revision allocation is committed with the new build.
+// Branching from an older revision still allocates a fresh number in the lineage.
+func (a *App) constructionIdentity(org string, parent *ConstructionBuild) (string, int) {
+	if parent == nil || parent.Org != org || parent.ApplicationID == "" {
+		return "app_" + token(), 1
+	}
+	revision := parent.Revision
+	for _, b := range a.state.Platform.Constructions {
+		if b.Org == org && b.ApplicationID == parent.ApplicationID && b.Revision > revision {
+			revision = b.Revision
+		}
+	}
+	return parent.ApplicationID, revision + 1
+}
+func (b *ConstructionBuild) contractStatus() string {
+	if b.ApplicationID == "" {
+		return "legacy"
+	}
+	if b.Files[application.ManifestPath] == "" {
+		return "missing"
+	}
+	if _, err := application.ValidateFiles(b.Files); err != nil {
+		return "invalid"
+	}
+	if b.Status == "ready" {
+		if b.Contract.Matches(b.ApplicationID, b.Revision, b.Files) {
+			return "validated"
+		}
+		return "invalid"
+	}
+	return "pending"
 }

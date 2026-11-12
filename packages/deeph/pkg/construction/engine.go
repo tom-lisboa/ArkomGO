@@ -2,6 +2,7 @@ package construction
 
 import (
 	"context"
+	"deeph/pkg/application"
 	"errors"
 	"fmt"
 	"path"
@@ -38,7 +39,7 @@ func ValidPath(p string) bool {
 			return false
 		}
 	}
-	if p == "DESIGN.md" || p == "README.md" {
+	if p == "DESIGN.md" || p == "README.md" || p == application.ManifestPath {
 		return true
 	}
 	if strings.HasPrefix(p, "backend/") && strings.HasSuffix(p, ".go") {
@@ -72,9 +73,11 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 		}
 		return nil
 	}
+	references := clone(e.References)
+	references["reference/application-contract.md"] = application.Reference
 	consulted := map[string]bool{}
 	refs := []string{}
-	for k := range e.References {
+	for k := range references {
 		refs = append(refs, k)
 	}
 	sort.Strings(refs)
@@ -82,7 +85,7 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 		name, instruction string
 		rounds            int
 	}{
-		{"architect", "Consulte contratos e escreva DESIGN.md: escopo, endpoints, estrutura, reuso, isolamento e critérios de aceitação.", 4},
+		{"architect", "Consulte contratos e escreva application.json e DESIGN.md: escopo, endpoints, estrutura, reuso, isolamento e critérios de aceitação.", 4},
 		{"backend", "Sua responsabilidade principal é backend Go e testes reais de domínio e isolamento por empresa. Use net/http/httptest em vez de abrir portas. Execute test e corrija falhas. Quando backend e testes estiverem prontos, use ready e deixe o restante da interface para o próximo especialista.", 10},
 		{"interface", "Sua responsabilidade principal é frontend/index.html e CSS/JS necessários. Aproveite arquivos existentes e use contratos do backend gerado; identifique ligações pendentes da implantação. Evite mudanças desnecessárias no backend.", 6},
 		{"reviewer", "Revise todos os arquivos contra o pedido. Corrija erros, acrescente testes e execute test. Se não puder resolver uma lacuna, use blocked. Não alegue teste visual.", 8},
@@ -99,7 +102,7 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 				return files, err
 			}
 			referencesSeen := consulted["reference/catalog.json"] && consulted["reference/platform-contracts.go"]
-			turn, err := e.Provider.Next(ctx, Request{Agent: stage.name, Goal: goal, Instruction: Rules + "\nSUA ETAPA: " + stage.instruction, Files: clone(files), References: refs, Feedback: feedback})
+			turn, err := e.Provider.Next(ctx, Request{Agent: stage.name, Goal: goal, Instruction: Rules + "\n" + application.Reference + "\nSUA ETAPA: " + stage.instruction, Files: clone(files), References: refs, Feedback: feedback})
 			if err != nil {
 				if errors.Is(err, ErrProviderUnavailable) && !retried && ctx.Err() == nil {
 					retried = true
@@ -134,7 +137,7 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 				case "read":
 					data, ok := files[a.Path]
 					if !ok {
-						data, ok = e.References[a.Path]
+						data, ok = references[a.Path]
 					}
 					if !ok {
 						feedback = append(feedback, "Arquivo indisponível: "+a.Path)
@@ -208,6 +211,25 @@ func (e *Engine) Run(ctx context.Context, goal string, initial map[string]string
 				if stage.name == "interface" && files["frontend/index.html"] == "" {
 					feedback = append(feedback, "Escreva frontend/index.html antes de concluir.")
 					continue
+				}
+				if stage.name == "architect" || stage.name == "reviewer" {
+					var contractErr error
+					if stage.name == "architect" {
+						_, contractErr = application.Decode(files[application.ManifestPath])
+					} else {
+						_, contractErr = application.ValidateFiles(files)
+					}
+					kind, summary := "contract.validated", "Contrato da aplicação validado"
+					if contractErr != nil {
+						kind, summary = "contract.rejected", "Corrija o contrato da aplicação: "+contractErr.Error()
+					}
+					if err := emit(Event{Kind: kind, Agent: stage.name, Path: application.ManifestPath, Summary: summary}); err != nil {
+						return files, err
+					}
+					if contractErr != nil {
+						feedback = append(feedback, summary)
+						continue
+					}
 				}
 				if stage.name == "backend" || stage.name == "reviewer" {
 					if err := emit(Event{Kind: "test.started", Agent: stage.name, Summary: "Validando o estado final da etapa"}); err != nil {
