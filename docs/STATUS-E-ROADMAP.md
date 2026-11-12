@@ -10,6 +10,8 @@
 | Planejamento Genesis com quatro agentes deepH | Exercitado com inferência real |
 | Alterar critérios de qualificação SDR/CRM por Genesis | Implementado: contrato, artefato Go testado, prévia, aprovação, versão e restauração |
 | Gerar código Go e interface web por agentes, com traces | Implementado no estúdio de construção; testes isolados e exportação |
+| Construção por etapas ligada aos traces | Implementado: planejamento, checkpoints, avanço explícito e retomada |
+| Backend Go na prévia | Implementado: processo isolado, rotas autenticadas e dados temporários |
 | Contrato versionado de aplicações geradas | Implementado: identidade, revisão, rotas, capacidades, validação e exportação |
 | Publicar e operar aplicações novas dentro da Arkom | Ainda não implementado |
 | Catálogo operacional das 23 soluções | Ainda não integrado por completo |
@@ -24,9 +26,15 @@ Neste momento, evoluir backend Go, deepH, contratos e execução. Quando a etapa
 
 1. Consolidar componentes compartilhados, sessão e contexto entre portal, SDR e CRM. Revisar desktop e celular.
 2. Expandir a primeira mudança executável de qualificação para outras capacidades, mantendo prévia, aprovação, testes e versões recuperáveis.
-3. Evoluir os traces de construção já implementados com critérios independentes de aceitação e fila de aprovações. O resumo atual mostra disponibilidade de IA, funis e aprovações nas 30 execuções mais recentes.
+3. A [construção por etapas](GENESIS-PASSO-A-PASSO.md) já liga checkpoints aos traces. Evoluir depois a divisão dinâmica em entregas funcionais. O resumo atual mostra disponibilidade de IA, funis e aprovações nas 30 execuções mais recentes.
 4. Implantar diretório de capacidades das 23 soluções, com contratos e permissões versionados e instalação por empresa.
 5. Com o [contrato versionado](GENESIS-CONTRATO-APLICACAO.md) implementado, ligar o código produzido no estúdio a persistência, adaptadores das soluções e prévia executável, com publicação controlada.
 6. Entregar Remix e personalização mantendo os mesmos contratos de backend e os limites de cada cliente.
 
 Critério do produto: o cliente deve conseguir criar, usar e pedir mudanças em linguagem comum. A plataforma traduz isso em operações rastreáveis, sem exigir que ele administre código, infraestrutura ou credenciais.
+
+## Regra de evolução
+
+Uma entrega pequena por vez, com critério verificável e resultado registrado.
+Próximo passo do backend: persistência isolada por empresa/aplicação, começando
+por salvar e recuperar um dado. Não antecipar adaptadores e publicação.

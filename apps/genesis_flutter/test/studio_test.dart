@@ -69,6 +69,24 @@ StudioController fixture() {
   return c;
 }
 
+class StepController extends StudioController {
+  final calls = <Map<String, dynamic>>[];
+  @override
+  Future<Map<String, dynamic>> call(
+    String action, [
+    Map<String, dynamic> data = const {},
+  ]) async {
+    calls.add({'action': action, ...data});
+    if (action == 'advance_step')
+      return {
+        ...build!,
+        'status': 'running',
+        'sequence': (build!['sequence'] as int) + 1,
+      };
+    return {};
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async {
@@ -106,6 +124,147 @@ void main() {
     expect(c.traces.length, 6);
     expect(c.files['backend/lots.go'], 'package revised');
   });
+  test(
+    'advance sends the reviewed checkpoint and reconnects the same project',
+    () async {
+      final c = StepController()
+        ..authenticated = true
+        ..role = 'admin';
+      c.accept({
+        'type': 'snapshot',
+        'build': {
+          'id': 'step-project',
+          'status': 'awaiting_step',
+          'next_step_id': 'backend',
+          'sequence': 17,
+        },
+        'files': {},
+        'traces': [],
+      });
+      expect(c.canAdvance, isTrue);
+      await c.advanceStep();
+      expect(c.calls, [
+        {
+          'action': 'advance_step',
+          'id': 'step-project',
+          'step_id': 'backend',
+          'sequence': 17,
+        },
+        {'action': 'select', 'id': 'step-project'},
+      ]);
+      expect(c.id, 'step-project');
+      expect(c.canAdvance, isFalse);
+      await c.advanceStep();
+      expect(c.calls.length, 2);
+      c.dispose();
+    },
+  );
+
+  for (final width in [1280.0, 390.0]) {
+    testWidgets(
+      'steps open their real traces and do not advance with time at $width',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final c = StudioController()
+          ..authenticated = true
+          ..role = 'admin';
+        c.accept({
+          'type': 'snapshot',
+          'build': {
+            'id': 'steps',
+            'goal': 'Calculadora em pequenas entregas',
+            'status': 'awaiting_step',
+            'sequence': 4,
+            'steps_version': 1,
+            'next_step_id': 'backend',
+            'steps': [
+              {
+                'id': 'architect',
+                'title': 'Planejar',
+                'acceptance': 'Plano escrito e contrato validado.',
+                'status': 'completed',
+                'trace_count': 3,
+                'first_sequence': 1,
+                'last_sequence': 3,
+              },
+              for (final id in ['backend', 'interface', 'reviewer'])
+                {
+                  'id': id,
+                  'title': id,
+                  'acceptance': 'Critério verificável',
+                  'status': 'pending',
+                  'trace_count': 0,
+                  'first_sequence': 0,
+                  'last_sequence': 0,
+                },
+            ],
+          },
+          'files': {'DESIGN.md': 'Somar primeiro; histórico depois.'},
+          'traces': [
+            {
+              'sequence': 1,
+              'kind': 'step.started',
+              'step_id': 'architect',
+              'agent': 'system',
+              'summary': 'Planejamento iniciado',
+            },
+            {
+              'sequence': 2,
+              'kind': 'file.written',
+              'step_id': 'architect',
+              'agent': 'architect',
+              'path': 'DESIGN.md',
+              'after': 'Somar primeiro; histórico depois.',
+              'summary': 'Plano salvo',
+            },
+            {
+              'sequence': 3,
+              'kind': 'step.completed',
+              'step_id': 'architect',
+              'agent': 'system',
+              'summary': 'Planejamento validado',
+            },
+            {
+              'sequence': 4,
+              'kind': 'build.note',
+              'agent': 'system',
+              'summary': 'Evento de outro contexto',
+            },
+          ],
+        });
+        await tester.pumpWidget(GenesisApp(controller: c));
+        await tester.pump();
+        if (width == 390) {
+          await tester.tap(find.byTooltip('Conversar com o Genesis'));
+          await tester.pump();
+        }
+        await tester.ensureVisible(
+          find.byKey(const ValueKey('step-architect')),
+        );
+        expect(find.text('3 traces · #1–#3'), findsOneWidget);
+        await tester.pump(const Duration(seconds: 10));
+        expect(c.steps.where((s) => s['status'] == 'completed').length, 1);
+        expect(c.canAdvance, isTrue);
+        await tester.tap(find.byKey(const ValueKey('step-architect')));
+        await tester.pump();
+        expect(find.text('Traces · Planejar'), findsOneWidget);
+        expect(find.text('3 eventos'), findsOneWidget);
+        expect(find.text('Plano salvo'), findsOneWidget);
+        expect(find.text('Evento de outro contexto'), findsNothing);
+        await tester.tap(find.byTooltip('Ver todos os traces'));
+        await tester.pump();
+        expect(find.text('4 eventos'), findsOneWidget);
+        expect(find.text('Evento de outro contexto'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        c.dispose();
+      },
+    );
+  }
+
   for (final width in [1280.0, 900.0, 390.0]) {
     testWidgets('workspace switches solution/code/history at width $width', (
       tester,

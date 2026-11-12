@@ -38,3 +38,7 @@ Quando `frontend/index.html` estiver disponível, o Flutter incorpora uma prévi
 Eventos novos exibem um Gopher animado e um resumo temporário sobre a solução; a atividade desaparece após sete segundos e continua disponível no histórico, com detalhes antes/depois. Snapshots de reconexão não reapresentam ações antigas como atividade ao vivo. O menu permite rever ações persistidas em uma reprodução identificada, usando a prévia atual e sem alterar o histórico.
 
 A prévia suporta interface estática, lógica local e chamadas ao backend Go isolado. Recursos locais de script e stylesheet são incorporados. Em construções com contrato validado, use **Mais opções → Iniciar backend da prévia**; o rodapé mostra quando estiver conectado. Os dados ficam em memória por até cinco minutos, e o menu permite encerrar o processo. Projetos antigos precisam ser continuados para receber a entrada `NewHandler`. Veja o [contrato e limites da execução](../../docs/GENESIS-RUNTIME-PREVIA.md). A montagem não altera o projeto original nem declara a aplicação publicada.
+
+## Construir por partes
+
+Novas ideias começam pelo planejamento. O painel **Passo a passo** mostra estado, critério e traces de cada fase. Clique em uma fase para abrir seu histórico; use **Iniciar próxima etapa** após revisar o checkpoint. Falhas e interrupções mantêm o mesmo passo disponível para retomada. Os estados vêm dos traces persistidos, sem estimativa por tempo. Veja [o contrato desse fluxo](../../docs/GENESIS-PASSO-A-PASSO.md).

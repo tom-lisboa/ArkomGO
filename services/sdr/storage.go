@@ -94,6 +94,12 @@ func (a *App) openStore(file string) error {
 }
 func (a *App) Close() error {
 	a.closeRuntimes()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.constructionClosed = true
+	for _, run := range a.constructionRuns {
+		run.cancel()
+	}
 	var err error
 	if a.db != nil {
 		err = a.db.Close()

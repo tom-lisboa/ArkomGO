@@ -9,6 +9,8 @@ O estúdio em `/demo/genesis` recebe um pedido e coordena quatro papéis que esc
 - **Designer:** escreve HTML, CSS e JavaScript para o pedido.
 - **Revisor:** revisa os artefatos, pode alterá-los e precisa concluir a validação Go.
 
+Novas construções executam um passo por autorização, com checkpoints ligados aos traces. Veja [passo a passo](GENESIS-PASSO-A-PASSO.md).
+
 Os quatro papéis são etapas sequenciais do `packages/deeph/pkg/construction.Engine`, com arquivos compartilhados. Não são quatro processos simultâneos. O motor determina as ferramentas disponíveis e executa suas ações; o provedor decide o conteúdo e as próximas ações. A geração usa o cliente OpenAI do SDK existente, com resposta estruturada e `store=false`. Somente mensagens finais (ou sem fase, para compatibilidade) são interpretadas como ações; mensagens `commentary` são descartadas, conforme o [contrato de Structured Outputs do SDK oficial](https://github.com/openai/openai-node/blob/main/docs/structured-outputs.md). Respostas incompletas ou ambíguas são rejeitadas.
 
 A liberdade de construção está no código de domínio, na interface e nas revisões. Os papéis orientam o trabalho, mas todos podem colaborar nos arquivos permitidos do projeto; a separação por papel não bloqueia uma melhoria entre camadas. O módulo Go, os contratos de plataforma e os limites de execução pertencem à Arkom. Esta versão usa somente a biblioteca padrão Go e arquivos web sem dependências externas.
