@@ -2,7 +2,7 @@
 
 | Capacidade | Estado |
 | --- | --- |
-| Genesis Flutter com Gophers e traces via SSE | Implementado no portal de demonstração; demais telas ainda em React |
+| Plataforma local em Flutter | Início, mapa, catálogo e superfícies SDR/CRM/CLIPS/contexto/Genesis; áreas educacionais e administrativas ainda em Next |
 | Portal com visual Arkom e navegação por ferramentas | Implementado na demo local |
 | Sessão compartilhada, CRM e SDR no portal | Implementado; verificação visual interativa pendente |
 | Atendimento com IA e workers separados | Exercitado com dados fictícios |
@@ -15,7 +15,7 @@
 | Persistência mínima da aplicação | Implementado: um documento JSON por empresa/aplicação, com commit e auditoria |
 | Contrato versionado de aplicações geradas | Implementado: identidade, revisão, rotas, capacidades, validação e exportação |
 | Publicar e operar aplicações novas dentro da Arkom | Ainda não implementado |
-| Catálogo operacional das 23 soluções | Ainda não integrado por completo |
+| Catálogo local | 15 entradas verificadas; 4 soluções implementadas, 11 bloqueadas. Inventário completo das 23 ainda não confirmado |
 | Remix automático para a conta Lovable do cliente | Ainda não implementado |
 | Provisionamento comercial multiempresa de ponta a ponta | Ainda não concluído |
 
@@ -40,3 +40,5 @@ Uma entrega pequena por vez, com critério verificável e resultado registrado.
 A [primeira persistência](GENESIS-DADOS-APLICACAO.md) já salva e recupera um
 documento por empresa/aplicação. Próximas entregas devem ampliar isso em pequenos
 incrementos, sem antecipar adaptadores e publicação.
+
+Veja o [escopo da migração Flutter e integração local](ECOSISTEMA-LOCAL-FLUTTER.md).

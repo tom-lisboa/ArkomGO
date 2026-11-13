@@ -9,8 +9,11 @@ import 'live_activity.dart';
 import 'solution_preview.dart';
 import 'studio_controller.dart';
 import 'visuals.dart';
+import 'platform.dart';
 
-void main() => runApp(const GenesisApp());
+void main() => runApp(
+  ArkomPlatform(initialView: Uri.base.queryParameters['view'] ?? 'genesis'),
+);
 
 class GenesisApp extends StatelessWidget {
   final StudioController? controller;
@@ -533,8 +536,8 @@ class _StudioState extends State<Studio> {
                 enabled: model.canEdit && !model.busy,
                 child: Text(
                   ['running', 'starting'].contains(model.runtimeStatus)
-                      ? 'Encerrar backend da prévia'
-                      : 'Iniciar backend da prévia',
+                      ? 'Pausar solução'
+                      : 'Conectar solução',
                   style: const TextStyle(fontSize: 12),
                 ),
               ),
@@ -1208,18 +1211,34 @@ class _StudioState extends State<Studio> {
               child: label(
                 mode == 0
                     ? (model.runtimeStatus == 'running'
-                          ? 'Backend Go conectado'
+                          ? 'Solução conectada · dados na Arkom'
                           : model.runtimeStatus == 'starting'
-                          ? 'Preparando backend Go…'
-                          : 'Prévia local · integrações ainda não conectadas')
+                          ? 'Preparando sua solução…'
+                          : model.runtimeStatus == 'failed'
+                          ? 'Não foi possível conectar a solução'
+                          : model.build?['status'] == 'ready'
+                          ? 'Solução pausada'
+                          : 'Construção em andamento · prévia visual')
                     : 'Seu projeto e histórico ficam salvos na Arkom',
                 size: 9,
                 color: muted,
                 lines: 1,
               ),
             ),
-            if (mode == 0 && hasPreview)
-              label('INTERATIVA', size: 8, color: agentColors[3], spacing: 1),
+            if (mode == 0 &&
+                model.build?['status'] == 'ready' &&
+                !['running', 'starting'].contains(model.runtimeStatus))
+              TextButton(
+                onPressed: model.canEdit && !model.busy
+                    ? () => model.action('runtime_start')
+                    : null,
+                child: const Text(
+                  'Conectar solução',
+                  style: TextStyle(fontSize: 10),
+                ),
+              ),
+            if (mode == 0 && hasPreview && model.runtimeStatus == 'running')
+              label('CONECTADA', size: 8, color: agentColors[3], spacing: 1),
           ],
         ),
       ),

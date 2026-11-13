@@ -1,0 +1,114 @@
+{
+  "version": "arkom.local.solutions.v1",
+  "source": {
+    "repo": "bilhon-business/arkom-dash",
+    "commit": "82d36ecfffd7ddb73c606c1ce2638e63f9b35325"
+  },
+  "solutions": [
+    {
+      "id": "sdr",
+      "name": "BIA SDR",
+      "area": "Vendas",
+      "description": "Conversas, qualificação e atendimento com IA.",
+      "service": "services/sdr"
+    },
+    {
+      "id": "crm",
+      "name": "CRM Arkom",
+      "area": "Vendas",
+      "description": "Contatos, funis e oportunidades.",
+      "service": "services/crm"
+    },
+    {
+      "id": "genesis",
+      "name": "Genesis",
+      "area": "Produto",
+      "description": "Crie e evolua soluções com seu time de agentes.",
+      "service": "packages/deeph + services/sdr"
+    },
+    {
+      "id": "clips",
+      "name": "CLIPS",
+      "area": "Marketing",
+      "description": "Cortes verticais dos seus vídeos.",
+      "service": "services/core/pilots/clips"
+    },
+    {
+      "id": "financeai",
+      "name": "FinanceAI",
+      "area": "Back Office",
+      "description": "Gestão financeira e organização da operação.",
+      "service": null
+    },
+    {
+      "id": "atendimento",
+      "name": "DESK AI",
+      "area": "Clientes",
+      "description": "Atendimento e suporte com agentes.",
+      "service": null
+    },
+    {
+      "id": "social",
+      "name": "SOCIAL",
+      "area": "Marketing",
+      "description": "Conteúdo e distribuição para redes sociais.",
+      "service": null
+    },
+    {
+      "id": "ad_manager",
+      "name": "Bilhon Ads",
+      "area": "Marketing",
+      "description": "Gestão e análise de campanhas.",
+      "service": null
+    },
+    {
+      "id": "gestor_onboarding",
+      "name": "OnboardIA",
+      "area": "Clientes",
+      "description": "Onboarding e acompanhamento dos clientes.",
+      "service": null
+    },
+    {
+      "id": "peticionamento",
+      "name": "HARVEY",
+      "area": "Back Office",
+      "description": "Redação e gestão do escritório jurídico.",
+      "service": null
+    },
+    {
+      "id": "recruta",
+      "name": "HOLLY",
+      "area": "Back Office",
+      "description": "Recrutamento, seleção e banco de talentos.",
+      "service": null
+    },
+    {
+      "id": "cs",
+      "name": "Plataforma de CS",
+      "area": "Clientes",
+      "description": "Carteira, saúde e retenção de clientes.",
+      "service": null
+    },
+    {
+      "id": "bia_rh",
+      "name": "Bia RH",
+      "area": "Back Office",
+      "description": "Recrutamento e entrevistas pelo WhatsApp.",
+      "service": null
+    },
+    {
+      "id": "dashboards",
+      "name": "ATLAS",
+      "area": "Inteligência",
+      "description": "Painéis e indicadores do negócio.",
+      "service": null
+    },
+    {
+      "id": "cmo",
+      "name": "Agente CMO",
+      "area": "Marketing",
+      "description": "Planejamento e acompanhamento de marketing.",
+      "service": null
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Diagramas Mermaid
 
-68 diagramas indexados. As fontes anteriores são preservadas; blocos em Markdown também recebem uma cópia `.mmd` editável em `importados/`.
+69 diagramas indexados. As fontes anteriores são preservadas; blocos em Markdown também recebem uma cópia `.mmd` editável em `importados/`.
 
 Os diagramas herdados podem representar propostas ou versões anteriores. Consulte a origem e [o estado atual](../STATUS-E-ROADMAP.md) antes de tratá-los como descrição da demo.
 
@@ -15,6 +15,7 @@ Para atualizar: `python3 scripts/catalog_mermaid.py`.
 | [05-jornada-produto-proposta.mmd](../../docs/mermaid/05-jornada-produto-proposta.mmd) | [docs/mermaid/05-jornada-produto-proposta.mmd — bloco 1](../../docs/mermaid/05-jornada-produto-proposta.mmd) |
 | [04-autonomia-proposta.mmd](../../docs/mermaid/04-autonomia-proposta.mmd) | [docs/mermaid/04-autonomia-proposta.mmd — bloco 1](../../docs/mermaid/04-autonomia-proposta.mmd) |
 | [03-sdr-crm.mmd](../../docs/mermaid/03-sdr-crm.mmd) | [docs/mermaid/03-sdr-crm.mmd — bloco 1](../../docs/mermaid/03-sdr-crm.mmd) |
+| [03-ecosistema-local-flutter.mmd](../../docs/mermaid/03-ecosistema-local-flutter.mmd) | [docs/mermaid/03-ecosistema-local-flutter.mmd — bloco 1](../../docs/mermaid/03-ecosistema-local-flutter.mmd) |
 | [02-genesis-multiagentes.mmd](../../docs/mermaid/02-genesis-multiagentes.mmd) | [docs/mermaid/02-genesis-multiagentes.mmd — bloco 1](../../docs/mermaid/02-genesis-multiagentes.mmd) |
 | [01-demo-integrada.mmd](../../docs/mermaid/01-demo-integrada.mmd) | [docs/mermaid/01-demo-integrada.mmd — bloco 1](../../docs/mermaid/01-demo-integrada.mmd) |
 | [apps-README-e1f611f0-01.mmd](../../docs/mermaid/importados/apps-README-e1f611f0-01.mmd) | [apps/portal/README.md — bloco 1](../../apps/portal/README.md) |

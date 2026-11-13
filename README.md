@@ -24,7 +24,7 @@ Este repositório reúne o **estado de desenvolvimento de 11/11/2026** do portal
 
 | Pasta | Responsabilidade |
 | --- | --- |
-| `apps/portal` | Arkom Dash em Next.js: menu, identidade visual, mapa e ferramentas; demo em `/demo` |
+| `apps/portal` | Hospedeiro Next, sessão e proxy dos serviços; demo Flutter em `/demo` |
 | `services/sdr` | API, contexto da empresa, atendimento, sessões, automações, aprovações, workers e ponte Genesis |
 | `services/crm` | CRMGO: contatos, funis e oportunidades; roteamento por empresa e integração Clickmax |
 | `services/core` | Backend Arkom/Bia em refatoração, diretório, identidade, barramento e integrações |
@@ -54,3 +54,5 @@ flowchart LR
 A integração original foi verificada por TypeScript, testes Go e consultas reais ao ambiente DEV. O portal possui testes de sessão compartilhada e restrição do proxy local. A revisão visual interativa permanece pendente; testes HTTP não comprovam o comportamento completo da interface.
 
 Consulte [EXECUTAR](docs/EXECUTAR.md) para requisitos, configuração e comandos. Credenciais, bancos, conversas, logs e arquivos de execução não fazem parte desta publicação. O modo simplificado da demo é exclusivo do ambiente local.
+
+A [plataforma local em Flutter](docs/ECOSISTEMA-LOCAL-FLUTTER.md) reúne BIA SDR, CRM, CLIPS e Genesis. Soluções ainda sem backend nesta estrutura ficam bloqueadas no catálogo.

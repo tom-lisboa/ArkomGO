@@ -30,6 +30,35 @@ var studioSchema string
 const studioLimit = 48 << 20
 
 func (q queue) mountStudio(mux *http.ServeMux) {
+	mux.HandleFunc("GET /studio/jobs", func(w http.ResponseWriter, r *http.Request) {
+		owner := studioSession(r)
+		if owner == "" {
+			writeError(w, 401, "sessao_necessaria")
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		rows, err := q.db.Query(ctx, `SELECT `+jobColumns+` FROM jobs WHERE id IN (SELECT job_id FROM studio_inputs WHERE owner=$1) ORDER BY created_at DESC LIMIT 50`, owner)
+		if err != nil {
+			writeError(w, 503, "banco_indisponivel")
+			return
+		}
+		defer rows.Close()
+		items := []job{}
+		for rows.Next() {
+			item, err := scanJob(rows)
+			if err != nil {
+				writeError(w, 503, "banco_indisponivel")
+				return
+			}
+			items = append(items, item)
+		}
+		if rows.Err() != nil {
+			writeError(w, 503, "banco_indisponivel")
+			return
+		}
+		writeJSON(w, 200, map[string]any{"jobs": items})
+	})
 	mux.HandleFunc("POST /studio/session", func(w http.ResponseWriter, r *http.Request) {
 		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		if err != nil || mediaType != "application/json" {

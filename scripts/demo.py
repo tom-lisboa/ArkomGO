@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Loopback-only demo launcher. Private state stays in .local/runtime."""
 import os,secrets,shutil,signal,socket,subprocess,sys,time
+from urllib.parse import urlparse
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 env=os.environ.copy()
@@ -25,7 +26,15 @@ if crm:
  if not route.is_absolute():route=root/route
  if not route.is_file() or not env.get('ARKOM_CRM_DATABASE_URL'):sys.exit('CRM exige arquivo privado de rotas e ARKOM_CRM_DATABASE_URL provisionados. Veja docs/EXECUTAR.md.')
  env['SDR_CRM_ROUTES_FILE']=str(route)
-ports=[3007,8080,8081,8099]+([8098] if crm else [])
+clips=env.get('ARKOM_CLIPS_LOCAL_ENABLED')=='true'
+if clips:
+ ffmpeg=Path(env.get('ARKOM_CLIPS_FFMPEG','')).expanduser()
+ if not ffmpeg.is_file():sys.exit('CLIPS exige ARKOM_CLIPS_FFMPEG apontando para um FFmpeg local. Veja docs/EXECUTAR.md.')
+ env['CLIPS_PILOT_FFMPEG']=str(ffmpeg.resolve())
+ keyfile=secret_dir/'clips-bridge'
+ if not keyfile.exists():keyfile.write_text(secrets.token_urlsafe(48));keyfile.chmod(0o600)
+ env['SDR_CLIPS_BRIDGE_KEY']=keyfile.read_text().strip()
+ports=[3007,8080,8081,8099]+([8098] if crm else [])+([18082] if clips else [])
 for port in ports:
  with socket.socket() as check:
   check.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
@@ -46,6 +55,15 @@ bia=str(root/'.local/bin/bia')
 commands=([('crm',[str(root/'.local/bin/crm')],run)] if crm else [])+[
  ('api',[bia],run),('context',[bia,'-worker=context'],run),('execution',[bia,'-worker=execution'],run),
  ('portal',['node',str(root/'apps/portal/node_modules/next/dist/bin/next'),'dev','--hostname','127.0.0.1','--port','3007'],root/'apps/portal')]
+pg_command=[]
+if crm and env.get('ARKOM_CRM_LOCAL_PG_DATA'):
+ data=Path(env['ARKOM_CRM_LOCAL_PG_DATA']).expanduser().resolve()
+ pg_bin=Path(env.get('ARKOM_LOCAL_PG_BIN','/opt/homebrew/opt/postgresql@17/bin'))
+ url=urlparse(env['ARKOM_CRM_DATABASE_URL'])
+ if url.hostname!='127.0.0.1' or not url.port or not (data/'PG_VERSION').is_file():sys.exit('O banco CRM gerenciado deve ser um cluster local existente e uma porta explícita de loopback.')
+ status=subprocess.run([str(pg_bin/'pg_ctl'),'-D',str(data),'status'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+ if status.returncode!=0:pg_command=[('postgres',[str(pg_bin/'postgres'),'-D',str(data),'-h','127.0.0.1','-p',str(url.port)],run)]
+commands=pg_command+([('clips',['bash',str(root/'services/core/pilots/clips/run-local.sh'),'--studio'],root/'services/core')] if clips else [])+commands
 processes=[];logs=[]
 def stop(signum,frame):raise KeyboardInterrupt
 signal.signal(signal.SIGTERM,stop)
@@ -53,9 +71,10 @@ exit_code=0
 try:
  for name,args,cwd in commands:
   log=(run/(name+'.log')).open('a');logs.append(log)
-  processes.append((name,subprocess.Popen(args,cwd=cwd,env=env,stdout=log,stderr=log)))
+  processes.append((name,subprocess.Popen(args,cwd=cwd,env=env,stdout=log,stderr=log,start_new_session=True)))
   time.sleep(.5)
  print('Demo: http://127.0.0.1:3007/demo',flush=True)
+ print('CLIPS: '+('ativado localmente; preparando o serviço de vídeo' if clips else 'não configurado'),flush=True)
  print('CRM: '+('configurado; depende das rotas DEV provisionadas' if crm else 'não configurado; Genesis e SDR disponíveis'),flush=True)
  while True:
   failed=[name for name,p in processes if p.poll() is not None]
@@ -64,10 +83,11 @@ try:
   time.sleep(1)
 except KeyboardInterrupt:pass
 finally:
- for _,p in processes:
-  if p.poll() is None:p.terminate()
- for _,p in processes:
-  try:p.wait(timeout=10)
-  except subprocess.TimeoutExpired:p.kill();p.wait()
+ for name,p in reversed(processes):
+  if p.poll() is not None:continue
+  p.terminate()
+  try:p.wait(timeout=25 if name=='clips' else 10)
+  except subprocess.TimeoutExpired:
+   os.killpg(p.pid,signal.SIGKILL);p.wait()
  for log in logs:log.close()
 sys.exit(exit_code)

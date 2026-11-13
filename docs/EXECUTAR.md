@@ -81,3 +81,7 @@ O estúdio usa sessão em memória e stream autenticado SSE por projeto. Mais de
 Novos projetos usam Svelte 5. A etapa de interface compila os componentes e devolve erros/avisos nos traces. Revisões e retomadas de projetos antigos em HTML preservam o formato anterior. Veja [a base Svelte e seus limites](GENESIS-SVELTE.md) e [o fluxo de UX e design](GENESIS-UX-DESIGN.md).
 
 Navegação por telas e revisões somente de interface: [GENESIS-NAVIGATION.md](GENESIS-NAVIGATION.md).
+
+## Plataforma Flutter e CLIPS
+
+A navegação local usa Flutter. O catálogo, os módulos disponíveis, o CLIPS e a inicialização opcional do PostgreSQL do CRM estão documentados em [ECOSISTEMA-LOCAL-FLUTTER.md](ECOSISTEMA-LOCAL-FLUTTER.md). O comando padrão `python3 scripts/demo.py` agora inicia os serviços locais configurados; não é necessário editar o launcher para desativar o CRM quando o banco DEV existente é gerenciado pela configuração.

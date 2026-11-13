@@ -35,6 +35,11 @@
     "block": 1
   },
   {
+    "source": "docs/mermaid/03-ecosistema-local-flutter.mmd",
+    "diagram": "docs/mermaid/03-ecosistema-local-flutter.mmd",
+    "block": 1
+  },
+  {
     "source": "docs/mermaid/02-genesis-multiagentes.mmd",
     "diagram": "docs/mermaid/02-genesis-multiagentes.mmd",
     "block": 1
