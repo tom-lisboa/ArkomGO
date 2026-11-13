@@ -111,6 +111,7 @@ class _StudioState extends State<Studio> {
       stopReplay();
     final switched = lastBuild != model.id;
     if (switched) {
+      interfaceRevision = false;
       previewDebounce?.cancel();
       lastBuild = model.id;
       lastSequence = 0;
@@ -157,12 +158,18 @@ class _StudioState extends State<Studio> {
     super.dispose();
   }
 
+  bool interfaceRevision = false;
+
   Future<void> send() async {
     if (!canSend) return;
     final old = model.id;
     await model.start(
       goal.text.trim(),
       continueProject: !newIdea && model.id.isNotEmpty,
+      revisionScope:
+          !newIdea && model.build?['status'] == 'ready' && interfaceRevision
+          ? 'interface'
+          : '',
     );
     if (mounted && old != model.id) {
       setState(() {
@@ -189,6 +196,9 @@ class _StudioState extends State<Studio> {
                 'frontend.build.failed',
                 'design.validated',
                 'design.rejected',
+                'navigation.validated',
+                'navigation.rejected',
+                'navigation.built',
                 'agent.finished',
               ].contains(e['kind']),
         )
@@ -758,7 +768,7 @@ class _StudioState extends State<Studio> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
-                    s['status'] == 'completed'
+                    ['completed', 'reused'].contains(s['status'])
                         ? Icons.check_circle_outline
                         : s['status'] == 'running'
                         ? Icons.play_circle_outline
@@ -770,7 +780,7 @@ class _StudioState extends State<Studio> {
                         ? Icons.pause_circle_outline
                         : Icons.radio_button_unchecked,
                     size: 17,
-                    color: s['status'] == 'completed'
+                    color: ['completed', 'reused'].contains(s['status'])
                         ? agentColors[3]
                         : s['status'] == 'pending'
                         ? muted
@@ -784,6 +794,19 @@ class _StudioState extends State<Studio> {
                         label(s['title'], size: 11, weight: FontWeight.w500),
                         const SizedBox(height: 4),
                         label(s['acceptance'], size: 10, color: muted),
+                        if (s['id'] == 'ux' &&
+                            model.files.containsKey('design/navigation.json'))
+                          TextButton(
+                            key: const ValueKey('brief-navigation'),
+                            onPressed: () {
+                              model.chooseFile('design/navigation.json');
+                              setState(() {
+                                mode = 1;
+                                mobileChat = false;
+                              });
+                            },
+                            child: const Text('Ler mapa de telas'),
+                          ),
                         if (['ux', 'designer'].contains(s['id']) &&
                             model.files.containsKey(
                               s['id'] == 'ux'
@@ -815,6 +838,7 @@ class _StudioState extends State<Studio> {
                                 'pending': 'Aguardando',
                                 'running': 'Em execução',
                                 'completed': 'Concluída',
+                                'reused': 'Reaproveitada',
                                 'failed': 'Precisa de correção',
                                 'cancelled': 'Interrompida',
                                 'interrupted': 'Aguardando retomada',
@@ -885,7 +909,7 @@ class _StudioState extends State<Studio> {
     );
     final step = model.steps.where((s) => s['id'] == agentIds[i]).firstOrNull;
     final done = step != null
-        ? step['status'] == 'completed'
+        ? ['completed', 'reused'].contains(step['status'])
         : model.traces.any(
             (e) => e['agent'] == agentIds[i] && e['kind'] == 'agent.finished',
           );
@@ -1018,6 +1042,30 @@ class _StudioState extends State<Studio> {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (!newIdea &&
+            model.build?['status'] == 'ready' &&
+            model.steps.isNotEmpty)
+          Material(
+            color: Colors.transparent,
+            child: CheckboxListTile(
+              key: const ValueKey('interface-revision'),
+              value: interfaceRevision,
+              onChanged: model.busy
+                  ? null
+                  : (value) =>
+                        setState(() => interfaceRevision = value ?? false),
+              title: const Text(
+                'Alterar somente a interface',
+                style: TextStyle(fontSize: 12),
+              ),
+              subtitle: const Text(
+                'Reaproveita plano, rotas e backend. Mantém a revisão final.',
+                style: TextStyle(fontSize: 10),
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
         Container(
           padding: const EdgeInsets.fromLTRB(14, 4, 10, 9),
           decoration: BoxDecoration(

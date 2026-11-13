@@ -130,7 +130,11 @@ class StudioController extends ChangeNotifier {
     }
   }
 
-  Future<void> start(String goal, {bool continueProject = false}) async {
+  Future<void> start(
+    String goal, {
+    bool continueProject = false,
+    String revisionScope = '',
+  }) async {
     if (busy || !canEdit || anyRunning) return;
     busy = true;
     error = '';
@@ -139,6 +143,8 @@ class StudioController extends ChangeNotifier {
       final result = await call('start', {
         'goal': goal,
         'parent_id': continueProject ? id : '',
+        if (continueProject && revisionScope.isNotEmpty)
+          'revision_scope': revisionScope,
       });
       projects.insert(0, result);
       await select(result['id']);

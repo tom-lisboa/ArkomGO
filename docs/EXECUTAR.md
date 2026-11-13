@@ -77,3 +77,5 @@ O estúdio usa sessão em memória e stream autenticado SSE por projeto. Mais de
 ### Frontends gerados em Svelte
 
 Novos projetos usam Svelte 5. A etapa de interface compila os componentes e devolve erros/avisos nos traces. Revisões e retomadas de projetos antigos em HTML preservam o formato anterior. Veja [a base Svelte e seus limites](GENESIS-SVELTE.md) e [o fluxo de UX e design](GENESIS-UX-DESIGN.md).
+
+Navegação por telas e revisões somente de interface: [GENESIS-NAVIGATION.md](GENESIS-NAVIGATION.md).

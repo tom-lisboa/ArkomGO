@@ -3,6 +3,7 @@ package construction
 import (
 	"context"
 	"deeph/pkg/application"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
@@ -39,7 +40,7 @@ func ValidPath(p string) bool {
 			return false
 		}
 	}
-	if p == UXPath || p == UIPath {
+	if p == UXPath || p == UIPath || p == NavigationPath {
 		return true
 	}
 	if p == "DESIGN.md" || p == "README.md" || p == application.ManifestPath {
@@ -56,7 +57,7 @@ func allowed(agent, p string) bool {
 	}
 	switch agent {
 	case "ux":
-		return p == UXPath
+		return p == UXPath || p == NavigationPath
 	case "designer":
 		return p == UIPath
 	case "architect":
@@ -114,8 +115,9 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 	references["reference/platform-data.go"] = DataContracts
 	references["reference/platform-records.go"] = RecordsContracts
 	references["reference/frontend-svelte.md"] = FrontendReference
-	if e.StepsVersion == 2 {
+	if e.StepsVersion >= 2 {
 		references["reference/design.md"] = DesignReference
+		references["reference/navigation.md"] = NavigationReference
 	}
 	consulted := map[string]bool{}
 	refs := []string{}
@@ -143,18 +145,25 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 			}
 			referencesSeen := consulted["reference/catalog.json"] && consulted["reference/platform-contracts.go"]
 			rules, instruction := Rules, stage.instruction
-			if e.StepsVersion == 2 {
+			if e.StepsVersion >= 2 {
 				rules += "\n" + DesignReference
+				if e.StepsVersion >= 3 || files[NavigationPath] != "" {
+					rules = strings.Replace(rules, "UX escreve somente design/ux.json", "UX escreve design/ux.json e design/navigation.json", 1)
+					rules += "\n" + NavigationReference
+				}
 			}
 			if IsSvelte(files) {
 				rules = strings.Replace(rules, legacyFrontendRules, FrontendReference, 1)
 				if stage.ID == "interface" {
-					instruction = "Construa somente componentes Svelte e CSS/JS/TS em frontend/src/ para a entrega delimitada. Leia reference/frontend-svelte.md. Consulte os contratos do backend existente, trate estados de interface e execute test para compilar. Não escreva os artefatos gerados."
+					instruction = "Construa somente componentes Svelte e CSS/JS/TS em frontend/src/ para a entrega delimitada. Leia reference/frontend-svelte.md. Consulte os contratos do backend existente e as especificações design/*.json, trate estados de interface e execute test para compilar. As especificações são somente leitura nesta etapa: não tente reescrevê-las. Não escreva os artefatos gerados."
 				}
 			}
 			instruction += fmt.Sprintf("\nEtapa atual: %s. Rodada %d de %d. Conclua somente a responsabilidade desta etapa com verdict ready; pendências de outras etapas ficam para seus responsáveis. Se o código desta etapa já atende ao plano, valide-o sem reescrever. Na última rodada, retorne ready se sua parte está pronta, ou blocked com a lacuna concreta.", stage.ID, round+1, stage.rounds)
 			if stage.ID == "backend" {
 				instruction += "\nSe a revisão solicitada é apenas visual ou de frontend, preserve o backend existente, rode os testes Go e conclua sua parte com ready. A ferramenta test aqui executa somente os testes Go, nunca Svelte. Não tente corrigir arquivos frontend; isso pertence à próxima etapa."
+			}
+			if e.RevisionScope == "interface" {
+				instruction += "\nREVISÃO SOMENTE DE INTERFACE: o cliente escolheu reaproveitar planejamento, UX, design, rotas e backend já validados. Consulte os arquivos existentes e altere apenas o frontend necessário ao pedido. Não substitua a aplicação por um template. Não escreva application.json, backend/, design/ ou DESIGN.md nem mude endpoints. Se o pedido exigir mudar essas partes, retorne blocked com a dependência concreta. A revisão final pode corrigir somente frontend e deve validar a entrega preservada."
 			}
 			requestFiles := clone(files)
 			if IsSvelte(files) {
@@ -219,13 +228,17 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 						ev.Summary = "Consulte o ecossistema antes de construir"
 						break
 					}
-					if !allowed(stage.ID, a.Path) || (IsSvelte(files) && strings.HasPrefix(a.Path, "frontend/") && !frontendSource(a.Path)) || len(a.Content) > 48000 {
+					if (e.RevisionScope == "interface" && !strings.HasPrefix(a.Path, "frontend/")) || !allowed(stage.ID, a.Path) || (IsSvelte(files) && strings.HasPrefix(a.Path, "frontend/") && !frontendSource(a.Path)) || len(a.Content) > 48000 {
 						feedback = append(feedback, "Escrita recusada: "+a.Path)
 						if stage.ID == "backend" && strings.HasPrefix(a.Path, "frontend/") {
 							feedback = append(feedback, "Você está na etapa backend. Este arquivo pertence à etapa interface, que ainda será executada. Não repita esta escrita. Valide somente o Go existente e conclua sua etapa com ready se ele está correto.")
 						}
 						ev.Kind = "tool.rejected"
 						ev.Summary = "Caminho ou tamanho não permitido"
+						if stage.ID == "interface" && strings.HasPrefix(a.Path, "design/") {
+							ev.Summary = "A interface apenas lê o plano de UX/design; implemente somente frontend/src/"
+							feedback = append(feedback, ev.Summary+". Preserve o plano existente e conclua somente sua implementação.")
+						}
 						break
 					}
 					size := len(a.Content)
@@ -237,7 +250,7 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 					if size > 350000 || len(files) >= 48 && files[a.Path] == "" {
 						return files, errors.New("workspace_limit")
 					}
-					if IsSvelte(files) && (frontendSource(a.Path) || a.Path == "application.json") && files[a.Path] != a.Content {
+					if IsSvelte(files) && (frontendSource(a.Path) || a.Path == "application.json" || a.Path == NavigationPath) && files[a.Path] != a.Content {
 						for _, name := range frontendArtifacts {
 							if files[name] == "" {
 								continue
@@ -308,7 +321,7 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 				return files, errors.New("agent_reported_blocker")
 			}
 			if turn.Verdict == "ready" {
-				if e.StepsVersion == 2 && (stage.ID == "ux" || stage.ID == "designer" || stage.ID == "interface" || stage.ID == "reviewer") {
+				if e.StepsVersion >= 2 && (stage.ID == "ux" || stage.ID == "designer" || stage.ID == "interface" || stage.ID == "reviewer") {
 					issue := ValidateDesign(files, stage.ID)
 					kind, summary := "design.validated", "Estrutura da especificação validada; inspeção visual e de usabilidade pendente"
 					if issue != nil {
@@ -316,6 +329,24 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 						summary = "Corrija a especificação: " + issue.Error()
 					}
 					if err := emit(Event{Kind: kind, Agent: stage.ID, Summary: summary}); err != nil {
+						return files, err
+					}
+					if issue != nil {
+						feedback = append(feedback, summary)
+						continue
+					}
+				}
+				if (e.StepsVersion >= 3 || files[NavigationPath] != "") && (stage.ID == "ux" || stage.ID == "designer" || stage.ID == "interface" || stage.ID == "reviewer") {
+					plan, issue := ValidateNavigation(files, stage.ID == "interface" || stage.ID == "reviewer")
+					kind, summary := "navigation.validated", "Mapa de rotas validado; comportamento da aplicação ainda não verificado"
+					output := ""
+					if issue != nil {
+						kind, summary = "navigation.rejected", issue.Error()
+					} else {
+						data, _ := json.Marshal(plan)
+						output = string(data)
+					}
+					if err := emit(Event{Kind: kind, Agent: stage.ID, Path: NavigationPath, Summary: summary, Output: output}); err != nil {
 						return files, err
 					}
 					if issue != nil {
