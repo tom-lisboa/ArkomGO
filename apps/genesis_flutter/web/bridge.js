@@ -10,6 +10,15 @@ if(typeof module!=='undefined')module.exports={SSEParser};
 if(!global.document)return;
 let session=null,callback=null,controller=null,selection=0,retry=null,handshake=null,selected='',cursor=0,disposed=false;
 let platformFile=null;
+const clipsMedia=new Set();
+const clipsPlayers=new Map();
+function pauseClipsMedia(url){
+ const player=clipsPlayers.get(url);
+ if(!player)return;
+ player.pause();player.removeAttribute('src');player.load();clipsPlayers.delete(url);
+}
+function releaseClipsMedia(url){if(clipsMedia.delete(url)){pauseClipsMedia(url);URL.revokeObjectURL(url);}}
+function clearClipsMedia(){for(const url of clipsMedia)releaseClipsMedia(url);}
 let runtimeTimer=null,runtimeStatus='stopped',selectedBuild=null,runtimePending=null,runtimePaused=false,autoAttempted=false;
 let lifecycle=Promise.resolve(),requests=Promise.resolve(),ownedRuntime=null;
 const current=(id,generation,identity)=>!disposed&&id===selected&&generation===selection&&identity===session;
@@ -72,9 +81,17 @@ async function pollRuntime(id,generation){
  try{const state=await(await request(base+'/'+encodeURIComponent(id)+'/runtime')).json();if(generation!==selection||id!==selected||disposed)return;if(runtimePending)return;runtimeState(state);if(['starting','running'].includes(state.status))runtimeTimer=setTimeout(()=>pollRuntime(id,generation),1500);}
  catch(e){if(generation===selection){runtimeStatus='stopped';emit('runtime',{status:'stopped'});emit('error',{message:e.message});}}
 }
-function receive(event){if(event.origin!==global.location.origin||event.source!==global.parent||event.data?.type!=='arkom.genesis.session')return;const next=event.data.session;if(!next?.access_token||!next?.identity)return;if(session?.access_token===next.access_token)return;stop();platformFile=null;ownedRuntime=null;selected='';cursor=0;session=next;clearTimeout(handshake);emit('session',{identity:session.identity});}
+function receive(event){if(event.origin!==global.location.origin||event.source!==global.parent||event.data?.type!=='arkom.genesis.session')return;const next=event.data.session;if(!next?.access_token||!next?.identity)return;if(session?.access_token===next.access_token)return;stop();platformFile=null;clearClipsMedia();ownedRuntime=null;selected='';cursor=0;session=next;clearTimeout(handshake);emit('session',{identity:session.identity});}
 global.addEventListener('message',receive);
 global.genesisBridge={
+ createClipsPlayer(url){
+  const video=document.createElement('video');
+  video.controls=true;video.playsInline=true;video.preload='metadata';
+  video.setAttribute('aria-label','Reprodutor de vídeo');
+  Object.assign(video.style,{width:'100%',height:'100%',objectFit:'contain',background:'#171913'});
+  if(clipsMedia.has(url)){pauseClipsMedia(url);video.src=url;clipsPlayers.set(url,video);}
+  return video;
+ },
  createPreview(files){const id=selected,identity=session,generation=selection;return global.genesisPreview.createPreview(JSON.parse(files),data=>{
   const run=async()=>{
    if(!current(id,generation,identity))throw Error('A prévia foi encerrada.');
@@ -94,7 +111,7 @@ global.genesisBridge={
   const result=requests.then(run);requests=result.catch(()=>{});return result;
  });},
  connect(cb){callback=cb;disposed=false;const ready=()=>{if(disposed)return;global.parent.postMessage({type:'arkom.genesis.ready'},global.location.origin);if(!session)handshake=setTimeout(ready,1000);};ready();if(session)emit('session',{identity:session.identity});},
- disconnect(){disposed=true;platformFile=null;stop();clearTimeout(handshake);session=null;callback=null;},
+ disconnect(){disposed=true;platformFile=null;clearClipsMedia();stop();clearTimeout(handshake);session=null;callback=null;},
  async invoke(action,payload){const data=JSON.parse(payload||'{}');
  if(action==='platform'){
   if(typeof data.path!=='string'||!['/v1/sdr/','/v1/core/','/v1/platform/','/__test/ui/'].some(prefix=>data.path.startsWith(prefix))||data.path.includes('..')||data.path.includes('://'))throw Error('Rota não permitida.');
@@ -102,20 +119,55 @@ global.genesisBridge={
  }
  if(action==='navigate'){if(!['home','map','systems','sdr','crm','clips','genesis','business'].includes(data.view)&&!/^systems\/[a-z][a-z0-9_]{0,40}$/.test(data.view))throw Error('Destino indisponível.');global.parent.postMessage({type:'arkom.platform.navigate',view:data.view},global.location.origin);return '{}';}
  if(action==='clips_pick'){
-  platformFile=await new Promise(resolve=>{const input=document.createElement('input');input.type='file';input.accept='video/mp4,video/x-m4v';input.onchange=()=>resolve(input.files?.[0]||null);input.oncancel=()=>resolve(null);input.click();});
-  if(platformFile&&platformFile.size>7*1024*1024){platformFile=null;throw Error('Use um vídeo de até 7 MB.');}
-  return JSON.stringify({name:platformFile?.name||''});
+  const identity=session;
+  if(!identity||identity.identity.role==='viewer')throw Error('Seu perfil permite apenas acompanhar.');
+  const file=await new Promise(resolve=>{const input=document.createElement('input');input.type='file';input.accept='.mp4,.m4v,video/mp4,video/x-m4v';input.onchange=()=>resolve(input.files?.[0]||null);input.oncancel=()=>resolve(null);input.click();});
+  if(!file)return '{}';
+  if(identity!==session||disposed)throw Error('Sua sessão mudou.');
+  if(!/\.(mp4|m4v)$/i.test(file.name)||file.size>7*1024*1024)throw Error('Escolha um vídeo MP4 ou M4V de até 7 MB.');
+  const url=URL.createObjectURL(file);
+  const video=document.createElement('video');
+  const duration=await new Promise(resolve=>{
+   const finish=value=>{clearTimeout(timer);video.onloadedmetadata=video.onerror=null;resolve(value);};
+   const timer=setTimeout(()=>finish(0),7000);
+   video.onloadedmetadata=()=>finish(video.duration);video.onerror=()=>finish(0);
+   video.preload='metadata';video.src=url;
+  });
+  video.removeAttribute('src');video.load();
+  if(identity!==session||disposed||!Number.isFinite(duration)||duration<1){
+   URL.revokeObjectURL(url);throw Error('Não foi possível ler o vídeo. Escolha um arquivo válido com pelo menos um segundo.');
+  }
+  platformFile=file;clipsMedia.add(url);
+  return JSON.stringify({name:file.name,url,duration});
  }
+ if(action==='clips_pause'){pauseClipsMedia(data.url);return '{}';}
+ if(action==='clips_release'){releaseClipsMedia(data.url);return '{}';}
  if(action==='clips_upload'){
   if(!session||!platformFile)throw Error('Selecione um vídeo primeiro.');
-  const form=new FormData();form.append('video',platformFile);form.append('start',String(data.start));form.append('duration',String(data.duration));
-  const response=await fetch('/api/demo/backend/v1/sdr/genesis-demo/ecosystem/clips/jobs',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Idempotency-Key':data.key},body:form,credentials:'omit',redirect:'error',signal:AbortSignal.timeout(120000)});
-  if(!response.ok)throw Error('Não foi possível enviar o corte ('+response.status+').');
-  platformFile=null;return JSON.stringify(await response.json());
+  const identity=session,file=platformFile;
+  const form=new FormData();form.append('video',file);form.append('title',data.title);form.append('start',String(data.start));form.append('duration',String(data.duration));
+  let response;
+  try{
+   response=await fetch('/api/demo/backend/v1/sdr/genesis-demo/ecosystem/clips/jobs',{method:'POST',headers:{Authorization:'Bearer '+identity.access_token,'Idempotency-Key':data.key},body:form,credentials:'omit',redirect:'error',signal:AbortSignal.timeout(120000)});
+  }catch{return JSON.stringify({uncertain:true,message:'Não conseguimos confirmar o envio. Confira o mesmo pedido para evitar uma cópia.'});}
+  if(identity!==session||disposed)throw Error('Sua sessão mudou.');
+  if(!response.ok){
+   const error=await response.json().catch(()=>({}));
+   return JSON.stringify({uncertain:response.status>=500,message:({envie_um_mp4_valido:'Escolha um vídeo MP4 válido.',intervalo_invalido:'Confira o intervalo do corte.',chave_ja_usada:'O pedido original tem outros dados.',video_limit_7_mib:'Escolha um vídeo de até 7 MB.'})[error.error]||'O CLIPS não conseguiu receber o vídeo. Tente novamente.'});
+  }
+  const result=await response.json().catch(()=>null);
+  if(!result?.id)return JSON.stringify({uncertain:true,message:'Confira o mesmo pedido para confirmar o envio.'});
+  if(platformFile===file)platformFile=null;
+  return JSON.stringify(result);
  }
- if(action==='clips_download'){
+ if(action==='clips_download'||action==='clips_preview'){
   if(typeof data.id!=='string'||! /^[A-Za-z0-9_-]{1,80}$/.test(data.id))throw Error('Corte inválido.');
-  const blob=await(await request('/api/demo/backend/v1/sdr/genesis-demo/ecosystem/clips/jobs/'+data.id+'/video')).blob();const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='arkom-clips.mp4';link.click();setTimeout(()=>URL.revokeObjectURL(url),5000);return '{}';
+  const identity=session;
+  const blob=await(await request('/api/demo/backend/v1/sdr/genesis-demo/ecosystem/clips/jobs/'+data.id+'/video')).blob();
+  if(identity!==session||disposed)throw Error('Sua sessão mudou.');
+  const url=URL.createObjectURL(blob);
+  if(action==='clips_preview'){clipsMedia.add(url);return JSON.stringify({url});}
+  const link=document.createElement('a');link.href=url;link.download=(String(data.title||'arkom-clips').replace(/[^\p{L}\p{N} _-]/gu,'').trim().slice(0,80)||'arkom-clips')+'.mp4';link.click();setTimeout(()=>releaseClipsMedia(url),5000);clipsMedia.add(url);return '{}';
  }
  if(action==='list')return JSON.stringify(await (await request(base)).json());
  if(action==='select'){stop();selected=data.id;cursor=0;if(selected){void stream(selected,selection);void pollRuntime(selected,selection);}return '{}';}

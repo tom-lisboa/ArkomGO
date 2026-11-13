@@ -128,9 +128,14 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 	}
 	const prefix = base + "/clips/jobs"
 	suffix := strings.TrimPrefix(r.URL.Path, prefix)
-	parts := strings.Split(strings.Trim(suffix, "/"), "/")
-	valid := r.URL.Path == prefix || (strings.HasPrefix(r.URL.Path, prefix+"/") && len(parts) <= 2 && clipsJobID.MatchString(parts[0]) && (len(parts) == 1 || parts[1] == "video"))
-	if !valid || (r.Method != "GET" && !(r.Method == "POST" && r.URL.Path == prefix)) {
+	parts := strings.Split(strings.TrimPrefix(suffix, "/"), "/")
+	valid := r.URL.Path == prefix && (r.Method == "GET" || r.Method == "POST")
+	if strings.HasPrefix(r.URL.Path, prefix+"/") && clipsJobID.MatchString(parts[0]) {
+		valid = (len(parts) == 1 && r.Method == "GET") ||
+			(len(parts) == 2 && (parts[1] == "video" && r.Method == "GET" ||
+				parts[1] == "delete" && r.Method == "POST"))
+	}
+	if !valid {
 		fail(w, 404, "not_found")
 		return true
 	}

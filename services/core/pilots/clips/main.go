@@ -154,6 +154,7 @@ func (q queue) routes(homolog bool) http.Handler {
 		q.mountHomolog(mux)
 	} else if q.studio != "" {
 		q.mountStudio(mux)
+		mux.HandleFunc("POST /studio/jobs/{id}/delete", q.studioDelete)
 	} else {
 		mux.HandleFunc("POST /jobs", q.createJob)
 		mux.HandleFunc("GET /jobs/{id}", q.getJob)

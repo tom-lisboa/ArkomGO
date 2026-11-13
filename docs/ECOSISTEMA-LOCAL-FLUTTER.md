@@ -19,7 +19,7 @@ copiados para a demo; os indicadores locais vêm dos serviços existentes.
 | --- | --- | --- |
 | BIA SDR | `services/sdr` | Cliente React existente: WhatsApp, negócio, conversas, automações, execuções, CRM, agendas, dados, auditoria e álbuns |
 | CRM Arkom | `services/crm` + Clickmax DEV | Funis, contatos, oportunidades, cadastro e movimentação |
-| CLIPS | `services/core/pilots/clips` | Upload local, corte vertical, estado e download MP4 |
+| CLIPS | `services/core/pilots/clips` | Biblioteca e estúdio Flutter com upload, prévia, seleção de trecho, renderização, reprodução, download e exclusão |
 | Genesis | `packages/deeph` + `services/sdr` | Estúdio existente, etapas, código, prévia e traces SSE |
 | FinanceAI e demais entradas | Backend ainda não integrado neste repositório | Bloqueadas; sem redirecionamento para uma aplicação externa |
 
@@ -60,10 +60,16 @@ incerta de escrita não é reenviada automaticamente.
 
 O CLIPS recebe um identificador opaco derivado de HMAC da organização, com segredo
 privado gerado pelo launcher. O navegador não fornece esse identificador nem
-recebe o cookie interno. Lista, consulta e download usam a mesma verificação de
-propriedade. O proxy preserva os bytes do upload. O portal limita vídeos a 7 MiB
-e cortes a 30 segundos. Transcrição e seleção automática não fazem parte desta
-primeira superfície Flutter.
+recebe o cookie interno. A lista, a consulta, a prévia, o download e a exclusão
+verificam a propriedade no serviço Go. O perfil de consulta pode assistir e
+baixar. A exclusão fica disponível após o término do processamento.
+
+O estúdio Flutter usa a marca oficial do CLIPS e leva a identidade dos Álbuns
+à biblioteca e ao editor. Os projetos novos e anteriores ficam no PostgreSQL
+local. O portal aceita MP4 e M4V de até 7 MiB e exporta trechos manuais de até
+30 segundos em 720 × 1280 com o worker Go e FFmpeg. Importação por link,
+transcrição, seleção por IA e geração de GIF ficam indisponíveis neste
+ambiente.
 
 ## Executar
 

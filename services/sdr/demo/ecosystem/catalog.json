@@ -167,26 +167,26 @@
       "guide": [
         {
           "title": "Escolha o vídeo",
-          "description": "Envie um MP4 ou M4V de até 7 MB. O arquivo será usado para gerar seu corte."
+          "description": "Abra Novo vídeo, dê um nome ao projeto e escolha um MP4 ou M4V de até 7 MB."
         },
         {
           "title": "Marque seu trecho",
-          "description": "Informe o início e uma duração entre 1 e 30 segundos."
+          "description": "Assista ao original e informe o início e o fim de um trecho de 1 a 30 segundos."
         },
         {
           "title": "Crie o corte",
-          "description": "Confirme o pedido e acompanhe o processamento na lista dos seus cortes."
+          "description": "Use Gerar corte vertical e acompanhe o processamento em Meus vídeos."
         },
         {
-          "title": "Baixe seu vídeo",
-          "description": "Quando estiver pronto, use Baixar vídeo para receber o MP4 vertical."
+          "title": "Assista e baixe seu vídeo",
+          "description": "Quando estiver pronto, abra Ver corte para assistir e use Baixar MP4 para salvar o arquivo."
         }
       ],
       "features": [
-        "Upload de vídeo",
-        "Corte vertical manual",
-        "Processamento local",
-        "Download MP4"
+        "Biblioteca de projetos",
+        "Prévia do original e seleção manual do trecho",
+        "Renderização local em 720 × 1280",
+        "Reprodução e download MP4"
       ],
       "tutorial_video_url": null,
       "remix_available": false,

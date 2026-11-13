@@ -62,6 +62,12 @@ func TestEcosystemCatalogAndPrivateClipsBridge(t *testing.T) {
 	if code, _ := req(a, "POST", base+"/clips/jobs", viewer, "", nil); code != 403 {
 		t.Fatal("viewer upload", code)
 	}
+	if code, _ := req(a, "POST", base+"/clips/jobs/clip123/delete", viewer, "", nil); code != 403 {
+		t.Fatal("viewer delete", code)
+	}
+	if code, _ := req(a, "GET", base+"/clips/jobs/clip123/delete", admin, "", nil); code != 404 {
+		t.Fatal("read must not delete", code)
+	}
 	if code, _ := req(a, "GET", base+"/clips/other", admin, "", nil); code != 404 {
 		t.Fatal("unknown route forwarded", code)
 	}

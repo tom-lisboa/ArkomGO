@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
+import 'clips_workspace.dart';
 import 'main.dart' show Studio;
 import 'platform_workspaces.dart';
 import 'solution_catalog.dart';
@@ -295,13 +296,13 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
       body: LayoutBuilder(
         builder: (context, c) => Row(
           children: [
-            sidebar(c.maxWidth < 850),
+            if (view != 'clips' || c.maxWidth >= 650) sidebar(c.maxWidth < 850),
             Expanded(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                  c.maxWidth < 650 ? 8 : 22,
+                  c.maxWidth < 650 ? (view == 'clips' ? 14 : 8) : 22,
                   22,
-                  22,
+                  view == 'clips' && c.maxWidth < 650 ? 14 : 22,
                   16,
                 ),
                 child: view == 'genesis'
@@ -397,7 +398,11 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
       case 'crm':
         return CRMWorkspace(api: api, role: role);
       case 'clips':
-        return ClipsWorkspace(api: api, role: role);
+        return ClipsWorkspace(
+          api: api,
+          role: role,
+          onBack: () => go('systems/clips'),
+        );
       case 'business':
         return BusinessWorkspace(api: api);
       default:
