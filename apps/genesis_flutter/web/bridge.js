@@ -100,7 +100,7 @@ global.genesisBridge={
   if(typeof data.path!=='string'||!['/v1/sdr/','/v1/core/','/v1/platform/','/__test/ui/'].some(prefix=>data.path.startsWith(prefix))||data.path.includes('..')||data.path.includes('://'))throw Error('Rota não permitida.');
   const identity=session;const result=await(await request('/api/demo/backend'+data.path,data.body,undefined,data.body===undefined?undefined:crypto.randomUUID())).json();if(identity!==session||disposed)throw Error('Sua sessão mudou. Atualize a tela.');return JSON.stringify(result);
  }
- if(action==='navigate'){if(!['home','map','systems','sdr','crm','clips','genesis','business'].includes(data.view))throw Error('Destino indisponível.');global.parent.postMessage({type:'arkom.platform.navigate',view:data.view},global.location.origin);return '{}';}
+ if(action==='navigate'){if(!['home','map','systems','sdr','crm','clips','genesis','business'].includes(data.view)&&!/^systems\/[a-z][a-z0-9_]{0,40}$/.test(data.view))throw Error('Destino indisponível.');global.parent.postMessage({type:'arkom.platform.navigate',view:data.view},global.location.origin);return '{}';}
  if(action==='clips_pick'){
   platformFile=await new Promise(resolve=>{const input=document.createElement('input');input.type='file';input.accept='video/mp4,video/x-m4v';input.onchange=()=>resolve(input.files?.[0]||null);input.oncancel=()=>resolve(null);input.click();});
   if(platformFile&&platformFile.size>7*1024*1024){platformFile=null;throw Error('Use um vídeo de até 7 MB.');}

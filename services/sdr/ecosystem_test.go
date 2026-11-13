@@ -66,3 +66,76 @@ func TestEcosystemCatalogAndPrivateClipsBridge(t *testing.T) {
 		t.Fatal("unknown route forwarded", code)
 	}
 }
+
+func TestSolutionRatingPersistsAndScopesFeedback(t *testing.T) {
+	a, creds, db := genesisApp(t)
+	admin := login(t, a, creds, "alfa.admin")
+	operator := login(t, a, creds, "alfa.operator")
+	viewer := login(t, a, creds, "alfa.viewer")
+	beta := login(t, a, creds, "beta.admin")
+	base := "/v1/sdr/genesis-demo/ecosystem"
+	vote := func(token string, value int) map[string]any {
+		t.Helper()
+		code, out := req(a, "POST", base+"/sdr/rating", token, "", map[string]any{"rating": value})
+		if code != 200 {
+			t.Fatal(code, out)
+		}
+		return out
+	}
+	if out := vote(admin, 4); out["count"] != float64(1) || out["average"] != float64(4) {
+		t.Fatal(out)
+	}
+	if out := vote(admin, 5); out["count"] != float64(1) {
+		t.Fatal("duplicate vote", out)
+	}
+	if out := vote(operator, 2); out["average"] != 3.5 || out["mine"] != float64(2) || out["count"] != float64(2) {
+		t.Fatal(out)
+	}
+	if code, _ := req(a, "POST", base+"/sdr/rating", viewer, "", map[string]any{"rating": 5}); code != 403 {
+		t.Fatal("viewer mutation", code)
+	}
+	if code, _ := req(a, "POST", base+"/sdr/rating", admin, "", map[string]any{"rating": 0}); code != 422 {
+		t.Fatal("invalid rating", code)
+	}
+	if code, _ := req(a, "POST", base+"/financeai/rating", admin, "", map[string]any{"rating": 5}); code != 404 {
+		t.Fatal("blocked solution rated", code)
+	}
+	if code, _ := req(a, "POST", base+"/sdr/rating", "", "", map[string]any{"rating": 5}); code != 401 {
+		t.Fatal("anonymous rating", code)
+	}
+	code, list := req(a, "GET", base, beta, "", nil)
+	if code != 200 {
+		t.Fatal(code)
+	}
+	for _, raw := range list["solutions"].([]any) {
+		s := raw.(map[string]any)
+		if s["id"] == "sdr" {
+			rating := s["rating"].(map[string]any)
+			if rating["count"] != float64(0) || rating["average"] != nil {
+				t.Fatal("cross tenant rating", rating)
+			}
+		}
+	}
+	if err := a.Close(); err != nil {
+		t.Fatal(err)
+	}
+	restored, nextCreds, err := newApp(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+	token := login(t, restored, nextCreds, "alfa.admin")
+	code, out := req(restored, "GET", base, token, "", nil)
+	if code != 200 {
+		t.Fatal(code)
+	}
+	for _, raw := range out["solutions"].([]any) {
+		s := raw.(map[string]any)
+		if s["id"] == "sdr" {
+			rating := s["rating"].(map[string]any)
+			if rating["count"] != float64(2) || rating["mine"] != float64(5) {
+				t.Fatal("vote not persisted", rating)
+			}
+		}
+	}
+}

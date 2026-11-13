@@ -90,8 +90,36 @@ copia nem provisiona o banco da operação.
 - Go: catálogo autenticado, identidade por organização, permissões e rotas CLIPS.
 - Integração local: CRM DEV consultado, vídeo sintético enviado pelo portal,
   MP4 realmente gerado e download recusado para outra empresa.
+- Jornada no Chromium: catálogo → detalhes → guia → acesso ao SDR, sem iniciar
+  conversas antes do acesso e sem erros JavaScript; identificador inválido recusado.
+- Avaliações: alteração da própria nota, média, persistência após reabrir o banco,
+  isolamento por empresa e recusa de escrita para consulta, anônimos e bloqueados.
 
 A migração visual é incremental: o início e o mapa reproduzem a organização e o
 estilo da referência com dados locais. A paridade de todos os módulos e conteúdos
 da plataforma antiga ainda não foi concluída. Essa entrega é local; não publica
 os serviços nem os dados na plataforma online.
+
+## Jornada de acesso a um sistema
+
+A galeria abre os detalhes em `/demo/systems/{id}`. O card não inicializa o produto.
+A página apresenta o sistema, um guia de uso, os recursos incluídos e a avaliação.
+**Acessar sistema** abre o módulo integrado com a sessão do portal; o cliente
+não precisa autenticar novamente no ambiente local. Voltar para Sistemas retorna
+à galeria. Um identificador desconhecido retorna 404.
+
+Os sistemas sem serviço nesta estrutura continuam bloqueados na galeria. Mesmo
+em uma URL direta de detalhes, o botão de acesso fica desativado. O Remix no
+Lovable permanece identificado como pendente; não redireciona para um modelo
+externo com backend diferente.
+
+As capas e os vídeos privados da plataforma antiga não estão nesta cópia. Esta
+entrega usa ilustrações vetoriais nativas em Flutter nos espaços das capas e
+indica quando não há tutorial em vídeo. O guia textual descreve o fluxo existente;
+suas contagens correspondem aos passos e recursos cadastrados, sem copiar números
+de vídeos ou avaliações da plataforma antiga.
+
+A avaliação é armazenada no snapshot SQLite: uma nota de 1 a 5 por pessoa e
+sistema, atualizável e isolada por organização. O resumo mostra apenas este
+espaço, com estado vazio antes do primeiro voto. O perfil de consulta não altera
+notas. Os votos não são incluídos no contexto de construção dos agentes.

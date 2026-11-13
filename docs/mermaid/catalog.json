@@ -25,6 +25,11 @@
     "block": 1
   },
   {
+    "source": "docs/mermaid/04-jornada-sistemas.mmd",
+    "diagram": "docs/mermaid/04-jornada-sistemas.mmd",
+    "block": 1
+  },
+  {
     "source": "docs/mermaid/04-autonomia-proposta.mmd",
     "diagram": "docs/mermaid/04-autonomia-proposta.mmd",
     "block": 1

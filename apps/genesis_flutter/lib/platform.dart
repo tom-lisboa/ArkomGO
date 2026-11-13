@@ -6,6 +6,8 @@ import 'package:material_ui/material_ui.dart';
 
 import 'main.dart' show Studio;
 import 'platform_workspaces.dart';
+import 'solution_catalog.dart';
+import 'solution_detail.dart';
 import 'transport.dart' as transport;
 import 'visuals.dart';
 
@@ -34,6 +36,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
   List<Map<String, dynamic>> solutions = [];
   int projectCount = 0, loadVersion = 0;
   String company = 'Alfa';
+  String get section => view.startsWith('systems/') ? 'systems' : view;
   static const navigation = [
     ('home', 'Início', Icons.home_outlined),
     ('map', 'Mapa', Icons.map_outlined),
@@ -161,12 +164,12 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
                     height: 43,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      color: view == n.$1
+                      color: section == n.$1
                           ? const Color(0xff222220)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(
-                        color: view == n.$1
+                        color: section == n.$1
                             ? const Color(0xff6e6047)
                             : Colors.transparent,
                       ),
@@ -176,7 +179,9 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
                         Icon(
                           n.$3,
                           size: 18,
-                          color: view == n.$1 ? const Color(0xffefeee8) : muted,
+                          color: section == n.$1
+                              ? const Color(0xffefeee8)
+                              : muted,
                         ),
                         if (!small) ...[
                           const SizedBox(width: 12),
@@ -184,7 +189,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
                             child: text(
                               n.$2,
                               size: 13,
-                              color: view == n.$1
+                              color: section == n.$1
                                   ? const Color(0xffefeee8)
                                   : muted,
                             ),
@@ -365,9 +370,23 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
         'crm': 'CRM Arkom',
         'clips': 'CLIPS',
         'business': 'Minha empresa',
-      })[view] ??
+      })[section] ??
       'Sistemas';
   Widget content() {
+    if (view.startsWith('systems/')) {
+      final id = view.split('/').last;
+      final s = solutions.where((s) => s['id'] == id).firstOrNull;
+      return s == null
+          ? const Center(child: Text('Sistema não encontrado.'))
+          : SolutionDetail(
+              key: ValueKey(id),
+              solution: s,
+              role: role,
+              api: api,
+              onBack: () => go('systems'),
+              onOpen: () => go(id),
+            );
+    }
     switch (view) {
       case 'home':
         return home();
@@ -541,141 +560,12 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
       padding: const EdgeInsets.all(18),
     ),
   );
-  Widget systems() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      text('SISTEMAS ARKOM', size: 10, color: gold),
-      const SizedBox(height: 12),
-      text('Suas soluções.', size: 36, weight: FontWeight.w300),
-      const SizedBox(height: 10),
-      text(
-        'As ferramentas do seu negócio em um só lugar.',
-        size: 13,
-        color: muted,
-      ),
-      const SizedBox(height: 22),
-      TextField(
-        onChanged: (v) => setState(() => query = v.toLowerCase()),
-        decoration: const InputDecoration(
-          hintText: 'Buscar solução',
-          prefixIcon: Icon(Icons.search),
-        ),
-      ),
-      const SizedBox(height: 16),
-      SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children:
-              [
-                    'Todos',
-                    'Vendas',
-                    'Marketing',
-                    'Produto',
-                    'Clientes',
-                    'Back Office',
-                    'Inteligência',
-                  ]
-                  .map(
-                    (v) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(v),
-                        selected: filter == v,
-                        onSelected: (_) => setState(() => filter = v),
-                      ),
-                    ),
-                  )
-                  .toList(),
-        ),
-      ),
-      const SizedBox(height: 20),
-      Expanded(
-        child: SingleChildScrollView(
-          child: solutionGrid(
-            solutions
-                .where(
-                  (s) =>
-                      (filter == 'Todos' || s['area'] == filter) &&
-                      s['name'].toString().toLowerCase().contains(query),
-                )
-                .toList(),
-          ),
-        ),
-      ),
-    ],
+  Widget systems() => SolutionCatalog(
+    solutions: solutions,
+    onSelect: (id) => go('systems/$id'),
   );
-  Widget solutionGrid(List<Map<String, dynamic>> values) => LayoutBuilder(
-    builder: (context, c) {
-      final columns = c.maxWidth < 600
-          ? 1
-          : c.maxWidth < 1000
-          ? 2
-          : 3;
-      return Wrap(
-        spacing: 14,
-        runSpacing: 14,
-        children: values.map((s) {
-          final enabled = s['implemented'] == true;
-          return SizedBox(
-            width: (c.maxWidth - 14 * (columns - 1)) / columns,
-            child: Opacity(
-              opacity: enabled ? 1 : .52,
-              child: Semantics(
-                button: true,
-                enabled: enabled,
-                label: '${s['name']}${enabled ? '' : ' · bloqueada'}',
-                child: InkWell(
-                  onTap: enabled ? () => go(s['id']) : null,
-                  borderRadius: BorderRadius.circular(22),
-                  child: card(
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              icon(s['id']),
-                              size: 26,
-                              color: enabled ? gold : muted,
-                            ),
-                            const Spacer(),
-                            Icon(
-                              enabled
-                                  ? Icons.arrow_outward
-                                  : Icons.lock_outline,
-                              size: 17,
-                              color: enabled ? gold : muted,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 22),
-                        text(s['area'], size: 10, color: muted),
-                        const SizedBox(height: 6),
-                        text(s['name'], size: 23, weight: FontWeight.w300),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 44,
-                          child: text(s['description'], size: 12, color: muted),
-                        ),
-                        const SizedBox(height: 17),
-                        text(
-                          enabled
-                              ? 'Abrir solução'
-                              : 'Disponível após integração',
-                          size: 11,
-                          color: enabled ? gold : muted,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      );
-    },
-  );
+  Widget solutionGrid(List<Map<String, dynamic>> values) =>
+      SolutionCards(solutions: values, onSelect: (id) => go('systems/$id'));
   IconData icon(String id) =>
       ({
         'sdr': Icons.forum_outlined,

@@ -27,6 +27,64 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 	if r.URL.Path != base && !strings.HasPrefix(r.URL.Path, base+"/") {
 		return false
 	}
+	if strings.HasSuffix(r.URL.Path, "/rating") {
+		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, base+"/"), "/rating")
+		var catalog struct {
+			Solutions []map[string]any `json:"solutions"`
+		}
+		_ = json.Unmarshal(ecosystemCatalog, &catalog)
+		available := false
+		for _, solution := range catalog.Solutions {
+			if solution["id"] == id && solution["service"] != nil {
+				available = true
+			}
+		}
+		if !available {
+			fail(w, 404, "not_found")
+			return true
+		}
+		if r.Method != "POST" {
+			fail(w, 405, "method_not_allowed")
+			return true
+		}
+		if u.Role == "viewer" {
+			fail(w, 403, "forbidden")
+			return true
+		}
+		var body struct {
+			Rating int `json:"rating"`
+		}
+		if !decodeCore(w, r, &body) {
+			return true
+		}
+		if body.Rating < 1 || body.Rating > 5 {
+			fail(w, 422, "invalid_rating")
+			return true
+		}
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if !a.allow(w, r, []quota{{"solution-rating:" + u.Org + ":" + u.ID, 30, time.Minute}}) {
+			return true
+		}
+		if err := a.transact(func() {
+			if a.state.Platform.SolutionRatings == nil {
+				a.state.Platform.SolutionRatings = map[string]map[string]map[string]int{}
+			}
+			if a.state.Platform.SolutionRatings[u.Org] == nil {
+				a.state.Platform.SolutionRatings[u.Org] = map[string]map[string]int{}
+			}
+			if a.state.Platform.SolutionRatings[u.Org][id] == nil {
+				a.state.Platform.SolutionRatings[u.Org][id] = map[string]int{}
+			}
+			a.state.Platform.SolutionRatings[u.Org][id][u.ID] = body.Rating
+			a.record(AuditEntry{Org: u.Org, Actor: u.ID, Action: "solution.rating.updated", Operation: id})
+		}); err != nil {
+			fail(w, 503, "storage_unavailable")
+			return true
+		}
+		write(w, 200, a.solutionRating(u, id))
+		return true
+	}
 	if r.URL.Path == base && r.Method == "GET" {
 		crm := a.crmRoutes[u.Org].Origin != ""
 		clips := os.Getenv("SDR_CLIPS_BRIDGE_KEY") != ""
@@ -53,6 +111,9 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 			}
 			item["configured"] = configured
 			item["implemented"] = item["service"] != nil
+			a.mu.Lock()
+			item["rating"] = a.solutionRating(u, id)
+			a.mu.Unlock()
 			if item["service"] == nil {
 				item["reason"] = "Esta solução ainda não está integrada à nova estrutura."
 			} else if !configured {
@@ -106,4 +167,19 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 	w.WriteHeader(response.StatusCode)
 	_, _ = io.Copy(w, io.LimitReader(response.Body, 64<<20))
 	return true
+}
+
+// Called under a.mu. Feedback belongs to this workspace; personal votes never
+// enter the catalog, other organizations, or the construction model's context.
+func (a *App) solutionRating(u User, id string) map[string]any {
+	values := a.state.Platform.SolutionRatings[u.Org][id]
+	total := 0
+	for _, value := range values {
+		total += value
+	}
+	var average any
+	if len(values) > 0 {
+		average = float64(total) / float64(len(values))
+	}
+	return map[string]any{"mine": values[u.ID], "count": len(values), "average": average}
 }

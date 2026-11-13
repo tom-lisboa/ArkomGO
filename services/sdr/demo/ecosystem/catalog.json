@@ -10,105 +10,327 @@
       "name": "BIA SDR",
       "area": "Vendas",
       "description": "Conversas, qualificação e atendimento com IA.",
-      "service": "services/sdr"
+      "service": "services/sdr",
+      "kind": "Agentes",
+      "guide": [
+        {
+          "title": "Abra uma conversa",
+          "description": "Escolha um contato no painel de conversas. As conversas fictícias são identificadas como testes."
+        },
+        {
+          "title": "Teste o atendimento",
+          "description": "Envie uma mensagem como interessado para acompanhar a resposta da Bia com o contexto da empresa."
+        },
+        {
+          "title": "Assuma quando precisar",
+          "description": "Use o menu da conversa para assumir, pausar ou retomar o atendimento."
+        },
+        {
+          "title": "Acompanhe o histórico",
+          "description": "As mensagens e o controle do atendimento ficam registrados no espaço da sua empresa."
+        }
+      ],
+      "features": [
+        "Conversas e histórico",
+        "Memória do atendimento",
+        "Controle pela equipe",
+        "Contexto da empresa"
+      ],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": [
+        {
+          "name": "Conta Arkom",
+          "status": "Incluído"
+        },
+        {
+          "name": "Dados e processamento",
+          "status": "Incluído"
+        },
+        {
+          "name": "WhatsApp da empresa",
+          "status": "Opcional"
+        }
+      ]
     },
     {
       "id": "crm",
       "name": "CRM Arkom",
       "area": "Vendas",
       "description": "Contatos, funis e oportunidades.",
-      "service": "services/crm"
+      "service": "services/crm",
+      "kind": "Sistemas",
+      "guide": [
+        {
+          "title": "Escolha seu funil",
+          "description": "Abra um dos funis do workspace de desenvolvimento para acompanhar as oportunidades."
+        },
+        {
+          "title": "Cadastre um contato",
+          "description": "Na aba Contatos, busque uma pessoa ou use Novo contato para cadastrar nome e e-mail."
+        },
+        {
+          "title": "Crie uma oportunidade",
+          "description": "Selecione o contato, o funil e a etapa inicial. Confirme os dados antes de salvar."
+        },
+        {
+          "title": "Acompanhe a negociação",
+          "description": "Use Mover em uma oportunidade para alterar sua etapa e confira o resultado no funil."
+        }
+      ],
+      "features": [
+        "Contatos",
+        "Funis e oportunidades",
+        "Cadastro e movimentação",
+        "Integração com Clickmax DEV"
+      ],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": [
+        {
+          "name": "Conta Arkom",
+          "status": "Incluído"
+        },
+        {
+          "name": "Dados e processamento",
+          "status": "Incluído"
+        },
+        {
+          "name": "Workspace Clickmax DEV",
+          "status": "Gerenciado pela Arkom"
+        }
+      ]
     },
     {
       "id": "genesis",
       "name": "Genesis",
       "area": "Produto",
       "description": "Crie e evolua soluções com seu time de agentes.",
-      "service": "packages/deeph + services/sdr"
+      "service": "packages/deeph + services/sdr",
+      "kind": "Agentes",
+      "guide": [
+        {
+          "title": "Conte sua ideia",
+          "description": "Descreva em linguagem comum o que precisa resolver. O Genesis inicia o planejamento."
+        },
+        {
+          "title": "Revise cada etapa",
+          "description": "Acompanhe os especialistas e confira os passos antes de continuar a construção."
+        },
+        {
+          "title": "Experimente a solução",
+          "description": "Alterne entre Solução, Código e Histórico para acompanhar a entrega e testar seu funcionamento."
+        },
+        {
+          "title": "Peça uma melhoria",
+          "description": "Descreva o ajuste. Quando possível, reaproveite a interface e o backend já validados."
+        }
+      ],
+      "features": [
+        "Time de especialistas",
+        "Etapas de construção",
+        "Prévia com backend Go",
+        "Traces em tempo real"
+      ],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": [
+        {
+          "name": "Conta Arkom",
+          "status": "Incluído"
+        },
+        {
+          "name": "Dados e processamento",
+          "status": "Incluído"
+        }
+      ]
     },
     {
       "id": "clips",
       "name": "CLIPS",
       "area": "Marketing",
       "description": "Cortes verticais dos seus vídeos.",
-      "service": "services/core/pilots/clips"
+      "service": "services/core/pilots/clips",
+      "kind": "Automação",
+      "guide": [
+        {
+          "title": "Escolha o vídeo",
+          "description": "Envie um MP4 ou M4V de até 7 MB. O arquivo será usado para gerar seu corte."
+        },
+        {
+          "title": "Marque seu trecho",
+          "description": "Informe o início e uma duração entre 1 e 30 segundos."
+        },
+        {
+          "title": "Crie o corte",
+          "description": "Confirme o pedido e acompanhe o processamento na lista dos seus cortes."
+        },
+        {
+          "title": "Baixe seu vídeo",
+          "description": "Quando estiver pronto, use Baixar vídeo para receber o MP4 vertical."
+        }
+      ],
+      "features": [
+        "Upload de vídeo",
+        "Corte vertical manual",
+        "Processamento local",
+        "Download MP4"
+      ],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": [
+        {
+          "name": "Conta Arkom",
+          "status": "Incluído"
+        },
+        {
+          "name": "Dados e processamento",
+          "status": "Incluído"
+        }
+      ]
     },
     {
       "id": "financeai",
       "name": "FinanceAI",
       "area": "Back Office",
       "description": "Gestão financeira e organização da operação.",
-      "service": null
+      "service": null,
+      "kind": "Dashboards",
+      "guide": [],
+      "features": [],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": []
     },
     {
       "id": "atendimento",
       "name": "DESK AI",
       "area": "Clientes",
       "description": "Atendimento e suporte com agentes.",
-      "service": null
+      "service": null,
+      "kind": "Agentes",
+      "guide": [],
+      "features": [],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": []
     },
     {
       "id": "social",
       "name": "SOCIAL",
       "area": "Marketing",
       "description": "Conteúdo e distribuição para redes sociais.",
-      "service": null
+      "service": null,
+      "kind": "Automação",
+      "guide": [],
+      "features": [],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": []
     },
     {
       "id": "ad_manager",
       "name": "Bilhon Ads",
       "area": "Marketing",
       "description": "Gestão e análise de campanhas.",
-      "service": null
+      "service": null,
+      "kind": "Dashboards",
+      "guide": [],
+      "features": [],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": []
     },
     {
       "id": "gestor_onboarding",
       "name": "OnboardIA",
       "area": "Clientes",
       "description": "Onboarding e acompanhamento dos clientes.",
-      "service": null
+      "service": null,
+      "kind": "Automação",
+      "guide": [],
+      "features": [],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": []
     },
     {
       "id": "peticionamento",
       "name": "HARVEY",
       "area": "Back Office",
       "description": "Redação e gestão do escritório jurídico.",
-      "service": null
+      "service": null,
+      "kind": "Sistemas",
+      "guide": [],
+      "features": [],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": []
     },
     {
       "id": "recruta",
       "name": "HOLLY",
       "area": "Back Office",
       "description": "Recrutamento, seleção e banco de talentos.",
-      "service": null
+      "service": null,
+      "kind": "Sistemas",
+      "guide": [],
+      "features": [],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": []
     },
     {
       "id": "cs",
       "name": "Plataforma de CS",
       "area": "Clientes",
       "description": "Carteira, saúde e retenção de clientes.",
-      "service": null
+      "service": null,
+      "kind": "Sistemas",
+      "guide": [],
+      "features": [],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": []
     },
     {
       "id": "bia_rh",
       "name": "Bia RH",
       "area": "Back Office",
       "description": "Recrutamento e entrevistas pelo WhatsApp.",
-      "service": null
+      "service": null,
+      "kind": "Agentes",
+      "guide": [],
+      "features": [],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": []
     },
     {
       "id": "dashboards",
       "name": "ATLAS",
       "area": "Inteligência",
       "description": "Painéis e indicadores do negócio.",
-      "service": null
+      "service": null,
+      "kind": "Dashboards",
+      "guide": [],
+      "features": [],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": []
     },
     {
       "id": "cmo",
       "name": "Agente CMO",
       "area": "Marketing",
       "description": "Planejamento e acompanhamento de marketing.",
-      "service": null
+      "service": null,
+      "kind": "Agentes",
+      "guide": [],
+      "features": [],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": []
     }
   ]
 }
