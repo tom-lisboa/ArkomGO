@@ -21,6 +21,8 @@ python3 scripts/build-demo.py
 
 Preencha `OPENAI_API_KEY` no `.env`, sem publicá-lo. O modelo deve ser válido para sua conta. O script de build gera somente binários locais e instala dependências do portal e do compilador Svelte; não inicia chamadas de IA.
 
+Os seis agentes de construção do Genesis usam `GENESIS_OPENAI_MODEL=gpt-6.1-sol` e `GENESIS_REASONING_EFFORT=high` por padrão, pela Responses API. Essas variáveis são independentes de `SDR_OPENAI_MODEL`, usado pelo atendimento e pelo fluxo legado de qualificação. É possível ajustar o esforço para `low`, `medium`, `high`, `xhigh` ou `max`, desde que suportado pelo modelo escolhido. Reinicie a demo após alterar o `.env`. A construção permite até 32 mil tokens de saída por chamada (incluindo raciocínio), com timeout de cinco minutos; o limite global da etapa continua em vinte minutos. São limites máximos, não consumo fixo. Não há troca automática para um modelo mais barato em caso de erro.
+
 ```sh
 python3 scripts/demo.py
 ```

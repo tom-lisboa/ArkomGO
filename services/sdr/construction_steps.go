@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sdr-next-pilot/pkg/sdrsdk"
 	"time"
 )
 
@@ -104,11 +103,11 @@ func (a *App) prepareConstruction(stepID string) (construction.Provider, constru
 	if !construction.PlanningStep(stepID) && !(construction.Sandbox{}).Available() {
 		return nil, nil, errors.New("isolated_runner_unavailable")
 	}
-	planner, err := sdrsdk.NewOpenAI(os.Getenv("OPENAI_API_KEY"), os.Getenv("SDR_OPENAI_MODEL"))
+	provider, err := newConstructionProvider(os.Getenv("OPENAI_API_KEY"), os.Getenv("GENESIS_OPENAI_MODEL"), os.Getenv("GENESIS_REASONING_EFFORT"))
 	if err != nil {
 		return nil, nil, errors.New("genesis_unavailable")
 	}
-	return constructionProvider{planner}, construction.Sandbox{}, nil
+	return provider, construction.Sandbox{}, nil
 }
 
 // Called under a.mu after the start transaction commits.
