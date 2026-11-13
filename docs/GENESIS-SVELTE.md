@@ -4,7 +4,7 @@ Novos projetos criados no Genesis usam Svelte 5.57.3 e esbuild 0.28.2. O backend
 
 ## Fluxo e traces
 
-O plano continua com arquitetura, backend, interface e revisão, iniciadas uma por vez pelo usuário. Na interface, o agente escreve `frontend/src/App.svelte`, componentes `.svelte`, módulos `.js`/`.ts` e CSS locais. O host compila esses arquivos quando o agente chama `test` e novamente antes de concluir interface e revisão.
+Novos projetos incluem arquitetura, UX, design visual, backend, interface e revisão, iniciadas uma por vez pelo usuário. Projetos anteriores mantêm suas quatro etapas. Veja [UX e design por etapas](GENESIS-UX-DESIGN.md). Na interface, o agente escreve `frontend/src/App.svelte`, componentes `.svelte`, módulos `.js`/`.ts` e CSS locais. O host compila esses arquivos quando o agente chama `test` e novamente antes de concluir interface e revisão.
 
 - `frontend.build.started`: compilação iniciada em isolamento.
 - `frontend.build.failed`: diagnóstico devolvido ao agente para correção; a etapa permanece incompleta.
@@ -34,4 +34,4 @@ Limites desta base: 48 arquivos no workspace, 48 KB por fonte, 350 KB de fontes,
 
 ## Próximas entregas
 
-A próxima parte é dividir o trabalho de UX e design em etapas próprias, com responsáveis, entregáveis e critérios de aceite vinculados aos traces. Depois, ampliar a construção de componentes e a revisão visual e de acessibilidade. Esta base não adiciona esses agentes nem automatiza uma aprovação visual.
+A divisão de UX e design está descrita em [UX e design por etapas](GENESIS-UX-DESIGN.md). A revisão visual e os testes de comportamento da interface são os próximos incrementos; a compilação continua sem representar aprovação visual.

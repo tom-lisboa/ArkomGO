@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'studio_controller.dart';
 import 'visuals.dart';
+import 'design_brief.dart';
 
 class CodeWorkspace extends StatelessWidget {
   final StudioController model;
@@ -143,16 +144,21 @@ class CodeWorkspace extends StatelessWidget {
                       alignment: Alignment.topLeft,
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.all(22),
-                        child: SelectableText(
-                          model.files[selected] ??
-                              'Os arquivos aparecem aqui durante a construção.',
-                          style: const TextStyle(
-                            fontFamily: 'ArkomMono',
-                            fontSize: 12,
-                            height: 1.85,
-                            color: Color(0xffb9c9d7),
-                          ),
-                        ),
+                        child:
+                            [
+                              'design/ux.json',
+                              'design/ui.json',
+                            ].contains(selected)
+                            ? DesignBrief(source: model.files[selected] ?? '')
+                            : SelectableText(
+                                model.files[selected] ?? 'Os arquivos aparecem aqui durante a construção.',
+                                style: const TextStyle(
+                                  fontFamily: 'ArkomMono',
+                                  fontSize: 12,
+                                  height: 1.85,
+                                  color: Color(0xffb9c9d7),
+                                ),
+                              ),
                       ),
                     ),
                   ),
