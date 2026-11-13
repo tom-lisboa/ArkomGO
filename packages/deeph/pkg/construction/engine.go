@@ -39,6 +39,9 @@ func ValidPath(p string) bool {
 			return false
 		}
 	}
+	if p == UXPath || p == UIPath {
+		return true
+	}
 	if p == "DESIGN.md" || p == "README.md" || p == application.ManifestPath {
 		return true
 	}
@@ -52,6 +55,10 @@ func allowed(agent, p string) bool {
 		return false
 	}
 	switch agent {
+	case "ux":
+		return p == UXPath
+	case "designer":
+		return p == UIPath
 	case "architect":
 		return p == "DESIGN.md" || p == "README.md" || p == application.ManifestPath
 	case "backend":
@@ -107,13 +114,19 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 	references["reference/platform-data.go"] = DataContracts
 	references["reference/platform-records.go"] = RecordsContracts
 	references["reference/frontend-svelte.md"] = FrontendReference
+	if e.StepsVersion == 2 {
+		references["reference/design.md"] = DesignReference
+	}
 	consulted := map[string]bool{}
 	refs := []string{}
 	for k := range references {
 		refs = append(refs, k)
 	}
 	sort.Strings(refs)
-	stages := Steps()
+	stages := StepsForVersion(e.StepsVersion)
+	if len(stages) == 0 {
+		return files, errors.New("invalid_steps_version")
+	}
 	for _, stage := range stages {
 		if onlyStep != "" && stage.ID != onlyStep {
 			continue
@@ -130,6 +143,9 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 			}
 			referencesSeen := consulted["reference/catalog.json"] && consulted["reference/platform-contracts.go"]
 			rules, instruction := Rules, stage.instruction
+			if e.StepsVersion == 2 {
+				rules += "\n" + DesignReference
+			}
 			if IsSvelte(files) {
 				rules = strings.Replace(rules, legacyFrontendRules, FrontendReference, 1)
 				if stage.ID == "interface" {
@@ -239,7 +255,7 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 					files[a.Path] = a.Content
 					feedback = append(feedback, "Arquivo salvo: "+a.Path)
 				case "test":
-					if stage.ID == "architect" {
+					if PlanningStep(stage.ID) {
 						ev.Kind = "tool.rejected"
 						ev.Summary = "A etapa de planejamento não executa código"
 						feedback = append(feedback, ev.Summary)
@@ -292,6 +308,21 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 				return files, errors.New("agent_reported_blocker")
 			}
 			if turn.Verdict == "ready" {
+				if e.StepsVersion == 2 && (stage.ID == "ux" || stage.ID == "designer" || stage.ID == "interface" || stage.ID == "reviewer") {
+					issue := ValidateDesign(files, stage.ID)
+					kind, summary := "design.validated", "Estrutura da especificação validada; inspeção visual e de usabilidade pendente"
+					if issue != nil {
+						kind = "design.rejected"
+						summary = "Corrija a especificação: " + issue.Error()
+					}
+					if err := emit(Event{Kind: kind, Agent: stage.ID, Summary: summary}); err != nil {
+						return files, err
+					}
+					if issue != nil {
+						feedback = append(feedback, summary)
+						continue
+					}
+				}
 				if stage.ID == "architect" && files["DESIGN.md"] == "" {
 					feedback = append(feedback, "Escreva DESIGN.md antes de concluir.")
 					continue

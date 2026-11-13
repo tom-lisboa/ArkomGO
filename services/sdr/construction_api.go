@@ -54,7 +54,7 @@ func (a *App) constructionRunTrace(id, executionID string, event construction.Ev
 	if a.constructionClosed || b == nil || b.Status != "running" || (executionID != "" && b.ExecutionID != executionID) {
 		return errors.New("build_not_running")
 	}
-	if b.StepsVersion == 1 {
+	if construction.SupportsSteps(b.StepsVersion) {
 		event.StepID = b.nextStepID()
 		event.ExecutionID = b.ExecutionID
 	}
@@ -168,6 +168,7 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			fail(w, 409, "construction_limit")
 			return true
 		}
+		version := 2
 		initial := construction.NewSeed()
 		var parent *ConstructionBuild
 		if body.ParentID != "" {
@@ -175,6 +176,10 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			if parent == nil || parent.Org != u.Org {
 				fail(w, 404, "not_found")
 				return true
+			}
+			version = parent.StepsVersion
+			if !construction.SupportsSteps(version) {
+				version = 1
 			}
 			initial = map[string]string{}
 			for k, v := range parent.Files {
@@ -190,7 +195,7 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			return true
 		}
 		applicationID, revision := a.constructionIdentity(u.Org, parent)
-		b := &ConstructionBuild{StepsVersion: 1, ExecutionID: token(), ApplicationID: applicationID, Revision: revision, ID: "build_" + token(), Org: u.Org, Goal: body.Goal, ParentID: body.ParentID, Status: "running", CreatedAt: a.now().UTC(), UpdatedAt: a.now().UTC(), Files: initial, Traces: []ConstructionTrace{}}
+		b := &ConstructionBuild{StepsVersion: version, ExecutionID: token(), ApplicationID: applicationID, Revision: revision, ID: "build_" + token(), Org: u.Org, Goal: body.Goal, ParentID: body.ParentID, Status: "running", CreatedAt: a.now().UTC(), UpdatedAt: a.now().UTC(), Files: initial, Traces: []ConstructionTrace{}}
 		if a.transact(func() {
 			if a.state.Platform.Constructions == nil {
 				a.state.Platform.Constructions = map[string]*ConstructionBuild{}
@@ -250,7 +255,7 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 		}
 		if b.Status == "running" {
 			if a.transact(func() {
-				if b.StepsVersion == 1 {
+				if construction.SupportsSteps(b.StepsVersion) {
 					b.appendStepEvent("step.cancelled", b.nextStepID(), "Etapa interrompida; arquivos preservados.", "", a.now().UTC())
 				}
 				b.Status = "cancelled"

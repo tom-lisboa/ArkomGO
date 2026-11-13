@@ -31,10 +31,10 @@ type constructionStepView struct {
 
 // Progress is a projection of committed evidence, never a client-side timer/counter.
 func (b *ConstructionBuild) nextStepID() string {
-	if b.StepsVersion != 1 {
+	if !construction.SupportsSteps(b.StepsVersion) {
 		return ""
 	}
-	steps := construction.Steps()
+	steps := construction.StepsForVersion(b.StepsVersion)
 	next := 0
 	for _, e := range b.Traces {
 		if next < len(steps) && e.Kind == "step.completed" && e.StepID == steps[next].ID {
@@ -48,10 +48,10 @@ func (b *ConstructionBuild) nextStepID() string {
 }
 func (b *ConstructionBuild) steps() []constructionStepView {
 	out := []constructionStepView{}
-	if b.StepsVersion != 1 {
+	if !construction.SupportsSteps(b.StepsVersion) {
 		return out
 	}
-	for _, s := range construction.Steps() {
+	for _, s := range construction.StepsForVersion(b.StepsVersion) {
 		v := constructionStepView{ID: s.ID, Title: s.Title, Acceptance: s.Acceptance, Status: "pending"}
 		if construction.IsSvelte(b.Files) {
 			if s.ID == "interface" {
@@ -99,7 +99,7 @@ func (a *App) prepareConstruction(stepID string) (construction.Provider, constru
 	if a.constructionSetup != nil {
 		return a.constructionSetup()
 	}
-	if stepID != "architect" && !(construction.Sandbox{}).Available() {
+	if !construction.PlanningStep(stepID) && !(construction.Sandbox{}).Available() {
 		return nil, nil, errors.New("isolated_runner_unavailable")
 	}
 	planner, err := sdrsdk.NewOpenAI(os.Getenv("OPENAI_API_KEY"), os.Getenv("SDR_OPENAI_MODEL"))
@@ -111,6 +111,7 @@ func (a *App) prepareConstruction(stepID string) (construction.Provider, constru
 
 // Called under a.mu after the start transaction commits.
 func (a *App) launchConstruction(b *ConstructionBuild, provider construction.Provider, tester construction.Tester) {
+	version := b.StepsVersion
 	id, executionID, stepID, goal := b.ID, b.ExecutionID, b.nextStepID(), b.Goal
 	files := map[string]string{}
 	for k, v := range b.Files {
@@ -135,7 +136,7 @@ func (a *App) launchConstruction(b *ConstructionBuild, provider construction.Pro
 			data, _ := constructionReferences.ReadFile("demo/construction/reference/" + name)
 			refs["reference/"+name] = string(data)
 		}
-		engine := construction.Engine{Provider: provider, Tester: tester, References: refs, Emit: func(e construction.Event) error { return a.constructionRunTrace(id, executionID, e) }}
+		engine := construction.Engine{StepsVersion: version, Provider: provider, Tester: tester, References: refs, Emit: func(e construction.Event) error { return a.constructionRunTrace(id, executionID, e) }}
 		_, err := engine.RunStep(ctx, goal, files, stepID)
 		a.finishConstructionStep(id, executionID, stepID, err, ctx.Err())
 	}()
@@ -170,7 +171,7 @@ func (a *App) finishConstructionStep(id, executionID, stepID string, err, contex
 		b.Contract = contract
 		b.Status = "awaiting_step"
 		kind, summary := "step.completed", "Etapa validada. Revise os traces antes de iniciar a próxima."
-		evidence, _ := json.Marshal(map[string]any{"source_digest": application.Digest(b.Files), "files_count": len(b.Files), "acceptance": b.steps()[construction.StepIndex(stepID)].Acceptance})
+		evidence, _ := json.Marshal(map[string]any{"source_digest": application.Digest(b.Files), "files_count": len(b.Files), "acceptance": b.steps()[construction.StepIndexForVersion(b.StepsVersion, stepID)].Acceptance})
 		if err != nil {
 			b.Status = "failed"
 			kind = "step.failed"
@@ -212,7 +213,7 @@ func (a *App) advanceConstruction(w http.ResponseWriter, r *http.Request, u User
 	if !decodeCore(w, r, &body) {
 		return
 	}
-	if b.StepsVersion != 1 || b.nextStepID() == "" || (b.Status != "awaiting_step" && b.Status != "failed" && b.Status != "cancelled" && b.Status != "interrupted") {
+	if !construction.SupportsSteps(b.StepsVersion) || b.nextStepID() == "" || (b.Status != "awaiting_step" && b.Status != "failed" && b.Status != "cancelled" && b.Status != "interrupted") {
 		fail(w, 409, "step_not_available")
 		return
 	}

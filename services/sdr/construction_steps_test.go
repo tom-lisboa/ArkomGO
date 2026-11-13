@@ -6,6 +6,7 @@ import (
 	"deeph/pkg/construction"
 	"encoding/json"
 	"errors"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -29,6 +30,16 @@ func (p *stepProvider) Next(_ context.Context, r construction.Request) (construc
 	switch r.Agent {
 	case "architect":
 		actions = []construction.Action{{Tool: "write", Path: "DESIGN.md", Content: "Primeira entrega: soma; histórico fica para depois."}, {Tool: "write", Path: application.ManifestPath, Content: stepManifest}}
+	case "ux", "designer":
+		name := construction.UXPath
+		if r.Agent == "designer" {
+			name = construction.UIPath
+		}
+		data, err := os.ReadFile("../../packages/deeph/pkg/construction/testdata/" + map[string]string{"ux": "ux.json", "designer": "ui.json"}[r.Agent])
+		if err != nil {
+			return construction.Turn{}, err
+		}
+		actions = []construction.Action{{Tool: "write", Path: name, Content: string(data)}}
 	case "backend":
 		actions = []construction.Action{{Tool: "write", Path: "backend/add.go", Content: "package solution\nfunc Add(a,b int)int{return a+b}"}, {Tool: "write", Path: "backend/add_test.go", Content: "package solution\nimport \"testing\"\nfunc TestAdd(t *testing.T){if Add(12,30)!=42{t.Fatal(\"sum\")}}"}}
 	case "interface":
@@ -102,7 +113,7 @@ func TestConstructionStepsFollowCommittedTracesAndRequireExplicitAdvance(t *test
 	base := "/v1/sdr/genesis-demo/construction/" + id
 	out := stepCheckpoint(t, a, admin, id, "awaiting_step")
 	input := stepInput(out)
-	if input["step_id"] != "backend" {
+	if input["step_id"] != "ux" {
 		t.Fatal(input)
 	}
 	if len(out["files"].(map[string]any)) != len(construction.NewSeed())+2 {
@@ -147,7 +158,7 @@ func TestConstructionStepsFollowCommittedTracesAndRequireExplicitAdvance(t *test
 	stepSetup(restored, p, tt)
 	out = stepCheckpoint(t, restored, admin, id, "awaiting_step")
 	assertStepEvidence(t, out, "architect", "completed")
-	for _, stage := range []string{"backend", "interface", "reviewer"} {
+	for _, stage := range []string{"ux", "designer", "backend", "interface", "reviewer"} {
 		input = stepInput(out)
 		if input["step_id"] != stage {
 			t.Fatal(input)
@@ -226,6 +237,15 @@ func TestFailedConstructionStepCannotAdvanceAndOldAttemptsCannotWrite(t *testing
 	id := startSteps(t, a, admin)
 	out := stepCheckpoint(t, a, admin, id, "awaiting_step")
 	base := "/v1/sdr/genesis-demo/construction/" + id
+	for _, stage := range []string{"ux", "designer"} {
+		if stepInput(out)["step_id"] != stage {
+			t.Fatal(out)
+		}
+		if code, reply := req(a, "POST", base+"/advance", admin, "", stepInput(out)); code != 202 {
+			t.Fatal(code, reply)
+		}
+		out = stepCheckpoint(t, a, admin, id, "awaiting_step")
+	}
 	if code, _ := req(a, "POST", base+"/advance", admin, "", stepInput(out)); code != 202 {
 		t.Fatal(code)
 	}
@@ -327,7 +347,7 @@ func TestSvelteFailureStaysAtInterfaceAndRetryPersistsBuildEvidence(t *testing.T
 	if out["build"].(map[string]any)["frontend_framework"] != "svelte" {
 		t.Fatal("new project is not Svelte")
 	}
-	for _, stage := range []string{"backend", "interface"} {
+	for _, stage := range []string{"ux", "designer", "backend", "interface"} {
 		if stepInput(out)["step_id"] != stage {
 			t.Fatal(out)
 		}
@@ -391,5 +411,55 @@ func TestLegacyRevisionPreservesHTMLFrontend(t *testing.T) {
 	saved := out["files"].(map[string]any)
 	if out["build"].(map[string]any)["frontend_framework"] != "html" || saved[construction.FrontendContractPath] != nil || saved["frontend/index.html"] != files["frontend/index.html"] {
 		t.Fatal("legacy revision silently migrated", out)
+	}
+}
+
+func TestUXCheckpointSurvivesRestartAndLegacyRevisionKeepsFourSteps(t *testing.T) {
+	a, creds, db := genesisApp(t)
+	admin := login(t, a, creds, "alfa.admin")
+	stepSetup(a, &stepProvider{}, &stepTester{})
+	id := startSteps(t, a, admin)
+	out := stepCheckpoint(t, a, admin, id, "awaiting_step")
+	if out["build"].(map[string]any)["steps_version"] != float64(2) || stepInput(out)["step_id"] != "ux" {
+		t.Fatal(out)
+	}
+	base := "/v1/sdr/genesis-demo/construction/" + id
+	if code, _ := req(a, "POST", base+"/advance", admin, "", map[string]any{"step_id": "backend", "sequence": out["build"].(map[string]any)["sequence"]}); code != 409 {
+		t.Fatal("skipped design", code)
+	}
+	if code, reply := req(a, "POST", base+"/advance", admin, "", stepInput(out)); code != 202 {
+		t.Fatal(code, reply)
+	}
+	out = stepCheckpoint(t, a, admin, id, "awaiting_step")
+	assertStepEvidence(t, out, "ux", "completed")
+	if stepInput(out)["step_id"] != "designer" {
+		t.Fatal(out)
+	}
+	a.Close()
+	restored, keys, err := newApp(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+	admin = login(t, restored, keys, "alfa.admin")
+	out = stepCheckpoint(t, restored, admin, id, "awaiting_step")
+	assertStepEvidence(t, out, "ux", "completed")
+	if stepInput(out)["step_id"] != "designer" || out["files"].(map[string]any)[construction.UXPath] == nil {
+		t.Fatal("lost UX checkpoint")
+	}
+	parent := &ConstructionBuild{ID: "v1", Org: "org_demo_alfa", StepsVersion: 1, Status: "awaiting_step", Files: construction.NewSeed()}
+	parent.appendStepEvent("step.completed", "architect", "saved", "", restored.now())
+	if err := restored.transact(func() { restored.state.Platform.Constructions[parent.ID] = parent }); err != nil {
+		t.Fatal(err)
+	}
+	stepSetup(restored, &stepProvider{}, &stepTester{})
+	code, reply := req(restored, "POST", "/v1/sdr/genesis-demo/construction", admin, "", map[string]any{"goal": "Revisar o projeto antigo sem mudar o fluxo", "parent_id": parent.ID})
+	if code != 202 {
+		t.Fatal(code, reply)
+	}
+	revised := stepCheckpoint(t, restored, admin, reply["id"].(string), "awaiting_step")
+	b := revised["build"].(map[string]any)
+	if b["steps_version"] != float64(1) || len(b["steps"].([]any)) != 4 || b["next_step_id"] != "backend" {
+		t.Fatal("legacy plan changed", b)
 	}
 }

@@ -187,6 +187,8 @@ class _StudioState extends State<Studio> {
                 'test.failed',
                 'frontend.build.passed',
                 'frontend.build.failed',
+                'design.validated',
+                'design.rejected',
                 'agent.finished',
               ].contains(e['kind']),
         )
@@ -674,10 +676,7 @@ class _StudioState extends State<Studio> {
                   ],
                 ),
                 const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: List.generate(4, (i) => teamMember(i)),
-                ),
+                teamRoster(),
                 const SizedBox(height: 22),
                 if (!newIdea && model.build != null) resultSummary(),
                 const SizedBox(height: 20),
@@ -785,6 +784,31 @@ class _StudioState extends State<Studio> {
                         label(s['title'], size: 11, weight: FontWeight.w500),
                         const SizedBox(height: 4),
                         label(s['acceptance'], size: 10, color: muted),
+                        if (['ux', 'designer'].contains(s['id']) &&
+                            model.files.containsKey(
+                              s['id'] == 'ux'
+                                  ? 'design/ux.json'
+                                  : 'design/ui.json',
+                            ))
+                          TextButton(
+                            key: ValueKey('brief-${s['id']}'),
+                            onPressed: () {
+                              model.chooseFile(
+                                s['id'] == 'ux'
+                                    ? 'design/ux.json'
+                                    : 'design/ui.json',
+                              );
+                              setState(() {
+                                mode = 1;
+                                mobileChat = false;
+                              });
+                            },
+                            child: Text(
+                              s['id'] == 'ux'
+                                  ? 'Ler experiência'
+                                  : 'Ler design visual',
+                            ),
+                          ),
                         const SizedBox(height: 4),
                         label(
                           {
@@ -833,6 +857,24 @@ class _StudioState extends State<Studio> {
       ],
     ],
   );
+
+  Widget teamRoster() {
+    final indices = newIdea || model.build == null
+        ? [0, 4, 5, 1, 2, 3]
+        : model.steps.isEmpty
+        ? [0, 1, 2, 3]
+        : model.steps
+              .map((s) => agentIndex(s['id']))
+              .where((i) => i >= 0)
+              .toList();
+    final members = indices.map(teamMember).toList();
+    if (indices.length <= 4)
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: members,
+      );
+    return Wrap(spacing: 18, runSpacing: 14, children: members);
+  }
 
   Widget teamMember(int i) {
     final latest = model.traces
