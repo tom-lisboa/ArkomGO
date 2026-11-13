@@ -2,6 +2,7 @@ package construction
 
 import (
 	"context"
+	"crypto/sha256"
 	"deeph/pkg/application"
 	"encoding/json"
 	"errors"
@@ -137,6 +138,20 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 			return files, err
 		}
 		feedback := []string{}
+		if e.StepsVersion >= 3 || e.RevisionScope == "interface" {
+			for _, name := range []string{"reference/catalog.json", "reference/platform-contracts.go"} {
+				content, ok := references[name]
+				if !ok || content == "" {
+					continue
+				}
+				digest := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(content)))
+				if err := emit(Event{Kind: "context.loaded", Agent: "system", Path: name, Summary: "Disponibilizou contrato existente no contexto da etapa", Output: digest}); err != nil {
+					return files, err
+				}
+				feedback = append(feedback, "Contrato disponibilizado pelo host (somente leitura): "+name+"\n"+content)
+				consulted[name] = true
+			}
+		}
 		finished := false
 		retried := false
 		for round := 0; round < stage.rounds; round++ {
@@ -164,6 +179,9 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 			}
 			if e.RevisionScope == "interface" {
 				instruction += "\nREVISÃO SOMENTE DE INTERFACE: o cliente escolheu reaproveitar planejamento, UX, design, rotas e backend já validados. Consulte os arquivos existentes e altere apenas o frontend necessário ao pedido. Não substitua a aplicação por um template. Não escreva application.json, backend/, design/ ou DESIGN.md nem mude endpoints. Se o pedido exigir mudar essas partes, retorne blocked com a dependência concreta. A revisão final pode corrigir somente frontend e deve validar a entrega preservada."
+			}
+			if e.StepsVersion >= 3 || e.RevisionScope == "interface" {
+				instruction += "\nOs contratos de catálogo/plataforma disponibilizados pelo host em feedback já foram carregados; consulte esse conteúdo antes de escrever, sem precisar repetir read para esses dois contratos. Os arquivos atuais estão em files: use o que está pronto, mantenha os componentes e rotas adequados e faça somente as alterações necessárias. Os demais documentos podem ser consultados com read."
 			}
 			requestFiles := clone(files)
 			if IsSvelte(files) {

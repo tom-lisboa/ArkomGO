@@ -3,7 +3,9 @@ package construction
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -104,5 +106,39 @@ func TestInterfaceRevisionProtectsReadyBackendAndPlanEvenFromReviewer(t *testing
 		if err == nil || rejected == 0 || out["backend/keep.go"] != files["backend/keep.go"] || out["DESIGN.md"] != files["DESIGN.md"] || out[UIPath] != files[UIPath] {
 			t.Fatal("incremental scope escaped", stage, err)
 		}
+	}
+}
+
+func TestCurrentWorkflowReceivesRealPlatformContextBeforeWriting(t *testing.T) {
+	files := navigationFixture(t)
+	contents := files[UXPath]
+	delete(files, UXPath)
+	loaded := 0
+	e := Engine{StepsVersion: 3, Tester: &frontendTester{}, References: map[string]string{"reference/catalog.json": "{\"capabilities\":[]}", "reference/platform-contracts.go": Contracts}, Provider: fakeProvider{func(r Request) Turn {
+		if !strings.Contains(strings.Join(r.Feedback, "\n"), Contracts) {
+			t.Fatal("contracts absent from actual provider input")
+		}
+		return Turn{Actions: []Action{{Tool: "write", Path: UXPath, Content: contents}}, Verdict: "ready"}
+	}}, Emit: func(v Event) error {
+		if v.Kind == "context.loaded" {
+			loaded++
+			if !strings.HasPrefix(v.Output, "sha256:") {
+				t.Error("missing context digest")
+			}
+		}
+		return nil
+	}}
+	out, err := e.RunStep(context.Background(), "reuse existing context", files, "ux")
+	if err != nil || loaded != 2 || out[UXPath] != contents {
+		t.Fatal(err, loaded)
+	}
+	e.Emit = func(v Event) error {
+		if v.Kind == "context.loaded" {
+			return errors.New("storage failed")
+		}
+		return nil
+	}
+	if _, err := e.RunStep(context.Background(), "context persistence failure", files, "ux"); err == nil {
+		t.Fatal("context persistence failure ignored")
 	}
 }
