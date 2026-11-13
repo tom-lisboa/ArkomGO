@@ -105,7 +105,7 @@ func (q queue) gifStatus(w http.ResponseWriter, r *http.Request) {
 		SELECT EXISTS(SELECT 1 FROM gif_keys WHERE account_id=$1),
 			COALESCE(g.remaining,0), g.expires_at,
 			COALESCE((SELECT json_agg(j ORDER BY j.created_at DESC) FROM
-				(SELECT id,status,created_at FROM gif_jobs WHERE account_id=$1 ORDER BY created_at DESC LIMIT 20) j), '[]')
+				(SELECT id,status,created_at,prompt FROM gif_jobs WHERE account_id=$1 ORDER BY created_at DESC LIMIT 20) j), '[]')
 		FROM customer_accounts a LEFT JOIN gif_grants g ON g.account_id=a.id AND g.expires_at>now()
 		WHERE a.id=$1`, account.ID).Scan(&hasKey, &remaining, &expires, &jobs)
 	if err != nil {
@@ -167,8 +167,42 @@ func (q queue) gifSubmit(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid_gif_prompt")
 		return
 	}
+	requestKey := r.Header.Get("Idempotency-Key")
+	if requestKey != "" && !validKey.MatchString(requestKey) {
+		writeError(w, 400, "invalid_idempotency_key")
+		return
+	}
+	ctx := r.Context()
+	tx, err := q.db.Begin(ctx)
+	if err != nil {
+		writeError(w, 503, "database_unavailable")
+		return
+	}
+	defer tx.Rollback(ctx)
+	var locked string
+	if err = tx.QueryRow(ctx, `SELECT id FROM customer_accounts WHERE id=$1 AND enabled FOR NO KEY UPDATE`, account.ID).Scan(&locked); err != nil {
+		writeError(w, 503, "database_unavailable")
+		return
+	}
+	if requestKey != "" {
+		var id, previousPrompt string
+		var previousGift bool
+		err := tx.QueryRow(ctx, `SELECT id,prompt,sponsored FROM gif_jobs WHERE account_id=$1 AND request_key=$2`,
+			account.ID, requestKey).Scan(&id, &previousPrompt, &previousGift)
+		switch {
+		case err == nil && (previousPrompt != prompt || previousGift != input.Gift):
+			writeError(w, 409, "gif_request_conflict")
+			return
+		case err == nil:
+			writeJSON(w, 202, map[string]string{"id": id})
+			return
+		case !errors.Is(err, pgx.ErrNoRows):
+			writeError(w, 503, "database_unavailable")
+			return
+		}
+	}
 	var capacity bool
-	if err := q.db.QueryRow(r.Context(), `SELECT pg_database_size(current_database()) <= 512*1024*1024
+	if err := tx.QueryRow(ctx, `SELECT pg_database_size(current_database()) <= 512*1024*1024
 		AND (SELECT count(*) FROM gif_jobs WHERE status IN ('queued','running')) < 10`).Scan(&capacity); err != nil {
 		writeError(w, 503, "database_unavailable")
 		return
@@ -178,15 +212,15 @@ func (q queue) gifSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var id string
-	err = q.db.QueryRow(r.Context(), `
+	err = tx.QueryRow(ctx, `
 		WITH gift AS (
 			UPDATE gif_grants SET remaining=remaining-1
 			WHERE $3 AND account_id=$1 AND expires_at>now() AND remaining>0 RETURNING account_id
 		)
-		INSERT INTO gif_jobs(account_id,prompt,sponsored)
-		SELECT $1,$2,$3 WHERE ($3 AND EXISTS(SELECT 1 FROM gift))
+		INSERT INTO gif_jobs(account_id,prompt,sponsored,request_key)
+		SELECT $1,$2,$3,NULLIF($4,'') WHERE ($3 AND EXISTS(SELECT 1 FROM gift))
 			OR (NOT $3 AND EXISTS(SELECT 1 FROM gif_keys WHERE account_id=$1))
-		RETURNING id`, account.ID, prompt, input.Gift).Scan(&id)
+		RETURNING id`, account.ID, prompt, input.Gift, requestKey).Scan(&id)
 	var conflict *pgconn.PgError
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
@@ -196,6 +230,10 @@ func (q queue) gifSubmit(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		writeError(w, 503, "database_unavailable")
 	default:
+		if err := tx.Commit(ctx); err != nil {
+			writeError(w, 503, "database_unavailable")
+			return
+		}
 		writeJSON(w, 202, map[string]string{"id": id})
 	}
 }

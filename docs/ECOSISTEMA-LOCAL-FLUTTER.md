@@ -19,7 +19,7 @@ copiados para a demo; os indicadores locais vêm dos serviços existentes.
 | --- | --- | --- |
 | BIA SDR | `services/sdr` | Cliente React existente: WhatsApp, negócio, conversas, automações, execuções, CRM, agendas, dados, auditoria e álbuns |
 | CRM Arkom | `services/crm` + Clickmax DEV | Funis, contatos, oportunidades, cadastro e movimentação |
-| CLIPS | `services/core/pilots/clips` | Biblioteca e estúdio Flutter com upload, prévia, seleção de trecho, renderização, reprodução, download e exclusão |
+| CLIPS | `services/core/pilots/clips` | Biblioteca e estúdio Flutter para cortes verticais e geração de GIFs por descrição |
 | Genesis | `packages/deeph` + `services/sdr` | Estúdio existente, etapas, código, prévia e traces SSE |
 | FinanceAI e demais entradas | Backend ainda não integrado neste repositório | Bloqueadas; sem redirecionamento para uma aplicação externa |
 
@@ -68,8 +68,14 @@ O estúdio Flutter usa a marca oficial do CLIPS e leva a identidade dos Álbuns
 à biblioteca e ao editor. Os projetos novos e anteriores ficam no PostgreSQL
 local. O portal aceita MP4 e M4V de até 7 MiB e exporta trechos manuais de até
 30 segundos em 720 × 1280 com o worker Go e FFmpeg. Importação por link,
-transcrição, seleção por IA e geração de GIF ficam indisponíveis neste
-ambiente.
+transcrição e seleção de cortes por IA ficam indisponíveis neste ambiente.
+
+**Gerar GIFs** usa a fila Go do CLIPS e o mesmo banco local. A ponte deriva e
+assina uma identidade a partir da empresa e da conta autenticada. Cada conta
+tem histórico, chave cifrada, saldo e downloads próprios. A conta de teste
+Alfa recebe três créditos por 30 dias, provisionados uma vez, usando a chave
+OpenAI já configurada no launcher. As demais contas podem cadastrar a própria
+chave. Repetir a mesma solicitação preserva o pedido e o saldo já debitado.
 
 ## Executar
 

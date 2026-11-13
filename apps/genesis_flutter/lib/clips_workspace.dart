@@ -8,6 +8,8 @@ import 'clips_player.dart';
 import 'platform.dart' show PlatformCall;
 import 'transport.dart' as transport;
 
+part 'clips_gifs.dart';
+
 const _endpoint = '/v1/sdr/genesis-demo/ecosystem/clips/jobs';
 const _paper = Color(0xfff9f5ed);
 const _sheet = Color(0xfffffdf8);
@@ -42,6 +44,7 @@ class _ClipsWorkspaceState extends State<ClipsWorkspace> {
   List<Map<String, dynamic>> _projects = [];
   bool _editor = false, _loading = true, _reading = false, _busy = false;
   bool _refreshAgain = false;
+  bool _gifs = false;
   String _error = '',
       _listError = '',
       _notice = '',
@@ -263,7 +266,7 @@ class _ClipsWorkspaceState extends State<ClipsWorkspace> {
   }
 
   void _go(bool editor) {
-    if (_editor == editor) return;
+    if (!_gifs && _editor == editor) return;
     if (_source.isNotEmpty && !editor) {
       unawaited(
         _media('pause', {
@@ -274,7 +277,28 @@ class _ClipsWorkspaceState extends State<ClipsWorkspace> {
     _release(_preview);
     setState(() {
       _editor = editor;
+      _gifs = false;
       _selected = null;
+      _preview = '';
+      _error = '';
+      _notice = '';
+    });
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
+  void _openGIFs() {
+    if (_gifs) return;
+    _release(_preview);
+    if (_source.isNotEmpty) {
+      unawaited(
+        _media('pause', {
+          'url': _source,
+        }).catchError((Object _) => <String, dynamic>{}),
+      );
+    }
+    setState(() {
+      _gifs = true;
+      _editor = false;
       _preview = '';
       _error = '';
       _notice = '';
@@ -353,7 +377,7 @@ class _ClipsWorkspaceState extends State<ClipsWorkspace> {
       _navButton(
         'Meus vídeos',
         Icons.video_library_outlined,
-        !_editor,
+        !_editor && !_gifs,
         () => _go(false),
       ),
       _navButton(
@@ -362,11 +386,7 @@ class _ClipsWorkspaceState extends State<ClipsWorkspace> {
         _editor,
         _canEdit ? () => _go(true) : null,
       ),
-      TextButton.icon(
-        onPressed: null,
-        icon: const Icon(Icons.lock_outline, size: 15),
-        label: const Text('Gerar GIFs'),
-      ),
+      _navButton('Gerar GIFs', Icons.gif_box_outlined, _gifs, _openGIFs),
     ],
   );
 
@@ -456,16 +476,26 @@ class _ClipsWorkspaceState extends State<ClipsWorkspace> {
                     const Divider(color: _line, height: 28),
                     const SizedBox(height: 10),
                     _label(
-                      _editor ? 'ESTÚDIO DE CORTE' : 'BIBLIOTECA DE VÍDEOS',
+                      _gifs
+                          ? 'ESTÚDIO DE ANIMAÇÃO'
+                          : _editor
+                          ? 'ESTÚDIO DE CORTE'
+                          : 'BIBLIOTECA DE VÍDEOS',
                     ),
                     const SizedBox(height: 12),
                     _heading(
-                      _editor ? 'Escolha o seu trecho.' : 'Meus vídeos',
+                      _gifs
+                          ? 'Gerar GIFs'
+                          : _editor
+                          ? 'Escolha o seu trecho.'
+                          : 'Meus vídeos',
                       wide ? 49 : 34,
                     ),
                     const SizedBox(height: 12),
                     _copy(
-                      _editor
+                      _gifs
+                          ? 'Descreva a cena e o movimento. Acompanhe o pedido e baixe a animação quando estiver pronta.'
+                          : _editor
                           ? 'Envie um MP4 ou M4V de até 7 MB e escolha de 1 a 30 segundos para o corte vertical.'
                           : 'Crie cortes verticais e acompanhe seus projetos no espaço da sua empresa.',
                     ),
@@ -478,7 +508,19 @@ class _ClipsWorkspaceState extends State<ClipsWorkspace> {
                       _message(_notice),
                     ],
                     const SizedBox(height: 22),
-                    if (_editor) _buildEditor(wide) else _buildLibrary(wide),
+                    if (_gifs)
+                      _ClipsGIFs(
+                        api: widget.api,
+                        canEdit: _canEdit,
+                        wide: wide,
+                        panel: _panel,
+                        copy: _copy,
+                        heading: _heading,
+                      )
+                    else if (_editor)
+                      _buildEditor(wide)
+                    else
+                      _buildLibrary(wide),
                   ],
                 ),
               ),

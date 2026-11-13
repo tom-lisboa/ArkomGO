@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Loopback-only demo launcher. Private state stays in .local/runtime."""
-import os,secrets,shutil,signal,socket,subprocess,sys,time
+import base64,os,secrets,shutil,signal,socket,subprocess,sys,time
 from urllib.parse import urlparse
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
@@ -34,6 +34,11 @@ if clips:
  keyfile=secret_dir/'clips-bridge'
  if not keyfile.exists():keyfile.write_text(secrets.token_urlsafe(48));keyfile.chmod(0o600)
  env['SDR_CLIPS_BRIDGE_KEY']=keyfile.read_text().strip()
+ sealfile=secret_dir/'clips-gif-seal'
+ if not sealfile.exists():
+  with sealfile.open('x') as f:f.write(base64.b64encode(secrets.token_bytes(32)).decode('ascii'))
+  sealfile.chmod(0o600)
+ env['CLIPS_GIF_SEAL_FILE']=str(sealfile)
 ports=[3007,8080,8081,8099]+([8098] if crm else [])+([18082] if clips else [])
 for port in ports:
  with socket.socket() as check:
@@ -71,7 +76,11 @@ exit_code=0
 try:
  for name,args,cwd in commands:
   log=(run/(name+'.log')).open('a');logs.append(log)
-  processes.append((name,subprocess.Popen(args,cwd=cwd,env=env,stdout=log,stderr=log,start_new_session=True)))
+  child_env=env
+  if name=='clips':
+   child_env={**env,'CLIPS_LOCAL_GIF_PLATFORM_KEY':env['OPENAI_API_KEY']}
+   child_env.pop('OPENAI_API_KEY',None)
+  processes.append((name,subprocess.Popen(args,cwd=cwd,env=child_env,stdout=log,stderr=log,start_new_session=True)))
   time.sleep(.5)
  print('Demo: http://127.0.0.1:3007/demo',flush=True)
  print('CLIPS: '+('ativado localmente; preparando o serviço de vídeo' if clips else 'não configurado'),flush=True)

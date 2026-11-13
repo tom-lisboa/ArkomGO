@@ -146,6 +146,45 @@ func TestSolutionRatingPersistsAndScopesFeedback(t *testing.T) {
 	}
 }
 
+func TestGIFBridgeUsesOnlyAuthenticatedCompanyAndAccount(t *testing.T) {
+	a, creds, _ := genesisApp(t)
+	admin := login(t, a, creds, "alfa.admin")
+	operator := login(t, a, creds, "alfa.operator")
+	beta := login(t, a, creds, "beta.admin")
+	viewer := login(t, a, creds, "alfa.viewer")
+	t.Setenv("SDR_CLIPS_BRIDGE_KEY", strings.Repeat("g", 48))
+	path := "/v1/sdr/genesis-demo/ecosystem/clips/gifs"
+	prior := ecosystemClient
+	defer func() { ecosystemClient = prior }()
+	seen := map[string][]string{}
+	ecosystemClient = &http.Client{Transport: ecosystemTransport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Host != "127.0.0.1:18082" || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+			t.Fatal("unexpected upstream credential or host")
+		}
+		seen[r.Method+" "+r.URL.Path] = append(seen[r.Method+" "+r.URL.Path], r.Header.Get("X-Arkom-Clips-Subject"))
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{}`))}, nil
+	})}
+	for _, token := range []string{admin, operator, beta, admin} {
+		if code, _ := req(a, "GET", path, token, "", nil); code != 200 {
+			t.Fatal(code)
+		}
+	}
+	subjects := seen["GET /app/gifs"]
+	if len(subjects) != 4 || subjects[0] == subjects[1] || subjects[0] == subjects[2] || subjects[0] != subjects[3] {
+		t.Fatal("expected separate stable subjects per organization and person")
+	}
+	if code, _ := req(a, "POST", path+"/key", viewer, "", map[string]any{}); code != 403 {
+		t.Fatal("viewer key write", code)
+	}
+	if code, _ := req(a, "POST", path, admin, "", map[string]any{}); code != 400 {
+		t.Fatal("missing request key", code)
+	}
+	if code, _ := req(a, "POST", path+"/key/remove", admin, "", map[string]any{}); code != 200 ||
+		len(seen["DELETE /app/gifs/key"]) != 1 {
+		t.Fatal("key removal must use the CLIPS API", code)
+	}
+}
+
 func TestEcosystemSDRCapabilitiesFollowRuntimeAndOrganization(t *testing.T) {
 	a, creds, _ := genesisApp(t)
 	a.calendarEnabled = true

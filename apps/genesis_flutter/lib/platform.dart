@@ -36,6 +36,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
   bool connected = false;
   List<Map<String, dynamic>> solutions = [];
   int projectCount = 0, loadVersion = 0;
+  int sessionVersion = 0;
   String company = 'Alfa';
   String get section => view.startsWith('systems/') ? 'systems' : view;
   static const navigation = [
@@ -59,6 +60,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
         final e = jsonDecode(raw);
         if (e['type'] == 'session') {
           setState(() {
+            sessionVersion++;
             connected = true;
             role = e['identity']['role'];
             company = e['identity']['organization_id'] == 'org_demo_alfa'
@@ -399,6 +401,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
         return CRMWorkspace(api: api, role: role);
       case 'clips':
         return ClipsWorkspace(
+          key: ValueKey(sessionVersion),
           api: api,
           role: role,
           onBack: () => go('systems/clips'),

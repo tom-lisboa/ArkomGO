@@ -27,6 +27,7 @@ const runtimeState=state=>{runtimeStatus=state.status;emit('runtime',state);};
 const enqueueLifecycle=work=>{const result=lifecycle.then(work);lifecycle=result.catch(()=>{});return result;};
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const base='/api/demo/backend/v1/sdr/genesis-demo/construction';
+const clipsGIFBase='/api/demo/backend/v1/sdr/genesis-demo/ecosystem/clips/gifs';
 const emit=(type,data={})=>callback?.(JSON.stringify({type,...data}));
 const errors={revision_reuse_unavailable:'Esta revisão não pode reaproveitar as etapas com segurança. Selecione revisão completa.',invalid_revision_scope:'Escolha um escopo de revisão válido.',revision_parent_required:'Selecione a aplicação que deseja revisar.',frontend_compiler_unavailable:'O compilador Svelte precisa ser instalado pelo administrador. Execute scripts/build-demo.py e reinicie a demo.',frontend_compilation_failed:'A compilação Svelte falhou. Confira os traces e retome a etapa.',preview_records_limit:'A coleção atingiu o limite de 20 registros desta etapa.',preview_records_invalid:'O registro enviado pela aplicação é inválido ou ultrapassa o limite.',preview_data_unavailable:'Não foi possível salvar o dado. Reinicie a prévia e tente novamente.',preview_data_conflict:'O dado mudou durante a operação. Reinicie a prévia antes de tentar novamente.',preview_data_invalid:'O dado enviado pela aplicação é inválido ou ultrapassa o limite.',runtime_session_changed:'A prévia foi encerrada ou reiniciada. Tente novamente na sessão atual.',step_checkpoint_changed:'Esta etapa recebeu novos eventos. Atualize o projeto antes de continuar.',step_not_available:'Esta etapa não está disponível para iniciar.',construction_unavailable:'O serviço está encerrando. Tente novamente em instantes.',runtime_entrypoint_missing:'Continue o projeto para adaptar o backend ao contrato NewHandler.',runtime_contract_invalid:'Conclua a construção com um contrato válido antes de iniciar.',runtime_capabilities_unavailable:'Esta aplicação depende de integrações que ainda não estão disponíveis na prévia.',runtime_busy:'Já existe uma prévia em execução para esta empresa. Encerre-a antes de iniciar outra.',runtime_not_running:'Inicie o backend da prévia.',runtime_request_failed:'O backend não respondeu. Reinicie a prévia.',unauthorized:'Sua sessão terminou. Entre novamente.',construction_busy:'Outro projeto está em construção. Aguarde ou interrompa o projeto ativo.',construction_limit:'O limite de projetos deste laboratório foi atingido.',forbidden:'Seu perfil permite apenas acompanhar.',isolated_runner_unavailable:'O executor de testes precisa estar disponível para construir.',invalid_goal:'Descreva sua ideia com pelo menos 15 caracteres.'};
 async function request(url,body,signal,key){if(!session)throw Error('Aguardando sua sessão Arkom.');const r=await fetch(url,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+session.access_token,...(key?{'Idempotency-Key':key}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),credentials:'omit',redirect:'error',cache:'no-store',signal:signal||AbortSignal.timeout(20000)});if(!r.ok){const data=await r.json().catch(()=>({}));const error=Error(errors[data.error]||'Não foi possível concluir a operação ('+r.status+').');error.status=r.status;error.code=data.error;throw error;}return r;}
@@ -115,7 +116,11 @@ global.genesisBridge={
  async invoke(action,payload){const data=JSON.parse(payload||'{}');
  if(action==='platform'){
   if(typeof data.path!=='string'||!['/v1/sdr/','/v1/core/','/v1/platform/','/__test/ui/'].some(prefix=>data.path.startsWith(prefix))||data.path.includes('..')||data.path.includes('://'))throw Error('Rota não permitida.');
-  const identity=session;const result=await(await request('/api/demo/backend'+data.path,data.body,undefined,data.body===undefined?undefined:crypto.randomUUID())).json();if(identity!==session||disposed)throw Error('Sua sessão mudou. Atualize a tela.');return JSON.stringify(result);
+  const identity=session;
+  const response=await request('/api/demo/backend'+data.path,data.body,undefined,data.body===undefined?undefined:crypto.randomUUID());
+  const result=response.status===204?{}:await response.json();
+  if(identity!==session||disposed)throw Error('Sua sessão mudou. Atualize a tela.');
+  return JSON.stringify(result);
  }
  if(action==='navigate'){if(!['home','map','systems','sdr','crm','clips','genesis','business'].includes(data.view)&&!/^systems\/[a-z][a-z0-9_]{0,40}$/.test(data.view))throw Error('Destino indisponível.');global.parent.postMessage({type:'arkom.platform.navigate',view:data.view},global.location.origin);return '{}';}
  if(action==='clips_pick'){
@@ -142,6 +147,31 @@ global.genesisBridge={
  }
  if(action==='clips_pause'){pauseClipsMedia(data.url);return '{}';}
  if(action==='clips_release'){releaseClipsMedia(data.url);return '{}';}
+ if(action==='clips_gif_submit'||action==='clips_gif_media'){
+  const identity=session;
+  if(action==='clips_gif_submit'){
+   try{
+    const result=await(await request(clipsGIFBase,{prompt:data.prompt,gift:data.gift},undefined,data.key)).json();
+    if(identity!==session||disposed)throw Error('Sua sessão mudou.');
+    return JSON.stringify(result);
+   }catch(error){
+    if(identity!==session||disposed)throw Error('Sua sessão mudou.');
+    return JSON.stringify({uncertain:!error.status||error.status>=500,code:error.code||''});
+   }
+  }
+  if(typeof data.id!=='string'||!/^[a-f0-9-]{36}$/.test(data.id))throw Error('GIF inválido.');
+  const response=await request(clipsGIFBase+'/'+data.id+'/image');
+  const blob=await response.blob();
+  if(identity!==session||disposed)throw Error('Sua sessão mudou.');
+  if(blob.type!=='image/gif')throw Error('O arquivo ainda não está disponível.');
+  const url=URL.createObjectURL(blob);
+  clipsMedia.add(url);
+  if(!data.download)return JSON.stringify({url});
+  const link=document.createElement('a');
+  link.href=url;link.download='arkom-'+data.id.slice(0,8)+'.gif';link.click();
+  setTimeout(()=>releaseClipsMedia(url),5000);
+  return '{}';
+ }
  if(action==='clips_upload'){
   if(!session||!platformFile)throw Error('Selecione um vídeo primeiro.');
   const identity=session,file=platformFile;

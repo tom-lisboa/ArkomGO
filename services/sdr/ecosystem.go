@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"encoding/base32"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -127,6 +128,8 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 		return true
 	}
 	const prefix = base + "/clips/jobs"
+	const gifPrefix = base + "/clips/gifs"
+	isGIF := r.URL.Path == gifPrefix || strings.HasPrefix(r.URL.Path, gifPrefix+"/")
 	suffix := strings.TrimPrefix(r.URL.Path, prefix)
 	parts := strings.Split(strings.TrimPrefix(suffix, "/"), "/")
 	valid := r.URL.Path == prefix && (r.Method == "GET" || r.Method == "POST")
@@ -135,6 +138,13 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 			(len(parts) == 2 && (parts[1] == "video" && r.Method == "GET" ||
 				parts[1] == "delete" && r.Method == "POST"))
 	}
+	if isGIF {
+		path := strings.TrimPrefix(r.URL.Path, gifPrefix)
+		gifParts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+		valid = (path == "" && (r.Method == "GET" || r.Method == "POST")) ||
+			((path == "/key" || path == "/key/remove") && r.Method == "POST") ||
+			(len(gifParts) == 2 && clipsJobID.MatchString(gifParts[0]) && gifParts[1] == "image" && r.Method == "GET")
+	}
 	if !valid {
 		fail(w, 404, "not_found")
 		return true
@@ -142,6 +152,18 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 	if r.Method == "POST" && u.Role == "viewer" {
 		fail(w, 403, "forbidden")
 		return true
+	}
+	if isGIF {
+		var err error
+		u, err = a.directoryUser(r.Context(), u)
+		if err != nil {
+			directoryFailure(w, err)
+			return true
+		}
+		if r.Method == "POST" && u.Role == "viewer" {
+			fail(w, 403, "forbidden")
+			return true
+		}
 	}
 	secret := os.Getenv("SDR_CLIPS_BRIDGE_KEY")
 	if len(secret) < 32 {
@@ -152,14 +174,52 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 	digest.Write([]byte(u.Org))
 	owner := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(digest.Sum(nil))[:26]
 	target := "http://127.0.0.1:18082/studio/jobs" + suffix
-	upstream, err := http.NewRequestWithContext(r.Context(), r.Method, target, http.MaxBytesReader(w, r.Body, 8<<20))
+	method := r.Method
+	limit := int64(8 << 20)
+	var gifPath string
+	if isGIF {
+		gifPath = "/app/gifs" + strings.TrimPrefix(r.URL.Path, gifPrefix)
+		switch gifPath {
+		case "/app/gifs/key":
+			method = http.MethodPut
+		case "/app/gifs/key/remove":
+			method, gifPath = http.MethodDelete, "/app/gifs/key"
+		case "/app/gifs":
+			if method == http.MethodPost && !clipsJobID.MatchString(r.Header.Get("Idempotency-Key")) {
+				fail(w, 400, "invalid_idempotency_key")
+				return true
+			}
+		}
+		limit = 8192
+		target = "http://127.0.0.1:18082" + gifPath
+	}
+	upstream, err := http.NewRequestWithContext(r.Context(), method, target, http.MaxBytesReader(w, r.Body, limit))
 	if err != nil {
 		fail(w, 400, "invalid_request")
 		return true
 	}
 	upstream.Header.Set("Content-Type", r.Header.Get("Content-Type"))
 	upstream.Header.Set("Idempotency-Key", r.Header.Get("Idempotency-Key"))
-	upstream.AddCookie(&http.Cookie{Name: "clips_go", Value: owner})
+	if isGIF {
+		mac := hmac.New(sha256.New, []byte(secret))
+		subjectInput, _ := json.Marshal([]string{"clips-gif-subject/v1", u.Org, u.ID})
+		mac.Write(subjectInput)
+		raw := hex.EncodeToString(mac.Sum(nil)[:16])
+		subject := raw[:8] + "-" + raw[8:12] + "-" + raw[12:16] + "-" + raw[16:20] + "-" + raw[20:]
+		scope := "write"
+		if u.Role == "viewer" {
+			scope = "read"
+		} else if u.Role == "admin" && u.Environment == "isolated-test" && u.Org == "org_demo_alfa" && u.ID == "user_alfa_admin" {
+			scope = "demo"
+		}
+		mac.Reset()
+		mac.Write([]byte("clips-gif/v1\x00" + subject + "\x00" + scope + "\x00" + method + "\x00" + gifPath))
+		upstream.Header.Set("X-Arkom-Clips-Subject", subject)
+		upstream.Header.Set("X-Arkom-Clips-Scope", scope)
+		upstream.Header.Set("X-Arkom-Clips-Signature", hex.EncodeToString(mac.Sum(nil)))
+	} else {
+		upstream.AddCookie(&http.Cookie{Name: "clips_go", Value: owner})
+	}
 	response, err := ecosystemClient.Do(upstream)
 	if err != nil {
 		fail(w, 503, "clips_unavailable")
@@ -168,7 +228,7 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 	defer response.Body.Close()
 	w.Header().Set("Content-Type", response.Header.Get("Content-Type"))
 	w.Header().Set("Cache-Control", "no-store")
-	if len(parts) == 2 && parts[1] == "video" {
+	if !isGIF && len(parts) == 2 && parts[1] == "video" {
 		w.Header().Set("Content-Disposition", `attachment; filename="arkom-clips.mp4"`)
 	}
 	// Cookie/owner and worker credentials are deliberately never forwarded.
