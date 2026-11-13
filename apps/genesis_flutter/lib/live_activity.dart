@@ -263,6 +263,8 @@ class _WorkingGopherState extends State<WorkingGopher>
                   Icons.terminal,
                   Icons.brush_outlined,
                   Icons.task_alt,
+                  Icons.route_outlined,
+                  Icons.palette_outlined,
                 ][widget.index],
                 size: 12,
                 color: agentColors[widget.index],

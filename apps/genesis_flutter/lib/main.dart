@@ -1276,23 +1276,35 @@ class _StudioState extends State<Studio> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              4,
-              (i) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: Gopher(index: i, size: 47),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width < 760 ? 190 : 360,
+            ),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              runSpacing: 8,
+              children: List.generate(
+                agentIds.length,
+                (i) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: Gopher(index: i, size: 47),
+                ),
               ),
             ),
           ),
           const SizedBox(height: 26),
-          label(
+          Text(
             model.running && !newIdea
                 ? 'Sua ideia está ganhando forma.'
+                : !newIdea && model.id.isNotEmpty
+                ? 'Sua interface ainda está em construção.'
                 : 'Um espaço para a sua próxima ideia.',
-            size: 22,
-            weight: FontWeight.w300,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w300,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 12),
           ConstrainedBox(
@@ -1300,6 +1312,8 @@ class _StudioState extends State<Studio> {
             child: Text(
               model.running && !newIdea
                   ? 'A interface aparece aqui assim que o time criar os primeiros arquivos.'
+                  : !newIdea && model.id.isNotEmpty
+                  ? 'Seu projeto está salvo. Confira a etapa atual na conversa para continuar a construção.'
                   : 'Comece com uma conversa. Acompanhe o time construir e experimente tudo por aqui.',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 12, height: 1.7, color: muted),
