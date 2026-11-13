@@ -9,32 +9,38 @@
       "id": "sdr",
       "name": "BIA SDR",
       "area": "Vendas",
-      "description": "Conversas, qualificação e atendimento com IA.",
+      "description": "WhatsApp, conhecimento do negócio, automações e relacionamento com seus clientes.",
       "service": "services/sdr",
       "kind": "Agentes",
       "guide": [
         {
-          "title": "Abra uma conversa",
-          "description": "Escolha um contato no painel de conversas. As conversas fictícias são identificadas como testes."
+          "title": "Ensine sobre sua empresa",
+          "description": "Em Conhecimento do negócio, revise as informações, ofertas e regras. Teste o rascunho antes de publicar."
         },
         {
-          "title": "Teste o atendimento",
-          "description": "Envie uma mensagem como interessado para acompanhar a resposta da Bia com o contexto da empresa."
+          "title": "Prepare o WhatsApp",
+          "description": "Na aba WhatsApp, confira a disponibilidade da conexão. Quando habilitado, pareie o número e autorize os contatos do teste."
         },
         {
-          "title": "Assuma quando precisar",
-          "description": "Use o menu da conversa para assumir, pausar ou retomar o atendimento."
+          "title": "Acompanhe as conversas",
+          "description": "Abra Conversas para consultar o histórico, assumir, pausar ou retomar o atendimento. Mensagens fictícias continuam identificadas como testes."
         },
         {
-          "title": "Acompanhe o histórico",
-          "description": "As mensagens e o controle do atendimento ficam registrados no espaço da sua empresa."
+          "title": "Use suas automações",
+          "description": "Configure fluxos em Automações e acompanhe os pedidos, aprovações e resultados em Execuções."
+        },
+        {
+          "title": "Explore Skills e Profissões",
+          "description": "Abra Álbuns para conhecer exemplos e encontrar pedidos de personalização para o seu projeto no Lovable. Consultar uma ficha não ativa a função."
         }
       ],
       "features": [
-        "Conversas e histórico",
-        "Memória do atendimento",
-        "Controle pela equipe",
-        "Contexto da empresa"
+        "Conexão e controle do WhatsApp",
+        "Conhecimento do negócio",
+        "Automações e execuções",
+        "Conversas e atendimento humano",
+        "CRM e agendas",
+        "Álbuns de Skills e Profissões"
       ],
       "tutorial_video_url": null,
       "remix_available": false,
@@ -51,7 +57,13 @@
           "name": "WhatsApp da empresa",
           "status": "Opcional"
         }
-      ]
+      ],
+      "interface": {
+        "source": "services/sdr/delivery/lovable-template",
+        "route": "/demo/sdr",
+        "framework": "React",
+        "flutter_migration": "pending_feature_parity"
+      }
     },
     {
       "id": "crm",

@@ -7,6 +7,7 @@ Este repositório reúne o **estado de desenvolvimento de 11/11/2026** do portal
 ## Comece por aqui
 
 - [Genesis Flutter e eventos em tempo real](apps/genesis_flutter/README.md)
+- [SDR Arkom existente e interface para o Lovable](docs/SDR-PRODUTO-E-LOVABLE.md)
 - [Backend isolado da prévia Genesis](docs/GENESIS-RUNTIME-PREVIA.md)
 - [Construção por etapas e traces](docs/GENESIS-PASSO-A-PASSO.md)
 - [Persistência mínima de dados da aplicação](docs/GENESIS-DADOS-APLICACAO.md)
@@ -55,4 +56,4 @@ A integração original foi verificada por TypeScript, testes Go e consultas rea
 
 Consulte [EXECUTAR](docs/EXECUTAR.md) para requisitos, configuração e comandos. Credenciais, bancos, conversas, logs e arquivos de execução não fazem parte desta publicação. O modo simplificado da demo é exclusivo do ambiente local.
 
-A [plataforma local em Flutter](docs/ECOSISTEMA-LOCAL-FLUTTER.md) reúne BIA SDR, CRM, CLIPS e Genesis. Soluções ainda sem backend nesta estrutura ficam bloqueadas no catálogo.
+A [plataforma local](docs/ECOSISTEMA-LOCAL-FLUTTER.md) usa Flutter no catálogo, detalhes, CRM, CLIPS e Genesis. O SDR abre seu cliente completo existente, preparado para o Lovable, em React; a migração dele precisa preservar suas funções. Soluções ainda sem backend nesta estrutura ficam bloqueadas no catálogo.

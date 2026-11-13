@@ -139,3 +139,34 @@ func TestSolutionRatingPersistsAndScopesFeedback(t *testing.T) {
 		}
 	}
 }
+
+func TestEcosystemSDRCapabilitiesFollowRuntimeAndOrganization(t *testing.T) {
+	a, creds, _ := genesisApp(t)
+	a.calendarEnabled = true
+	a.crmRoutes = map[string]crmRoute{"org_demo_alfa": {Origin: "http://127.0.0.1:8098", Token: "server-only-test-token"}}
+	for _, company := range []string{"alfa", "beta"} {
+		token := login(t, a, creds, company+".admin")
+		code, out := req(a, "GET", "/v1/sdr/genesis-demo/ecosystem", token, "", nil)
+		if code != 200 {
+			t.Fatal(code, out)
+		}
+		found := false
+		for _, raw := range out["solutions"].([]any) {
+			s := raw.(map[string]any)
+			if s["id"] != "sdr" {
+				continue
+			}
+			found = true
+			caps := s["product_capabilities"].(map[string]any)
+			if caps["calendar"] != true || caps["customer_data"] != false || caps["crm"] != (company == "alfa") {
+				t.Fatal("incorrect product availability", company, caps)
+			}
+			if len(caps) != 3 || s["interface"].(map[string]any)["route"] != "/demo/sdr" {
+				t.Fatal("unexpected client contract", s)
+			}
+		}
+		if !found {
+			t.Fatal("SDR not in catalog")
+		}
+	}
+}

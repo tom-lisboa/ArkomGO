@@ -144,7 +144,7 @@ function ShellChrome({ children, demo }: { children: React.ReactNode; demo: bool
         {/* Logo */}
         <div className="mb-6 flex items-center justify-between">
           <Link
-            href="/map"
+            href={demo ? "/demo" : "/map"}
             onClick={close}
             className="flex items-center gap-[9px] text-st-ivory"
           >

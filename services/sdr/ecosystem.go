@@ -102,6 +102,9 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 			switch id {
 			case "sdr":
 				configured = true
+				item["product_capabilities"] = map[string]bool{
+					"crm": crm, "calendar": a.calendarEnabled, "customer_data": a.customerEnabled,
+				}
 			case "genesis":
 				configured = os.Getenv("OPENAI_API_KEY") != ""
 			case "crm":

@@ -1,6 +1,8 @@
 flowchart LR
   P[Portal local] -->|Sessão em memória| F[Interface Flutter]
   F -->|Mesmo domínio e Bearer| N[Proxy Next]
+  P --> L[Cliente SDR existente para Lovable em React]
+  L -->|Mesma sessão e domínio| N
   N --> A[API Go autenticada]
   A --> S[SDR e contexto por empresa]
   A --> C[CRMGO]

@@ -1,7 +1,8 @@
 # Arkom local em Flutter
 
-A demo em `/demo` agora usa Flutter para início, mapa, sistemas, BIA SDR, CRM,
-CLIPS, contexto da empresa e Genesis. O Next serve os arquivos compilados,
+A demo em `/demo` usa Flutter para início, mapa, sistemas, CRM, CLIPS, contexto
+da empresa e Genesis. O SDR abre o cliente completo já preparado para o Lovable,
+em React, até que a migração Flutter preserve suas funções. O Next serve os arquivos compilados,
 obtém a sessão local e encaminha pedidos para Go. As demais rotas educacionais e
 administrativas do portal original continuam na aplicação Next existente.
 
@@ -14,9 +15,9 @@ copiados para a demo; os indicadores locais vêm dos serviços existentes.
 
 ## Disponibilidade
 
-| Solução | Serviço | Experiência Flutter desta entrega |
+| Solução | Serviço | Experiência desta entrega |
 | --- | --- | --- |
-| BIA SDR | `services/sdr` | Conversas e mensagens, entrada de teste, assumir, pausar e retomar |
+| BIA SDR | `services/sdr` | Cliente React existente: WhatsApp, negócio, conversas, automações, execuções, CRM, agendas, dados, auditoria e álbuns |
 | CRM Arkom | `services/crm` + Clickmax DEV | Funis, contatos, oportunidades, cadastro e movimentação |
 | CLIPS | `services/core/pilots/clips` | Upload local, corte vertical, estado e download MP4 |
 | Genesis | `packages/deeph` + `services/sdr` | Estúdio existente, etapas, código, prévia e traces SSE |
@@ -28,11 +29,15 @@ não comprova saúde de um serviço: a tela de cada módulo também trata falhas
 As rotas de aplicações não implementadas não estão expostas no portal local.
 O contexto compartilhado tem visualização em Flutter; a edição completa e as
 configurações avançadas dos produtos continuam exigindo migrações específicas.
+O SDR preserva essas telas no cliente existente, com as capacidades efetivamente
+habilitadas no backend. Consulte [SDR e Lovable](SDR-PRODUTO-E-LOVABLE.md).
 
 ```mermaid
 flowchart LR
   P[Portal local] -->|Sessão em memória| F[Interface Flutter]
   F -->|Mesmo domínio e Bearer| N[Proxy Next]
+  P --> L[Cliente SDR existente para Lovable em React]
+  L -->|Mesma sessão e domínio| N
   N --> A[API Go autenticada]
   A --> S[SDR e contexto por empresa]
   A --> C[CRMGO]
@@ -91,7 +96,7 @@ copia nem provisiona o banco da operação.
 - Integração local: CRM DEV consultado, vídeo sintético enviado pelo portal,
   MP4 realmente gerado e download recusado para outra empresa.
 - Jornada no Chromium: catálogo → detalhes → guia → acesso ao SDR, sem iniciar
-  conversas antes do acesso e sem erros JavaScript; identificador inválido recusado.
+  o produto antes do acesso e sem erros JavaScript; identificador inválido recusado.
 - Avaliações: alteração da própria nota, média, persistência após reabrir o banco,
   isolamento por empresa e recusa de escrita para consulta, anônimos e bloqueados.
 

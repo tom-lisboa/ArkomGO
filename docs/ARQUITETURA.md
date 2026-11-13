@@ -8,7 +8,7 @@ Os nomes Git, banco de dados, SDK e workspace não precisam fazer parte da jorna
 
 ## Camadas implementadas
 
-**Portal.** `apps/portal` vem do arkom-dash, preservando Shell, logo, fontes e tokens visuais. As rotas `/demo/*` integram o frontend SDR através de `src/components/demo-runtime`. Essa cópia é dívida temporária: a evolução prevista é um pacote compartilhado de componentes. O proxy `/api/demo/backend/*` encaminha chamadas para a API local e não entrega chaves de provedores ao navegador.
+**Portal.** `apps/portal` vem do arkom-dash, preservando Shell, logo, fontes e tokens visuais. Catálogo, detalhes e parte dos módulos usam Flutter. A rota `/demo/sdr` preserva o cliente completo do SDR destinado ao Lovable através de `src/components/demo-runtime`, com entrada em WhatsApp e álbuns. Essa cópia é dívida temporária: sua migração precisa preservar as jornadas do produto. O proxy `/api/demo/backend/*` encaminha chamadas para a API local e não entrega chaves de provedores ao navegador. Veja [SDR e Lovable](SDR-PRODUTO-E-LOVABLE.md).
 
 **SDR e workers.** `services/sdr` autentica sessões, mantém o contexto publicado, histórico e estado do piloto em SQLite. Os workers de contexto e execução usam os contratos de `pkg/sdrsdk`, com credenciais próprias e listener separado. Fluxos de negócio e controles de aprovação já existem no motor de plataforma. Sua existência não significa que o plano Genesis já seja executável.
 
