@@ -59,6 +59,11 @@ func TestDesignAgentsWriteOnlyTheirArtifactsAndRequireEvidence(t *testing.T) {
 				if !strings.Contains(r.Instruction, DesignReference) {
 					t.Error("missing design handoff")
 				}
+				for _, path := range []string{"reference/catalog.json", "reference/platform-contracts.go"} {
+					if !strings.Contains(strings.Split(r.Instruction, "SUA ETAPA: ")[1], path) {
+						t.Errorf("design stage omits required read: %s", path)
+					}
+				}
 				if rounds == 1 {
 					return Turn{Actions: []Action{{Tool: "read", Path: "reference/catalog.json"}, {Tool: "read", Path: "reference/platform-contracts.go"}}, Verdict: "continue"}
 				}
