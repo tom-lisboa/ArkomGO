@@ -26,7 +26,13 @@ func (b *frontendBuffer) Write(p []byte) (int, error) {
 	return b.Buffer.Write(p)
 }
 
-func (Sandbox) CompileFrontend(ctx context.Context, files map[string]string) (FrontendResult, error) {
+func (s Sandbox) CompileFrontend(ctx context.Context, files map[string]string) (FrontendResult, error) {
+	return s.compileFrontend(ctx, files, false)
+}
+func (s Sandbox) CompileFrontendPreview(ctx context.Context, files map[string]string) (FrontendResult, error) {
+	return s.compileFrontend(ctx, files, true)
+}
+func (Sandbox) compileFrontend(ctx context.Context, files map[string]string, preview bool) (FrontendResult, error) {
 	var result FrontendResult
 	toolchain, err := filepath.EvalSymlinks(os.Getenv("ARKOM_FRONTEND_TOOLCHAIN"))
 	if err != nil || !filepath.IsAbs(toolchain) {
@@ -55,7 +61,11 @@ func (Sandbox) CompileFrontend(ctx context.Context, files map[string]string) (Fr
 	if value, ok := files[NavigationPath]; ok {
 		sources[NavigationPath] = value
 	}
-	input, _ := json.Marshal(sources)
+	var payload any = sources
+	if preview {
+		payload = map[string]any{"files": sources, "preview": true}
+	}
+	input, _ := json.Marshal(payload)
 	dir, err := os.MkdirTemp("", "arkom-frontend-")
 	if err != nil {
 		return result, err

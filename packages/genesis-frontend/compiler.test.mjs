@@ -103,3 +103,30 @@ test('runs a compiled Svelte form through the existing preview API bridge', asyn
     assert.deepEqual(errors,[]);
   } finally { dom.window.close(); }
 });
+
+
+test('visual source positions preserve dynamic Svelte and escape literal edits',async()=>{
+ const {materialize}=await import('../../apps/genesis_flutter/web/frontend-editor.js').then(()=>({materialize:globalThis.genesisFrontendEditor.materialize}));
+ const source='<script>let n=$state(0);</script><h1 style="color:red">Olá &amp; você</h1><button onclick={()=>n++}>Total: {n}</button>';
+ const files={'frontend/src/App.svelte':source};const built=await compileFrontend(files);
+ const title=built.elements.find(e=>e.tag==='h1'),button=built.elements.find(e=>e.tag==='button');
+ assert.equal(title.text.value,'Olá & você');assert.equal(button.text,null);
+ const changed=materialize(files,built.elements,{[title.id]:{text:'Meu <site> {livre}',style:'color: blue; padding: 12px;'}});
+ assert.match(changed[title.path],/onclick=\{\(\)=>n\+\+\}/);
+ const final=await compileFrontend({...files,...changed});
+ const dom=new JSDOM('<div id="app"></div>',{runScripts:'outside-only',pretendToBeVisual:true});dom.window.eval(final.javascript);
+ assert.equal(dom.window.document.querySelector('h1').textContent,'Meu <site> {livre}');
+ assert.equal(dom.window.document.querySelector('h1').style.padding,'12px');
+ dom.window.document.querySelector('button').click();await new Promise(r=>setImmediate(r));
+ assert.equal(dom.window.document.querySelector('button').textContent,'Total: 1');dom.window.close();
+});
+
+test('publishes a real first section before planned routes exist, while final compilation remains strict',async()=>{
+ const files={'frontend/src/App.svelte':'<main><h1>Primeira seção real</h1><p>Já aparece enquanto o restante é criado.</p></main>',
+  'design/navigation.json':JSON.stringify({schema:'arkom.navigation.v1',home:'/',routes:[{path:'/',title:'Início',component:'frontend/src/pages/Home.svelte',menu:true},{path:'/processo',title:'Processo',component:'frontend/src/pages/Process.svelte',menu:true}]})};
+ const original=JSON.stringify(files);
+ const preview=await compileFrontend(files,{preview:true});
+ const dom=new JSDOM('<div id="app"></div>',{runScripts:'outside-only',pretendToBeVisual:true});dom.window.eval(preview.javascript);assert.equal(dom.window.document.querySelector('h1').textContent,'Primeira seção real');dom.window.close();assert.equal(preview.navigation,null);
+ await assert.rejects(()=>compileFrontend(files),/Implemente a tela declarada/);
+ assert.equal(JSON.stringify(files),original);
+});

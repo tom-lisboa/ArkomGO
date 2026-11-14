@@ -1,0 +1,19 @@
+# Criação de frontend no Genesis
+
+O caminho principal é uma conversa: o cliente descreve a página, acompanha a prévia e pede mudanças em linguagem comum. O chat envia `mode: frontend`. O host executa automaticamente intenção, UX, design, implementação e revisão, sem aprovação técnica entre fases. Cada nova mensagem pode reconsiderar composição, identidade e navegação. Não existe catálogo obrigatório de templates. Todos os arquivos backend e application.json permanecem imutáveis no motor deepH integrado em `packages/deeph`.
+
+O motor recebe ações estruturadas por streaming, aplica cada arquivo completo e já compila uma prévia parcial em isolamento, sem esperar o fim da resposta. Em páginas novas, a primeira região real pode aparecer ainda no planejamento. Arquivos incompletos nunca substituem fontes salvas. A prévia parcial não exige que todas as rotas já existam e recebe recibo preview_only; apenas a compilação completa permite concluir a entrega. Uma fonte que ainda não compila mantém a última prévia funcional. As setas coloridas permanecem ativas durante a execução real do agente e usam eventos de geração, leitura/escrita e os vínculos dos elementos com as fontes Svelte. Escritas revelam os elementos correspondentes; leituras apenas os destacam. A animação respeita a preferência de movimento reduzido e não representa inspeção visual automatizada. O progresso à direita deriva dos checkpoints persistidos. Cancelar interrompe a passagem ao próximo agente. Um pedido posterior pode continuar uma criação interrompida.
+
+Código e edição direta são opções secundárias. **Editar diretamente** seleciona elementos; textos literais permitem clique duplo ou propriedades. Cores, larguras, tipografia e espaçamentos são pré-visualizados no rascunho. O editor de código aceita componentes, CSS e módulos. Criar página em branco fica no menu avançado.
+
+Salvar frontend compila as fontes no executor Svelte existente, sem chamar a IA nem executar o backend. Uma falha mantém a versão salva e o rascunho. O servidor grava fontes, bundle, recibo e histórico na mesma transação, com conferência da sequência. Uma alteração concorrente bloqueia a gravação e mantém o rascunho para copiar ou revisar antes de reabrir a versão salva.
+
+Os elementos são ligados a posições da AST Svelte. Textos dinâmicos e estilos com expressões continuam editáveis pelo código. Uma alteração visual em componente reutilizado afeta suas instâncias. A edição não importa HTML serializado nem sobrescreve scripts/eventos Svelte.
+
+A prévia permanece em origem opaca e só pode propor seleção/texto aos controles do host. A gravação exige a sessão do projeto e da empresa. Fontes de backend, manifestos e bundles não são aceitos pelo endpoint de edição. Projetos em geração não recebem gravações manuais. O runtime anterior é encerrado após uma edição salva; suas fontes Go permanecem iguais.
+
+O passo a passo fica à direita em telas amplas; em telas menores abre pelo botão de progresso. A edição manual é por rascunho e salvamento explícito. Não há colaboração simultânea sobre o mesmo elemento, edição de texto dinâmico pelo canvas ou reorganização livre por arraste nesta etapa.
+
+## Motor de criação
+
+A integração deepH usada pelo Genesis fica em `packages/deeph` nesta ArkomGO. O compilador passa a produzir os vínculos entre a AST Svelte e os elementos da prévia. As instruções de frontend orientam composição específica para o negócio, tokens CSS, componentes, responsividade, controles com comportamento e preservação de edições manuais. Essas instruções guiam a geração; não certificam qualidade visual automaticamente.

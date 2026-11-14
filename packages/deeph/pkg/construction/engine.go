@@ -96,7 +96,7 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 	}
 	// Resuming an older checkpoint must persist host contract upgrades too;
 	// tests and exported/sealed files must use the same platform sources.
-	if initial != nil {
+	if initial != nil && e.StepsVersion != 4 {
 		names := []string{}
 		for name := range Seed() {
 			names = append(names, name)
@@ -108,6 +108,13 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 				if err := emit(Event{Kind: "file.written", Agent: "system", Path: name, Before: initial[name], After: value, Summary: "Atualizou contrato controlado pela plataforma"}); err != nil {
 					return files, err
 				}
+			}
+		}
+	}
+	if e.StepsVersion == 4 {
+		for name, value := range initial {
+			if strings.HasPrefix(name, "backend/") {
+				files[name] = value
 			}
 		}
 	}
@@ -173,6 +180,12 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 					instruction = "Construa somente componentes Svelte e CSS/JS/TS em frontend/src/ para a entrega delimitada. Leia reference/frontend-svelte.md. Consulte os contratos do backend existente e as especificações design/*.json, trate estados de interface e execute test para compilar. As especificações são somente leitura nesta etapa: não tente reescrevê-las. Não escreva os artefatos gerados."
 				}
 			}
+			if e.StepsVersion == 4 {
+				rules = FrontendAgentRules + "\n" + FrontendReference + "\n" + DesignReference + "\n" + NavigationReference
+				if stage.ID == "interface" {
+					instruction = "Construa o frontend Svelte específico para o pedido, lendo o plano UX/UI e as fontes atuais. Em páginas novas, escreva PRIMEIRO um App.svelte pequeno e autossuficiente com o visual e a primeira seção real do pedido, incluindo CSS, antes de criar outros componentes. Essa prévia inicial pode ser monolítica e ainda não usar o Router; a validação parcial permite isso. Depois extraia/evolua componentes e conecte a navegação completa para a entrega final. Nunca importe um componente ainda não escrito. Use verdict continue enquanto faltar conteúdo do pedido. Evolua a página por lotes pequenos de componentes e seções completos: o host compila cada lote para o cliente acompanhar a construção. Não use um template fixo, não antecipe decisões do cliente com conteúdo inventado e não transforme uma página já criada em outra página sem solicitação. As ações completas são aplicadas enquanto sua resposta ainda está chegando. Escreva arquivos e seções pequenos, com dependências já disponíveis, para o compilador atualizar a página imediatamente após cada write. Não espere montar um lote grande para mostrar algo. Crie navegação e interações apropriadas ao pedido. Leia reference/frontend-svelte.md e reference/navigation.md. Os arquivos backend, application.json e design/*.json são somente leitura nesta etapa."
+				}
+			}
 			instruction += fmt.Sprintf("\nEtapa atual: %s. Rodada %d de %d. Conclua somente a responsabilidade desta etapa com verdict ready; pendências de outras etapas ficam para seus responsáveis. Se o código desta etapa já atende ao plano, valide-o sem reescrever. Na última rodada, retorne ready se sua parte está pronta, ou blocked com a lacuna concreta.", stage.ID, round+1, stage.rounds)
 			if stage.ID == "backend" {
 				instruction += "\nSe a revisão solicitada é apenas visual ou de frontend, preserve o backend existente, rode os testes Go e conclua sua parte com ready. A ferramenta test aqui executa somente os testes Go, nunca Svelte. Não tente corrigir arquivos frontend; isso pertence à próxima etapa."
@@ -186,12 +199,177 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 			requestFiles := clone(files)
 			if IsSvelte(files) {
 				for _, name := range frontendArtifacts {
-					if name != "frontend/build.json" {
-						delete(requestFiles, name)
-					}
+					delete(requestFiles, name)
 				}
 			}
-			turn, err := e.Provider.Next(ctx, Request{Agent: stage.ID, Goal: goal, Instruction: rules + "\n" + RuntimeReference + "\n" + application.Reference + "\nSUA ETAPA: " + instruction, Files: requestFiles, References: refs, Feedback: feedback})
+			rejected := false
+			applyActions := func(actions []Action) error {
+				for _, a := range actions {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
+					ev := Event{Agent: stage.ID, Path: a.Path}
+					switch a.Tool {
+					case "list":
+						names := []string{}
+						for p := range files {
+							names = append(names, p)
+						}
+						sort.Strings(names)
+						feedback = append(feedback, "Arquivos: "+strings.Join(names, ", "))
+						ev.Kind = "files.listed"
+						ev.Summary = "Consultou os arquivos"
+					case "read":
+						data, ok := files[a.Path]
+						if !ok {
+							data, ok = references[a.Path]
+						}
+						if !ok {
+							feedback = append(feedback, "Arquivo indisponível: "+a.Path)
+							ev.Kind = "tool.rejected"
+							ev.Summary = "Leitura fora dos arquivos disponíveis"
+						} else {
+							consulted[a.Path] = true
+							feedback = append(feedback, a.Path+":\n"+data)
+							ev.Kind = "file.read"
+							ev.Summary = "Leu contrato ou código"
+						}
+					case "write":
+						if !referencesSeen {
+							feedback = append(feedback, "Leia reference/catalog.json e reference/platform-contracts.go e aguarde os resultados antes de escrever.")
+							ev.Kind = "tool.rejected"
+							ev.Summary = "Consulte o ecossistema antes de construir"
+							break
+						}
+						if (e.StepsVersion == 4 && (strings.HasPrefix(a.Path, "backend/") || a.Path == application.ManifestPath)) || (e.RevisionScope == "interface" && !strings.HasPrefix(a.Path, "frontend/")) || !(allowed(stage.ID, a.Path) || (e.StepsVersion == 4 && stage.ID == "architect" && a.Path == "frontend/src/App.svelte")) || (IsSvelte(files) && strings.HasPrefix(a.Path, "frontend/") && !frontendSource(a.Path)) || len(a.Content) > 48000 {
+							feedback = append(feedback, "Escrita recusada: "+a.Path)
+							if stage.ID == "backend" && strings.HasPrefix(a.Path, "frontend/") {
+								feedback = append(feedback, "Você está na etapa backend. Este arquivo pertence à etapa interface, que ainda será executada. Não repita esta escrita. Valide somente o Go existente e conclua sua etapa com ready se ele está correto.")
+							}
+							ev.Kind = "tool.rejected"
+							ev.Summary = "Caminho ou tamanho não permitido"
+							if stage.ID == "interface" && strings.HasPrefix(a.Path, "design/") {
+								ev.Summary = "A interface apenas lê o plano de UX/design; implemente somente frontend/src/"
+								feedback = append(feedback, ev.Summary+". Preserve o plano existente e conclua somente sua implementação.")
+							}
+							break
+						}
+						size := len(a.Content)
+						for p, v := range files {
+							if p != a.Path && !(IsSvelte(files) && frontendArtifact(p)) {
+								size += len(v)
+							}
+						}
+						if size > 350000 || len(files) >= 48 && files[a.Path] == "" {
+							return errors.New("workspace_limit")
+						}
+						if IsSvelte(files) && (frontendSource(a.Path) || a.Path == "application.json" || a.Path == NavigationPath) && files[a.Path] != a.Content {
+							for _, name := range frontendArtifacts {
+								if files[name] == "" {
+									continue
+								}
+								if err := emit(Event{Kind: "file.written", Agent: "system", Path: name, Before: files[name], After: "", Summary: "Invalidou compilação após alteração das fontes"}); err != nil {
+									return err
+								}
+								files[name] = ""
+							}
+						}
+						ev.Kind = "file.written"
+						ev.Summary = "Escreveu código"
+						ev.Before = files[a.Path]
+						ev.After = a.Content
+						files[a.Path] = a.Content
+						feedback = append(feedback, "Arquivo salvo: "+a.Path)
+					case "test":
+						if PlanningStep(stage.ID) {
+							ev.Kind = "tool.rejected"
+							ev.Summary = "A etapa de planejamento não executa código"
+							feedback = append(feedback, ev.Summary)
+							break
+						}
+						if IsSvelte(files) && (stage.ID == "interface" || stage.ID == "reviewer") {
+							if err := e.compileFrontend(ctx, files, stage.ID, emit); err != nil {
+								if errors.Is(err, ErrFrontendRunner) {
+									return err
+								}
+								feedback = append(feedback, "Corrija o frontend: "+err.Error())
+								continue
+							}
+							feedback = append(feedback, "Frontend Svelte compilado; isto não é teste visual. Recibo e warnings: "+frontendReceiptSummary(files["frontend/build.json"]))
+							if stage.ID == "interface" || e.StepsVersion == 4 {
+								continue
+							}
+						}
+						if err := emit(Event{Kind: "test.started", Agent: stage.ID, Summary: "Executando testes Go em isolamento"}); err != nil {
+							return err
+						}
+						ev.Path = "backend"
+						output, err := e.Tester.Test(ctx, clone(files))
+						ev.Kind = "test.passed"
+						ev.Summary = "Testes Go passaram"
+						if err != nil {
+							ev.Kind = "test.failed"
+							ev.Summary = "Testes precisam de correção"
+							output += "\n" + err.Error()
+						}
+						ev.Output = output
+						feedback = append(feedback, "Testes:\n"+output)
+					default:
+						ev.Kind = "tool.rejected"
+						ev.Summary = "Ferramenta indisponível"
+						feedback = append(feedback, "Ferramenta não permitida: "+a.Tool)
+					}
+					if ev.Kind == "tool.rejected" {
+						rejected = true
+					}
+					if err := emit(ev); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
+
+			request := Request{Agent: stage.ID, Goal: goal, Instruction: constructionInstructions(rules, instruction, e.StepsVersion), Files: requestFiles, References: refs, Feedback: feedback}
+			var turn Turn
+			var err error
+			streamed := false
+			if provider, ok := e.Provider.(ProgressiveProvider); ok && e.StepsVersion == 4 && (stage.ID == "interface" || stage.ID == "architect") {
+				streamed = true
+				turn, err = provider.NextProgressive(ctx, request, func(p Progress) error {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
+					if p.Summary != "" {
+						if len(p.Summary) > 2000 {
+							return errors.New("invalid_agent_response")
+						}
+						if err := emit(Event{Kind: "agent.update", Agent: stage.ID, Summary: p.Summary}); err != nil {
+							return err
+						}
+					}
+					if p.Path != "" && frontendSource(p.Path) {
+						if err := emit(Event{Kind: "file.generating", Agent: stage.ID, Path: p.Path, Summary: "Criando a próxima parte da página"}); err != nil {
+							return err
+						}
+					}
+					if p.Action != nil {
+						if err := applyActions([]Action{*p.Action}); err != nil {
+							return err
+						}
+						if p.Action.Tool == "write" && frontendSource(p.Action.Path) && files["frontend/src/App.svelte"] != "" {
+							if err := e.compileFrontendPreview(ctx, files, stage.ID, emit); err != nil {
+								if errors.Is(err, ErrFrontendRunner) {
+									return err
+								}
+								feedback = append(feedback, "Este trecho ainda não compila: "+err.Error()+". A última prévia válida foi preservada.")
+							}
+						}
+					}
+					return nil
+				})
+			} else {
+				turn, err = e.Provider.Next(ctx, request)
+			}
 			if err != nil {
 				if errors.Is(err, ErrProviderUnavailable) && !retried && ctx.Err() == nil {
 					retried = true
@@ -208,127 +386,21 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 			if err := emit(Event{Kind: "agent.update", Agent: stage.ID, Summary: turn.Summary}); err != nil {
 				return files, err
 			}
-			rejected := false
-			for _, a := range turn.Actions {
-				if err := ctx.Err(); err != nil {
+			if !streamed {
+				if err := applyActions(turn.Actions); err != nil {
 					return files, err
 				}
-				ev := Event{Agent: stage.ID, Path: a.Path}
-				switch a.Tool {
-				case "list":
-					names := []string{}
-					for p := range files {
-						names = append(names, p)
-					}
-					sort.Strings(names)
-					feedback = append(feedback, "Arquivos: "+strings.Join(names, ", "))
-					ev.Kind = "files.listed"
-					ev.Summary = "Consultou os arquivos"
-				case "read":
-					data, ok := files[a.Path]
-					if !ok {
-						data, ok = references[a.Path]
-					}
-					if !ok {
-						feedback = append(feedback, "Arquivo indisponível: "+a.Path)
-						ev.Kind = "tool.rejected"
-						ev.Summary = "Leitura fora dos arquivos disponíveis"
-					} else {
-						consulted[a.Path] = true
-						feedback = append(feedback, a.Path+":\n"+data)
-						ev.Kind = "file.read"
-						ev.Summary = "Leu contrato ou código"
-					}
-				case "write":
-					if !referencesSeen {
-						feedback = append(feedback, "Leia reference/catalog.json e reference/platform-contracts.go e aguarde os resultados antes de escrever.")
-						ev.Kind = "tool.rejected"
-						ev.Summary = "Consulte o ecossistema antes de construir"
-						break
-					}
-					if (e.RevisionScope == "interface" && !strings.HasPrefix(a.Path, "frontend/")) || !allowed(stage.ID, a.Path) || (IsSvelte(files) && strings.HasPrefix(a.Path, "frontend/") && !frontendSource(a.Path)) || len(a.Content) > 48000 {
-						feedback = append(feedback, "Escrita recusada: "+a.Path)
-						if stage.ID == "backend" && strings.HasPrefix(a.Path, "frontend/") {
-							feedback = append(feedback, "Você está na etapa backend. Este arquivo pertence à etapa interface, que ainda será executada. Não repita esta escrita. Valide somente o Go existente e conclua sua etapa com ready se ele está correto.")
-						}
-						ev.Kind = "tool.rejected"
-						ev.Summary = "Caminho ou tamanho não permitido"
-						if stage.ID == "interface" && strings.HasPrefix(a.Path, "design/") {
-							ev.Summary = "A interface apenas lê o plano de UX/design; implemente somente frontend/src/"
-							feedback = append(feedback, ev.Summary+". Preserve o plano existente e conclua somente sua implementação.")
-						}
-						break
-					}
-					size := len(a.Content)
-					for p, v := range files {
-						if p != a.Path && !(IsSvelte(files) && frontendArtifact(p)) {
-							size += len(v)
-						}
-					}
-					if size > 350000 || len(files) >= 48 && files[a.Path] == "" {
-						return files, errors.New("workspace_limit")
-					}
-					if IsSvelte(files) && (frontendSource(a.Path) || a.Path == "application.json" || a.Path == NavigationPath) && files[a.Path] != a.Content {
-						for _, name := range frontendArtifacts {
-							if files[name] == "" {
-								continue
-							}
-							if err := emit(Event{Kind: "file.written", Agent: "system", Path: name, Before: files[name], After: "", Summary: "Invalidou compilação após alteração das fontes"}); err != nil {
-								return files, err
-							}
-							files[name] = ""
-						}
-					}
-					ev.Kind = "file.written"
-					ev.Summary = "Escreveu código"
-					ev.Before = files[a.Path]
-					ev.After = a.Content
-					files[a.Path] = a.Content
-					feedback = append(feedback, "Arquivo salvo: "+a.Path)
-				case "test":
-					if PlanningStep(stage.ID) {
-						ev.Kind = "tool.rejected"
-						ev.Summary = "A etapa de planejamento não executa código"
-						feedback = append(feedback, ev.Summary)
-						break
-					}
-					if IsSvelte(files) && (stage.ID == "interface" || stage.ID == "reviewer") {
-						if err := e.compileFrontend(ctx, files, stage.ID, emit); err != nil {
-							if errors.Is(err, ErrFrontendRunner) {
-								return files, err
-							}
-							feedback = append(feedback, "Corrija o frontend: "+err.Error())
-							continue
-						}
-						feedback = append(feedback, "Frontend Svelte compilado; isto não é teste visual. Recibo e warnings: "+files["frontend/build.json"])
-						if stage.ID == "interface" {
-							continue
-						}
-					}
-					if err := emit(Event{Kind: "test.started", Agent: stage.ID, Summary: "Executando testes Go em isolamento"}); err != nil {
+			}
+
+			// Publish a real runnable preview after each complete source batch.
+			if !streamed && e.StepsVersion == 4 && stage.ID == "interface" && turn.Verdict == "continue" && files["frontend/src/App.svelte"] != "" && !FrontendCurrent(files) {
+				if err := e.compileFrontendPreview(ctx, files, stage.ID, emit); err != nil {
+					if errors.Is(err, ErrFrontendRunner) {
 						return files, err
 					}
-					ev.Path = "backend"
-					output, err := e.Tester.Test(ctx, clone(files))
-					ev.Kind = "test.passed"
-					ev.Summary = "Testes Go passaram"
-					if err != nil {
-						ev.Kind = "test.failed"
-						ev.Summary = "Testes precisam de correção"
-						output += "\n" + err.Error()
-					}
-					ev.Output = output
-					feedback = append(feedback, "Testes:\n"+output)
-				default:
-					ev.Kind = "tool.rejected"
-					ev.Summary = "Ferramenta indisponível"
-					feedback = append(feedback, "Ferramenta não permitida: "+a.Tool)
-				}
-				if ev.Kind == "tool.rejected" {
-					rejected = true
-				}
-				if err := emit(ev); err != nil {
-					return files, err
+					feedback = append(feedback, "Complete/corrija o lote para a prévia: "+err.Error())
+				} else {
+					feedback = append(feedback, "O lote já está na prévia do cliente. Continue os itens do pedido que ainda faltam; preserve o que está pronto.")
 				}
 			}
 			if turn.Verdict == "ready" && rejected {
@@ -380,7 +452,7 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 					feedback = append(feedback, "Escreva frontend/index.html antes de concluir.")
 					continue
 				}
-				if IsSvelte(files) && (stage.ID == "interface" || stage.ID == "reviewer") {
+				if IsSvelte(files) && (stage.ID == "interface" || stage.ID == "reviewer") && (e.StepsVersion != 4 || !FrontendCurrent(files)) {
 					if err := e.compileFrontend(ctx, files, stage.ID, emit); err != nil {
 						if errors.Is(err, ErrFrontendRunner) {
 							return files, err
@@ -408,7 +480,7 @@ func (e *Engine) run(ctx context.Context, goal string, initial map[string]string
 						continue
 					}
 				}
-				if stage.ID == "backend" || stage.ID == "reviewer" {
+				if e.StepsVersion != 4 && (stage.ID == "backend" || stage.ID == "reviewer") {
 					if err := emit(Event{Kind: "test.started", Agent: stage.ID, Summary: "Validando o estado final da etapa"}); err != nil {
 						return files, err
 					}

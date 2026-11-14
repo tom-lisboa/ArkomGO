@@ -52,7 +52,7 @@ func (b *ConstructionBuild) steps() []constructionStepView {
 	}
 	for _, s := range construction.StepsForVersion(b.StepsVersion) {
 		v := constructionStepView{ID: s.ID, Title: s.Title, Acceptance: s.Acceptance, Status: "pending"}
-		if construction.IsSvelte(b.Files) {
+		if construction.IsSvelte(b.Files) && b.Mode != "frontend" {
 			if s.ID == "interface" {
 				v.Title = "Construir interface Svelte"
 				v.Acceptance = "Componentes Svelte compilados; revisão final pendente."
@@ -140,6 +140,7 @@ func (a *App) launchConstruction(b *ConstructionBuild, provider construction.Pro
 		engine := construction.Engine{RevisionScope: revisionScope, StepsVersion: version, Provider: provider, Tester: tester, References: refs, Emit: func(e construction.Event) error { return a.constructionRunTrace(id, executionID, e) }}
 		_, err := engine.RunStep(ctx, goal, files, stepID)
 		a.finishConstructionStep(id, executionID, stepID, err, ctx.Err())
+		a.continueFrontendConstruction(id, executionID, provider, tester)
 	}()
 }
 func (a *App) finishConstructionStep(id, executionID, stepID string, err, contextErr error) {
@@ -192,7 +193,16 @@ func (a *App) finishConstructionStep(id, executionID, stepID string, err, contex
 				summary = "Entrega validada: contrato, testes Go e compilação Svelte aprovados. Inspeção visual pendente."
 			}
 		}
+		if b.Mode == "frontend" && b.Status == "ready" {
+			summary = "Sua página está pronta para usar e ajustar. A interface foi compilada; revisão visual continua disponível."
+		}
 		b.appendStepEvent(kind, stepID, summary, string(evidence), a.now().UTC())
+		if b.Mode == "frontend" && err == nil && contextErr == nil && stepID != "reviewer" {
+			next := b.nextStepID()
+			b.ExecutionID = token()
+			b.Status = "running"
+			b.appendStepEvent("step.started", next, "O próximo agente assumiu a criação da página.", "", a.now().UTC())
+		}
 		a.record(AuditEntry{Org: b.Org, Actor: "deeph", Action: "construction." + kind, Operation: id})
 	}); saveErr != nil {
 		log.Print("construction step checkpoint could not be persisted")
@@ -246,4 +256,14 @@ func (a *App) advanceConstruction(w http.ResponseWriter, r *http.Request, u User
 	a.signalConstruction()
 	a.launchConstruction(b, provider, tester)
 	write(w, 202, b.summary())
+}
+
+func (a *App) continueFrontendConstruction(id, previous string, provider construction.Provider, tester construction.Tester) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	b := a.state.Platform.Constructions[id]
+	if a.constructionClosed || b == nil || b.Mode != "frontend" || b.Status != "running" || b.ExecutionID == previous || a.constructionRuns[id].id != previous {
+		return
+	}
+	a.launchConstruction(b, provider, tester)
 }

@@ -3,9 +3,20 @@
 'use strict';
 const policy="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' data:; style-src 'unsafe-inline' data:; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
 function previewClient(){
+ window.__arkomPreviewNavigate=path=>{
+  if(!/^\/(?!\/)[A-Za-z0-9_%/.-]*$/.test(path))throw Error('Rota local inválida.');
+  window.__arkomPreviewRoute=path;window.dispatchEvent(new Event('arkom.preview.navigate'));
+ };
  // Native form submission is disabled in the opaque preview. Deliver only the
  // application's submit event; data still goes through the authenticated bridge.
  document.addEventListener('click',event=>{
+  const link=event.target.closest?.('a[href]'),href=link?.getAttribute('href');
+  if(!event.defaultPrevented&&event.button===0&&href?.startsWith('#')){
+   event.preventDefault();
+   if(/^#\/(?!\/)[A-Za-z0-9_%/.-]*$/.test(href))window.__arkomPreviewNavigate(href.slice(1));
+   else {try{const target=document.getElementById(decodeURIComponent(href.slice(1)));target?.scrollIntoView({behavior:'auto',block:'start'});target?.focus({preventScroll:true});}catch{}}
+   return;
+  }
   const button=event.target.closest?.('button,input');
   if(event.defaultPrevented||event.button!==0||!button?.form||button.disabled||!['submit','image'].includes(button.type))return;
   event.preventDefault();
@@ -42,7 +53,7 @@ if(global.document)global.addEventListener('message',async event=>{
   return;
  }
 });
-function compilePreview(files,Parser=global.DOMParser,withRuntime=false,initialRoute=''){
+function compilePreview(files,Parser=global.DOMParser,withRuntime=false,initialRoute='',withEditor=false){
  if(initialRoute && !/^\/(?!\/)[A-Za-z0-9_%/.-]*$/.test(initialRoute))throw Error('Use uma rota local, como /clientes/42.');
  if(!files['frontend/index.html'])throw Error('A interface ainda não foi criada.');
  const doc=new Parser().parseFromString(files['frontend/index.html'],'text/html');
@@ -52,16 +63,18 @@ function compilePreview(files,Parser=global.DOMParser,withRuntime=false,initialR
  for(const el of doc.querySelectorAll('link[rel="stylesheet"]')){const name=resolve(el.getAttribute('href')||'');if(name&&files[name]!==undefined){const style=doc.createElement('style');style.textContent=files[name];el.replaceWith(style);}else el.remove();}
  for(const el of doc.querySelectorAll('script[src]')){const name=resolve(el.getAttribute('src')||'');if(name&&files[name]!==undefined){el.src=data('text/javascript',files[name]);el.removeAttribute('integrity');el.removeAttribute('crossorigin');}else el.remove();}
  const security=doc.createElement('meta');security.httpEquiv='Content-Security-Policy';security.content=policy;doc.head.prepend(security);
- if(initialRoute){const script=doc.createElement('script');script.textContent='window.location.hash='+JSON.stringify('#'+initialRoute)+';';security.after(script);}
+ if(initialRoute){const script=doc.createElement('script');script.textContent='window.__arkomPreviewRoute='+JSON.stringify(initialRoute)+';';security.after(script);}
  if(withRuntime){const script=doc.createElement('script');script.textContent='('+previewClient.toString()+')();';security.after(script);}
+ if(withEditor && global.genesisFrontendEditor){const script=doc.createElement('script');script.textContent='('+global.genesisFrontendEditor.selectionClient.toString()+')();';security.after(script);}
  const referrer=doc.createElement('meta');referrer.name='referrer';referrer.content='no-referrer';doc.head.prepend(referrer);
  return '<!doctype html>\n'+doc.documentElement.outerHTML;
 }
-function createFrame(files,call,initialRoute=''){const iframe=global.document.createElement('iframe');iframe.title='Sua solução — prévia interativa';iframe.setAttribute('sandbox','allow-scripts');iframe.setAttribute('referrerpolicy','no-referrer');iframe.style.cssText='width:100%;height:100%;border:0;background:#0b0b10;display:block';iframe.srcdoc=compilePreview(files,global.DOMParser,!!call,initialRoute);if(call)previews.add({ref:new WeakRef(iframe),call,pending:0});return iframe;}
-function createPreview(files,call){
- const iframe=createFrame(files,call);
+function createFrame(files,call,initialRoute='',withEditor=false){const iframe=global.document.createElement('iframe');iframe.title='Sua solução — prévia interativa';iframe.setAttribute('sandbox','allow-scripts');iframe.setAttribute('referrerpolicy','no-referrer');iframe.style.cssText='width:100%;height:100%;border:0;background:#0b0b10;display:block';iframe.srcdoc=compilePreview(files,global.DOMParser,!!call,initialRoute,withEditor);if(call)previews.add({ref:new WeakRef(iframe),call,pending:0});return iframe;}
+
+function createPreview(files,call,withEditor=false){
+ const iframe=createFrame(files,call,'',withEditor);
  let plan;try{plan=JSON.parse(files['design/navigation.json']||'null');}catch{return iframe;}
- if(!plan?.routes?.length)return iframe;
+ if(withEditor||!plan?.routes?.length)return iframe;
  const box=global.document.createElement('div');box.style.cssText='height:100%;display:flex;flex-direction:column;background:#fff';
  const form=global.document.createElement('form');form.style.cssText='display:flex;gap:8px;align-items:center;padding:8px;flex-wrap:wrap;color:#25303a;font:13px system-ui';
  const label=global.document.createElement('label');label.textContent='Abrir rota: ';
@@ -69,7 +82,7 @@ function createPreview(files,call){
  const button=global.document.createElement('button');button.type='submit';button.textContent='Abrir';
  const status=global.document.createElement('span');status.setAttribute('role','status');
  form.append(label,button,status);iframe.style.flex='1';iframe.style.minHeight='0';
- form.addEventListener('submit',event=>{event.preventDefault();try{iframe.srcdoc=compilePreview(files,global.DOMParser,!!call,input.value);status.textContent='';}catch(error){status.textContent=error.message;}});
+ form.addEventListener('submit',event=>{event.preventDefault();try{iframe.srcdoc=compilePreview(files,global.DOMParser,!!call,input.value,withEditor);status.textContent='';}catch(error){status.textContent=error.message;}});
  box.append(form,iframe);return box;
 }
 global.genesisPreview={compilePreview,createPreview};

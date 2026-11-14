@@ -54,3 +54,10 @@ test('preview delivers validated form events without enabling native submissions
  assert.match(doc.querySelector('meta[http-equiv]').content,/form-action 'none'/);
  dom.window.close();
 });
+
+test('fragment links stay inside the opaque preview even with an inherited host base URL',()=>{
+ const dom=new JSDOM(compilePreview({'frontend/index.html':'<a href="#/processo">Processo</a><a href="#contato">Contato</a><h2 id="contato" tabindex="-1">Contato</h2>'},Parser,true),{url:'about:srcdoc',runScripts:'outside-only'}),w=dom.window,d=w.document;
+ const base=d.createElement('base');base.href='https://host.test/arkomgo/genesis-flutter/';d.head.append(base);w.eval(d.querySelector('script').textContent);let scrolled=false;d.getElementById('contato').scrollIntoView=()=>{scrolled=true;};
+ const route=new w.MouseEvent('click',{bubbles:true,cancelable:true,button:0});d.querySelector('a').dispatchEvent(route);assert.equal(route.defaultPrevented,true);assert.equal(w.location.href,'about:srcdoc');assert.equal(w.__arkomPreviewRoute,'/processo');
+ const section=new w.MouseEvent('click',{bubbles:true,cancelable:true,button:0});d.querySelectorAll('a')[1].dispatchEvent(section);assert.equal(section.defaultPrevented,true);assert.equal(scrolled,true);assert.equal(w.__arkomPreviewRoute,'/processo');dom.window.close();
+});

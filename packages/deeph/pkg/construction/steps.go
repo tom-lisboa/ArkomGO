@@ -23,8 +23,25 @@ func Steps() []Step {
 		{"reviewer", "Validar entrega", "Contrato final válido e testes Go aprovados.", "Revise a entrega delimitada em DESIGN.md. Corrija erros, execute test e valide o contrato. Não implemente itens deixados para depois. Se houver lacuna não resolvida, use blocked. Não alegue teste visual.", 8},
 	}
 }
-func SupportsSteps(version int) bool { return version == 1 || version == 2 || version == 3 }
+func SupportsSteps(version int) bool {
+	return version == 1 || version == 2 || version == 3 || version == 4
+}
 func StepsForVersion(version int) []Step {
+	if version == 4 {
+		base := StepsForVersion(3)
+		steps := []Step{base[0], base[1], base[2], base[4], base[5]}
+		steps[0].Title = "Entendendo sua ideia"
+		steps[0].Acceptance = "Direção da página definida a partir do pedido."
+		steps[0].instruction = "Leia o pedido e os arquivos atuais. Em uma página nova, sua PRIMEIRA escrita deve ser frontend/src/App.svelte: uma primeira região real, pequena e autossuficiente, com CSS no próprio componente, identidade e conteúdo próprios do pedido. Ela aparece imediatamente na prévia enquanto o restante é planejado. Não importe componentes ainda inexistentes; o roteador pode ser ligado na etapa interface. Em projetos existentes, preserve a página atual enquanto planeja a mudança. Depois escreva DESIGN.md com a intenção, público, conteúdo, composição e interações desta página. Escolha uma solução específica para o cliente, sem impor template ou pedir decisões técnicas. O manifesto e todo backend são somente leitura. Não escreva application.json nem Go. Preserve escolhas existentes que o cliente não pediu para mudar."
+		steps[1].Title = "Organizando a experiência"
+		steps[2].Title = "Dando personalidade"
+		steps[3].Title = "Construindo sua página"
+		steps[3].rounds = 10
+		steps[4].Title = "Revisando os detalhes"
+		steps[4].Acceptance = "Página Svelte compilada e contrato preservado."
+		steps[4].instruction = "Revise somente o frontend entregue contra o pedido e design/*.json. Corrija os componentes e execute test para compilar Svelte. Verifique interações, conteúdo, hierarquia e responsividade no código; não alegue inspeção visual sem evidência. Preserve todos os arquivos backend e application.json. Não execute testes Go, não crie backend e não imponha novos requisitos ao cliente."
+		return steps
+	}
 	legacy := Steps()
 	if version == 1 || version == 0 {
 		return legacy

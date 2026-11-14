@@ -17,7 +17,7 @@ class RevisionController extends StudioController {
 
 void main() {
   for (final width in [390.0, 1440.0]) {
-    testWidgets('explicit interface revision preserves scope at $width', (
+    testWidgets('chat revision automatically uses frontend agents at $width', (
       tester,
     ) async {
       tester.view.physicalSize = Size(width, 1100);
@@ -54,10 +54,7 @@ void main() {
         await tester.tap(find.byTooltip('Conversar com o Genesis'));
         await tester.pump();
       }
-      final checkbox = find.byKey(const ValueKey('interface-revision'));
-      await tester.ensureVisible(checkbox);
-      await tester.tap(checkbox);
-      await tester.pump();
+      expect(find.byKey(const ValueKey('interface-revision')), findsNothing);
       await tester.enterText(
         find.byType(TextField),
         'Melhorar o espaçamento dos cartões existentes',
@@ -67,7 +64,8 @@ void main() {
       await tester.pump();
       final start = c.calls.firstWhere((v) => v['action'] == 'start');
       expect(start['parent_id'], 'parent');
-      expect(start['revision_scope'], 'interface');
+      expect(start['mode'], 'frontend');
+      expect(start['revision_scope'], isNull);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       c.dispose();

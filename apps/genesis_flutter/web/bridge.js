@@ -11,6 +11,7 @@ if(!global.document)return;
 let session=null,callback=null,controller=null,selection=0,retry=null,handshake=null,selected='',cursor=0,disposed=false;
 let platformCallback=null,sessionPending=null;
 let platformFile=null;
+const frontendEditors=new Map();
 const clipsMedia=new Set();
 const clipsPlayers=new Map();
 function pauseClipsMedia(url){
@@ -46,9 +47,10 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const base=api+'/v1/sdr/genesis-demo/construction';
 const clipsGIFBase=api+'/v1/sdr/genesis-demo/ecosystem/clips/gifs';
 const emit=(type,data={})=>{const raw=JSON.stringify({type,...data});callback?.(raw);if(['session','signed_out','view','agent','platform_error'].includes(type))platformCallback?.(raw);};
-const errors={revision_reuse_unavailable:'Esta revisão não pode reaproveitar as etapas com segurança. Selecione revisão completa.',invalid_revision_scope:'Escolha um escopo de revisão válido.',revision_parent_required:'Selecione a aplicação que deseja revisar.',frontend_compiler_unavailable:'O compilador Svelte precisa ser instalado pelo administrador. Execute scripts/build-demo.py e reinicie a demo.',frontend_compilation_failed:'A compilação Svelte falhou. Confira os traces e retome a etapa.',preview_records_limit:'A coleção atingiu o limite de 20 registros desta etapa.',preview_records_invalid:'O registro enviado pela aplicação é inválido ou ultrapassa o limite.',preview_data_unavailable:'Não foi possível salvar o dado. Reinicie a prévia e tente novamente.',preview_data_conflict:'O dado mudou durante a operação. Reinicie a prévia antes de tentar novamente.',preview_data_invalid:'O dado enviado pela aplicação é inválido ou ultrapassa o limite.',runtime_session_changed:'A prévia foi encerrada ou reiniciada. Tente novamente na sessão atual.',step_checkpoint_changed:'Esta etapa recebeu novos eventos. Atualize o projeto antes de continuar.',step_not_available:'Esta etapa não está disponível para iniciar.',construction_unavailable:'O serviço está encerrando. Tente novamente em instantes.',runtime_entrypoint_missing:'Continue o projeto para adaptar o backend ao contrato NewHandler.',runtime_contract_invalid:'Conclua a construção com um contrato válido antes de iniciar.',runtime_capabilities_unavailable:'Esta aplicação depende de integrações que ainda não estão disponíveis na prévia.',runtime_busy:'Já existe uma prévia em execução para esta empresa. Encerre-a antes de iniciar outra.',runtime_not_running:'Inicie o backend da prévia.',runtime_request_failed:'O backend não respondeu. Reinicie a prévia.',unauthorized:'Sua sessão terminou. Entre novamente.',construction_busy:'Outro projeto está em construção. Aguarde ou interrompa o projeto ativo.',construction_limit:'O limite de projetos deste laboratório foi atingido.',forbidden:'Seu perfil permite apenas acompanhar.',isolated_runner_unavailable:'O executor de testes precisa estar disponível para construir.',invalid_goal:'Descreva sua ideia com pelo menos 15 caracteres.'};
-async function request(url,body,signal,key){if(!session)throw Error('Aguardando sua sessão Arkom.');const identity=session;const r=await fetch(url,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+session.access_token,...(key?{'Idempotency-Key':key}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),credentials:'omit',redirect:'error',cache:'no-store',signal:signal||AbortSignal.timeout(20000)});if(!r.ok){const data=await r.json().catch(()=>({}));const error=Error(errors[data.error]||'Não foi possível concluir a operação ('+r.status+').');error.status=r.status;error.code=data.error;if(r.status===401&&session===identity&&global.parent===global)clearSession(errors.unauthorized);throw error;}return r;}
-function stop(){clearTimeout(runtimeTimer);selection++;controller?.abort();clearTimeout(retry);controller=null;selectedBuild=null;runtimePending=null;runtimePaused=false;autoAttempted=false;requests=Promise.resolve();runtimeState({status:'stopped'});}
+const errors={frontend_edit_conflict:'O projeto mudou. Seu rascunho foi preservado; reabra a versão salva para continuar.',frontend_edit_unavailable:'Abra uma construção Svelte válida para editar.',frontend_edit_invalid:'Confira os arquivos do frontend e os limites de tamanho.',revision_reuse_unavailable:'Esta revisão não pode reaproveitar as etapas com segurança. Selecione revisão completa.',invalid_revision_scope:'Escolha um escopo de revisão válido.',revision_parent_required:'Selecione a aplicação que deseja revisar.',frontend_compiler_unavailable:'O compilador Svelte precisa ser instalado pelo administrador. Execute scripts/build-demo.py e reinicie a demo.',frontend_compilation_failed:'A compilação Svelte falhou. Confira os traces e retome a etapa.',preview_records_limit:'A coleção atingiu o limite de 20 registros desta etapa.',preview_records_invalid:'O registro enviado pela aplicação é inválido ou ultrapassa o limite.',preview_data_unavailable:'Não foi possível salvar o dado. Reinicie a prévia e tente novamente.',preview_data_conflict:'O dado mudou durante a operação. Reinicie a prévia antes de tentar novamente.',preview_data_invalid:'O dado enviado pela aplicação é inválido ou ultrapassa o limite.',runtime_session_changed:'A prévia foi encerrada ou reiniciada. Tente novamente na sessão atual.',step_checkpoint_changed:'Esta etapa recebeu novos eventos. Atualize o projeto antes de continuar.',step_not_available:'Esta etapa não está disponível para iniciar.',construction_unavailable:'O serviço está encerrando. Tente novamente em instantes.',runtime_entrypoint_missing:'Continue o projeto para adaptar o backend ao contrato NewHandler.',runtime_contract_invalid:'Conclua a construção com um contrato válido antes de iniciar.',runtime_capabilities_unavailable:'Esta aplicação depende de integrações que ainda não estão disponíveis na prévia.',runtime_busy:'Já existe uma prévia em execução para esta empresa. Encerre-a antes de iniciar outra.',runtime_not_running:'Inicie o backend da prévia.',runtime_request_failed:'O backend não respondeu. Reinicie a prévia.',unauthorized:'Sua sessão terminou. Entre novamente.',construction_busy:'Outro projeto está em construção. Aguarde ou interrompa o projeto ativo.',construction_limit:'O limite de projetos deste laboratório foi atingido.',forbidden:'Seu perfil permite apenas acompanhar.',isolated_runner_unavailable:'O executor de testes precisa estar disponível para construir.',invalid_goal:'Descreva sua ideia com pelo menos 15 caracteres.'};
+async function request(url,body,signal,key){if(!session)throw Error('Aguardando sua sessão Arkom.');const identity=session;const r=await fetch(url,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+session.access_token,...(key?{'Idempotency-Key':key}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),credentials:'omit',redirect:'error',cache:'no-store',signal:signal||AbortSignal.timeout(20000)});if(!r.ok){const data=await r.json().catch(()=>({}));const error=Error(errors[data.error]||'Não foi possível concluir a operação ('+r.status+').');if(data.error==='frontend_compilation_failed'){const diagnostic=data.diagnostics?.find(v=>v.kind==='frontend.build.failed')?.output;if(diagnostic)error.message+=' '+diagnostic.slice(0,1200);}
+ error.status=r.status;error.code=data.error;if(r.status===401&&session===identity&&global.parent===global)clearSession(errors.unauthorized);throw error;}return r;}
+function stop(){for(const e of frontendEditors.values())e.dispose();frontendEditors.clear();clearTimeout(runtimeTimer);selection++;controller?.abort();clearTimeout(retry);controller=null;selectedBuild=null;runtimePending=null;runtimePaused=false;autoAttempted=false;requests=Promise.resolve();runtimeState({status:'stopped'});}
 function ensureRuntime(id,generation,identity){
  if(!current(id,generation,identity))return Promise.reject(Error('A prévia foi encerrada.'));
  if(runtimePaused)return Promise.reject(Error('A solução está pausada. Use Conectar solução para continuar.'));
@@ -210,7 +212,7 @@ global.genesisBridge={
   if(clipsMedia.has(url)){pauseClipsMedia(url);video.src=url;clipsPlayers.set(url,video);}
   return video;
  },
- createPreview(files){const id=selected,identity=session,generation=selection;return global.genesisPreview.createPreview(JSON.parse(files),data=>{
+ createPreview(files,rawOptions='{}'){const id=selected,identity=session,generation=selection,options=JSON.parse(rawOptions);const runtime=data=>{
   const run=async()=>{
    if(!current(id,generation,identity))throw Error('A prévia foi encerrada.');
    await ensureRuntime(id,generation,identity);
@@ -227,7 +229,18 @@ global.genesisBridge={
    if(!current(id,generation,identity))throw Error('A prévia foi encerrada.');return result;
   };
   const result=requests.then(run);requests=result.catch(()=>{});return result;
- });},
+ };
+ const parsed=JSON.parse(files);
+ if((!options.editable&&!options.agentic)||!global.genesisFrontendEditor)return global.genesisPreview.createPreview(parsed,runtime);
+ const check=()=>{if(!current(id,generation,identity))throw Error('A sessão ou o projeto mudou. Reabra sua página.');};
+ const editor=global.genesisFrontendEditor.create(parsed,{runtime,
+  save:async body=>{check();const response=await request(base+'/'+encodeURIComponent(id)+'/frontend',body,AbortSignal.timeout(60000));check();const result=await response.json();autoAttempted=true;runtimeState({status:'stopped'});selectedBuild=result.build;emit('frontend.saved',result);return result;},
+  refresh:async()=>{check();const result=await(await request(base+'/'+encodeURIComponent(id))).json();check();if(result.build.sequence!==selectedBuild?.sequence){selectedBuild=result.build;emit('frontend.refresh',result);}return result;}
+ },options);
+ frontendEditors.set(options.viewId,editor);return editor.element;
+ },
+ updatePreview(id,files,options){frontendEditors.get(id)?.update(JSON.parse(files),JSON.parse(options));},
+ disposePreview(id){frontendEditors.get(id)?.dispose();frontendEditors.delete(id);},
  connectPlatform(cb){
   platformCallback=cb;disposed=false;
   if(session)platformCallback(JSON.stringify({type:'session',identity:session.identity,companyName:session.company_name}));
@@ -342,8 +355,10 @@ global.genesisBridge={
   const link=document.createElement('a');link.href=url;link.download=(String(data.title||'arkom-clips').replace(/[^\p{L}\p{N} _-]/gu,'').trim().slice(0,80)||'arkom-clips')+'.mp4';link.click();setTimeout(()=>releaseClipsMedia(url),5000);clipsMedia.add(url);return '{}';
  }
  if(action==='list')return JSON.stringify(await (await request(base)).json());
+ if(['select','start','advance_step','frontend_blank'].includes(action)&&Array.from(frontendEditors.values()).some(e=>e.hasDraft()))throw Error('Salve o rascunho do frontend antes de trocar de projeto ou iniciar outra etapa.');
  if(action==='select'){stop();selected=data.id;cursor=0;if(selected){void stream(selected,selection);void pollRuntime(selected,selection);}return '{}';}
- if(action==='start')return JSON.stringify(await (await request(base,{goal:data.goal,parent_id:data.parent_id||'',revision_scope:data.revision_scope||''})).json());
+ if(action==='frontend_blank')return JSON.stringify(await(await request(base+'/blank',{name:data.name},AbortSignal.timeout(60000),data.key)).json());
+ if(action==='start')return JSON.stringify(await (await request(base,{mode:data.mode||'',goal:data.goal,parent_id:data.parent_id||'',revision_scope:data.revision_scope||''})).json());
  if(action==='runtime_start'||action==='runtime_stop'){
   if(data.id!==selected)throw Error('Selecione novamente o projeto.');
   const id=selected,generation=selection,identity=session;

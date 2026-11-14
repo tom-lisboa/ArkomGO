@@ -28,9 +28,9 @@ export function navigationSources(plan) {
     'navigation.js': `import { readable } from 'svelte/store';
 export const routes = Object.freeze(${data}.map(Object.freeze));
 export function href(path) { if(typeof path !== 'string' || !/^\\/(?!\\/)[^?#\\\\\\s]*$/.test(path)) throw Error('Rota local inválida'); return '#'+path; }
-export function navigate(path) { window.location.hash = href(path); }
+export function navigate(path) { const hash=href(path);if(window.__arkomPreviewNavigate)window.__arkomPreviewNavigate(path);else window.location.hash=hash; }
 function resolve() {
- let path = window.location.hash.slice(1) || ${home};
+ let path = window.__arkomPreviewRoute ?? (window.location.hash.slice(1) || ${home});
  if (path !== '/' && path.endsWith('/')) path = path.slice(0,-1);
  for(const route of routes) {
   const expected=route.path.split('/'), actual=path.split('/');
@@ -44,7 +44,7 @@ function resolve() {
  }
  return {path,route:null,params:{}};
 }
-export const current = readable(resolve(),set=>{const update=()=>set(resolve());window.addEventListener('hashchange',update);update();return ()=>window.removeEventListener('hashchange',update);});
+export const current = readable(resolve(),set=>{const update=()=>set(resolve());window.addEventListener('hashchange',update);window.addEventListener('arkom.preview.navigate',update);update();return ()=>{window.removeEventListener('hashchange',update);window.removeEventListener('arkom.preview.navigate',update);};});
 `,
     'Router.svelte': `<script>
 import { tick } from 'svelte';
