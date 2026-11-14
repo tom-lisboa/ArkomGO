@@ -33,7 +33,7 @@ func TestEcosystemCatalogAndPrivateClipsBridge(t *testing.T) {
 			t.Fatal("unimplemented service unlocked")
 		}
 	}
-	if count != 4 {
+	if count != 5 {
 		t.Fatal("incorrect operational catalog", count)
 	}
 	t.Setenv("SDR_CLIPS_BRIDGE_KEY", strings.Repeat("a", 48))

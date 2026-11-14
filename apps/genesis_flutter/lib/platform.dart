@@ -581,6 +581,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
         'genesis': Icons.auto_awesome_outlined,
         'clips': Icons.movie_outlined,
         'financeai': Icons.account_balance_outlined,
+        'multipropriedades': Icons.apartment_outlined,
       })[id] ??
       Icons.widgets_outlined;
   Widget ecosystemMap() => LayoutBuilder(

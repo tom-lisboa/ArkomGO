@@ -8,7 +8,7 @@ administrativas do portal original continuam na aplicação Next existente.
 
 A referência visual e de navegação é `bilhon-business/arkom-dash`, commit
 `82d36ecfffd7ddb73c606c1ce2638e63f9b35325`. O catálogo usa os nomes verificados
-nessa fonte e acrescenta o CLIPS já presente neste repositório. Ele reúne 15
+nessa fonte e acrescenta CLIPS e Multipropriedades. Ele reúne 16
 entradas verificadas; não é apresentado como inventário completo das 23 soluções.
 Dados de aulas, eventos e indicadores comerciais da plataforma antiga não foram
 copiados para a demo; os indicadores locais vêm dos serviços existentes.
@@ -20,6 +20,7 @@ copiados para a demo; os indicadores locais vêm dos serviços existentes.
 | BIA SDR | `services/sdr` | Cliente React existente: WhatsApp, negócio, conversas, automações, execuções, CRM, agendas, dados, auditoria e álbuns |
 | CRM Arkom | `services/crm` + Clickmax DEV | Funis, contatos, oportunidades, cadastro e movimentação |
 | CLIPS | `services/core/pilots/clips` | Biblioteca e estúdio Flutter para cortes verticais e geração de GIFs por descrição |
+| Arkom Multipropriedades | API Go e homologação local no checkout próprio | Operação original incorporada à plataforma |
 | Genesis | `packages/deeph` + `services/sdr` | Estúdio existente, etapas, código, prévia e traces SSE |
 | FinanceAI e demais entradas | Backend ainda não integrado neste repositório | Bloqueadas; sem redirecionamento para uma aplicação externa |
 
@@ -140,3 +141,45 @@ A avaliação é armazenada no snapshot SQLite: uma nota de 1 a 5 por pessoa e
 sistema, atualizável e isolada por organização. O resumo mostra apenas este
 espaço, com estado vazio antes do primeiro voto. O perfil de consulta não altera
 notas. Os votos não são incluídos no contexto de construção dos agentes.
+
+## Multipropriedades
+
+Configure `ARKOM_MULTI_HOMOLOG_ROOT` no `.env` privado com o caminho do checkout
+do Multipropriedades. Instale as dependências nesse checkout, mantenha Docker
+local ativo e execute `python3 scripts/demo.py` na ArkomGO. A rota é
+`/demo/systems/multipropriedades` → **Acessar sistema** → `/demo/multipropriedades`.
+Abra a plataforma em `http://127.0.0.1:3007`.
+
+A demo inicia a homologação existente, o frontend React original em 8180 e
+a API Go em 8190. Supabase Auth e PostgreSQL são locais, em 55321 e 55322. Quando o checkout inclui
+o worker Go de captação, a demo também inicia o processamento da fila de triagem
+com a conta dedicada da homologação.
+O catálogo mostra o sistema disponível quando os serviços respondem e existe
+um vínculo para a conta da sessão. O ambiente local verifica quatro vínculos
+fictícios. Alfa tem administrador, vendedor e consulta. Beta tem administrador.
+As demais contas ficam bloqueadas até terem um vínculo.
+
+O Go valida a sessão Arkom, troca a identidade por uma sessão do Auth local e
+confere acesso e papel com a API original do produto. O iframe recebe somente
+a sessão do produto. O frontend original mantém seus controles de acesso e
+o banco aplica as regras por organização. As credenciais ficam no checkout
+privado. O lançador entrega ao produto somente as variáveis do ambiente local.
+
+```mermaid
+flowchart LR
+  F[Catálogo Flutter] --> P[Portal Arkom]
+  P -->|Sessão Arkom| G[API Arkom Go]
+  G -->|Conta vinculada| A[Auth local do Multipropriedades]
+  G -->|Valida empresa e papel| M[API Go do Multipropriedades]
+  P -->|Sessão do produto| R[Interface original]
+  R --> M
+  R --> D[Supabase local com RLS]
+  M --> D
+```
+
+A interface interna do produto continua em React. O checkout externo e seus
+dados permanecem no ambiente local. Remix e provisionamento comercial ainda não
+estão configurados nesta integração. Conectores externos de cobrança e assinatura
+ficam fora da homologação. Ao parar a demo, a stack Docker e o volume
+do produto são preservados. Para parar também os containers, execute
+`npm run homolog:stop` no checkout do Multipropriedades.

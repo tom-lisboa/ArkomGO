@@ -39,6 +39,13 @@ if clips:
   with sealfile.open('x') as f:f.write(base64.b64encode(secrets.token_bytes(32)).decode('ascii'))
   sealfile.chmod(0o600)
  env['CLIPS_GIF_SEAL_FILE']=str(sealfile)
+multi_root=None
+env.pop('ARKOM_MULTI_STATE_DIR',None)
+if env.get('ARKOM_MULTI_HOMOLOG_ROOT'):
+ multi_root=Path(env['ARKOM_MULTI_HOMOLOG_ROOT']).expanduser().resolve()
+ if not all((multi_root/file).is_file() for file in ['scripts/homolog/run.mjs','vite.homolog.config.ts','node_modules/vite/bin/vite.js']):
+  sys.exit('Multipropriedades: confira o checkout e instale suas dependências. Veja docs/ECOSISTEMA-LOCAL-FLUTTER.md.')
+ env['ARKOM_MULTI_STATE_DIR']=str(multi_root/'.homolog')
 ports=[3007,8080,8081,8099]+([8098] if crm else [])+([18082] if clips else [])
 for port in ports:
  with socket.socket() as check:
@@ -69,6 +76,8 @@ if crm and env.get('ARKOM_CRM_LOCAL_PG_DATA'):
  status=subprocess.run([str(pg_bin/'pg_ctl'),'-D',str(data),'status'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
  if status.returncode!=0:pg_command=[('postgres',[str(pg_bin/'postgres'),'-D',str(data),'-h','127.0.0.1','-p',str(url.port)],run)]
 commands=pg_command+([('clips',['bash',str(root/'services/core/pilots/clips/run-local.sh'),'--studio'],root/'services/core')] if clips else [])+commands
+if multi_root:
+ commands.append(('multipropriedades',[sys.executable,str(root/'scripts/multipropriedades/run.py'),str(multi_root),str(root/'.local/bin/multi-api')],run))
 processes=[];logs=[]
 def stop(signum,frame):raise KeyboardInterrupt
 signal.signal(signal.SIGTERM,stop)
@@ -80,12 +89,19 @@ try:
   if name=='clips':
    child_env={**env,'CLIPS_LOCAL_GIF_PLATFORM_KEY':env['OPENAI_API_KEY']}
    child_env.pop('OPENAI_API_KEY',None)
+  if name=='multipropriedades':
+   child_env=os.environ.copy()
   processes.append((name,subprocess.Popen(args,cwd=cwd,env=child_env,stdout=log,stderr=log,start_new_session=True)))
   time.sleep(.5)
  print('Demo: http://127.0.0.1:3007/demo',flush=True)
  print('CLIPS: '+('ativado localmente; preparando o serviço de vídeo' if clips else 'não configurado'),flush=True)
  print('CRM: '+('configurado; depende das rotas DEV provisionadas' if crm else 'não configurado; Genesis e SDR disponíveis'),flush=True)
+ if multi_root:print('Multipropriedades: preparando a homologação local',flush=True)
  while True:
+  for name,p in processes[:]:
+   if name=='multipropriedades' and p.poll() is not None:
+    print('Multipropriedades indisponível. Consulte .local/runtime/multipropriedades.log.',file=sys.stderr,flush=True)
+    processes.remove((name,p))
   failed=[name for name,p in processes if p.poll() is not None]
   if failed:
    print('Processo encerrado: '+', '.join(failed)+'. Consulte .local/runtime/*.log.',file=sys.stderr);exit_code=1;break

@@ -122,7 +122,7 @@ global.genesisBridge={
   if(identity!==session||disposed)throw Error('Sua sessão mudou. Atualize a tela.');
   return JSON.stringify(result);
  }
- if(action==='navigate'){if(!['home','map','systems','sdr','crm','clips','genesis','business'].includes(data.view)&&!/^systems\/[a-z][a-z0-9_]{0,40}$/.test(data.view))throw Error('Destino indisponível.');global.parent.postMessage({type:'arkom.platform.navigate',view:data.view},global.location.origin);return '{}';}
+ if(action==='navigate'){if(!['home','map','systems','sdr','crm','clips','multipropriedades','genesis','business'].includes(data.view)&&!/^systems\/[a-z][a-z0-9_]{0,40}$/.test(data.view))throw Error('Destino indisponível.');global.parent.postMessage({type:'arkom.platform.navigate',view:data.view},global.location.origin);return '{}';}
  if(action==='clips_pick'){
   const identity=session;
   if(!identity||identity.identity.role==='viewer')throw Error('Seu perfil permite apenas acompanhar.');

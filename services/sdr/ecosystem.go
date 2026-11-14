@@ -21,12 +21,16 @@ var ecosystemCatalog []byte
 var clipsJobID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
 var ecosystemClient = &http.Client{Timeout: 40 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
-// The local bridge is explicit: only the four products present in this repository.
+// The local bridge is explicit: only registered local products.
 // Product sessions/credentials never cross into generated applications.
 func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool {
 	const base = "/v1/sdr/genesis-demo/ecosystem"
 	if r.URL.Path != base && !strings.HasPrefix(r.URL.Path, base+"/") {
 		return false
+	}
+	if r.URL.Path == base+"/multipropriedades/session" {
+		a.multiSession(w, r, u)
+		return true
 	}
 	if strings.HasSuffix(r.URL.Path, "/rating") {
 		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, base+"/"), "/rating")
@@ -39,6 +43,16 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 			if solution["id"] == id && solution["service"] != nil {
 				available = true
 			}
+		}
+		if id == "multipropriedades" && available {
+			resolved, err := a.directoryUser(r.Context(), u)
+			if err != nil {
+				directoryFailure(w, err)
+				return true
+			}
+			u = resolved
+			_, available = multipropriedadesBinding(u)
+			available = available && multiStateDir(r) != ""
 		}
 		if !available {
 			fail(w, 404, "not_found")
@@ -112,6 +126,17 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 				configured = crm
 			case "clips":
 				configured = clips
+			case "multipropriedades":
+				if dir := multiStateDir(r); dir != "" {
+					if resolved, err := a.directoryUser(r.Context(), u); err == nil {
+						if binding, allowed := multipropriedadesBinding(resolved); allowed {
+							_, _, configured = multiCredentials(dir, binding)
+							configured = configured && multiReady(r.Context())
+						} else {
+							item["reason"] = "O Multipropriedades ainda não foi liberado para esta conta."
+						}
+					}
+				}
 			}
 			item["configured"] = configured
 			item["implemented"] = item["service"] != nil
@@ -120,7 +145,7 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 			a.mu.Unlock()
 			if item["service"] == nil {
 				item["reason"] = "Esta solução ainda não está integrada à nova estrutura."
-			} else if !configured {
+			} else if !configured && item["reason"] == nil {
 				item["reason"] = "A configuração deste serviço local precisa ser concluída."
 			}
 		}

@@ -203,6 +203,55 @@
       ]
     },
     {
+      "id": "multipropriedades",
+      "name": "Arkom Multipropriedades",
+      "area": "Back Office",
+      "description": "Gerencie empreendimentos, cotistas, reservas de uso, vendas, contratos e recebíveis.",
+      "service": "Multipropriedades · homologação local",
+      "kind": "Sistemas",
+      "guide": [
+        {
+          "title": "Escolha um empreendimento",
+          "description": "Confira as unidades e cotas da sua empresa."
+        },
+        {
+          "title": "Acompanhe as vendas",
+          "description": "Abra Vendas e Contratos para consultar as negociações e os cotistas."
+        },
+        {
+          "title": "Consulte o calendário de uso",
+          "description": "Veja os períodos reservados por cota e acompanhe a disponibilidade."
+        },
+        {
+          "title": "Organize os recebimentos",
+          "description": "Abra Financeiro para acompanhar parcelas, pagamentos e comissões."
+        }
+      ],
+      "features": [
+        "Empreendimentos e cotas",
+        "Cotistas e calendário de uso",
+        "Vendas e contratos",
+        "Financeiro, comissões e pós-venda"
+      ],
+      "tutorial_video_url": null,
+      "remix_available": false,
+      "requirements": [
+        {
+          "name": "Conta Arkom",
+          "status": "Incluído"
+        },
+        {
+          "name": "Dados da empresa",
+          "status": "Homologação local"
+        }
+      ],
+      "interface": {
+        "route": "/demo/multipropriedades",
+        "framework": "React",
+        "flutter_migration": "pending_feature_parity"
+      }
+    },
+    {
       "id": "financeai",
       "name": "FinanceAI",
       "area": "Back Office",
