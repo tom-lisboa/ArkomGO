@@ -1,0 +1,90 @@
+--- a/cmd/sdr-whatsapp-engine/main.go
++++ b/cmd/sdr-whatsapp-engine/main.go
+@@ -7,6 +7,7 @@
+ 	"github.com/tomlisboa/lumi/internal/sdrbridge"
+ 	"log"
+ 	"net/http"
++	"net/url"
+ 	"os"
+ 	"path/filepath"
+ 	"sort"
+@@ -19,7 +20,14 @@
+ 	transportSchema := flag.Bool("transport-schema", false, "add only isolated messaging tables")
+ 	flag.Parse()
+ 	dsn := os.Getenv("DATABASE_URL")
+-	if !strings.Contains(dsn, "@sdr-wa-db:5432/sdr_whatsapp") {
++	listen := ":8080"
++	if os.Getenv("SDR_WHATSAPP_LOCAL_DEMO") == "true" {
++		u, err := url.Parse(dsn)
++		if err != nil || u.Scheme != "postgres" || u.Host != "127.0.0.1:55496" || u.Path != "/arkom_sdr_whatsapp_demo" {
++			log.Fatal("dedicated local WhatsApp database required")
++		}
++		listen = "127.0.0.1:18083"
++	} else if !strings.Contains(dsn, "@sdr-wa-db:5432/sdr_whatsapp") {
+ 		log.Fatal("dedicated database address required")
+ 	}
+ 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+@@ -82,5 +90,5 @@
+ 		log.Fatal("database unavailable")
+ 	}
+ 	log.Print("Private WhatsApp connection bridge ready")
+-	log.Fatal((&http.Server{Addr: ":8080", Handler: server.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second}).ListenAndServe())
++	log.Fatal((&http.Server{Addr: listen, Handler: server.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second}).ListenAndServe())
+ }
+--- a/cmd/wa-gateway-service/main.go
++++ b/cmd/wa-gateway-service/main.go
+@@ -3,6 +3,7 @@
+ import (
+ 	"context"
+ 	"log/slog"
++	"net/url"
+ 	"os"
+ 	"os/signal"
+ 	"strings"
+@@ -22,7 +23,14 @@
+ func main() {
+ 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+ 	cfg := config.Load()
+-	if !strings.Contains(cfg.DatabaseURL, "@sdr-wa-db:5432/sdr_whatsapp") || cfg.WhatsmeowDatabaseURL != cfg.DatabaseURL {
++	healthAddr := ":8081"
++	validDatabase := strings.Contains(cfg.DatabaseURL, "@sdr-wa-db:5432/sdr_whatsapp")
++	if os.Getenv("SDR_WHATSAPP_LOCAL_DEMO") == "true" {
++		u, err := url.Parse(cfg.DatabaseURL)
++		validDatabase = err == nil && u.Scheme == "postgres" && u.Host == "127.0.0.1:55496" && u.Path == "/arkom_sdr_whatsapp_demo"
++		healthAddr = "127.0.0.1:18084"
++	}
++	if !validDatabase || cfg.WhatsmeowDatabaseURL != cfg.DatabaseURL {
+ 		logger.Error("dedicated WhatsApp database required")
+ 		os.Exit(1)
+ 	}
+@@ -87,6 +95,6 @@
+ 	}
+
+ 	logger.Info("wa-gateway-service running")
+-	health.Start(ctx, logger, ":8081", db)
++	health.Start(ctx, logger, healthAddr, db)
+ 	manager.Start(ctx)
+ }
+--- a/internal/sdrtransport/transport.go
++++ b/internal/sdrtransport/transport.go
+@@ -10,6 +10,7 @@
+ 	"errors"
+ 	"io"
+ 	"net/http"
++	"os"
+ 	"regexp"
+ 	"strings"
+ 	"time"
+@@ -128,7 +129,11 @@
+ }
+
+ func NewGate(url, token string) (*Gate, error) {
+-	if url != "http://sdr-next-pilot:8081/internal/transport/authorize" || len(token) < 40 {
++	expectedURL := "http://sdr-next-pilot:8081/internal/transport/authorize"
++	if os.Getenv("SDR_WHATSAPP_LOCAL_DEMO") == "true" {
++		expectedURL = "http://127.0.0.1:8081/internal/transport/authorize"
++	}
++	if url != expectedURL || len(token) < 40 {
+ 		return nil, errors.New("invalid_transport_gate")
+ 	}
+ 	return &Gate{URL: url, Token: token, HTTP: &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil

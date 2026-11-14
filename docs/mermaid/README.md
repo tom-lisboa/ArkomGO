@@ -1,6 +1,6 @@
 # Diagramas Mermaid
 
-68 diagramas indexados. As fontes anteriores são preservadas; blocos em Markdown também recebem uma cópia `.mmd` editável em `importados/`.
+70 diagramas indexados. As fontes anteriores são preservadas; blocos em Markdown também recebem uma cópia `.mmd` editável em `importados/`.
 
 Os diagramas herdados podem representar propostas ou versões anteriores. Consulte a origem e [o estado atual](../STATUS-E-ROADMAP.md) antes de tratá-los como descrição da demo.
 
@@ -13,26 +13,12 @@ Para atualizar: `python3 scripts/catalog_mermaid.py`.
 | [07-genesis-alteracao-go.mmd](../../docs/mermaid/07-genesis-alteracao-go.mmd) | [docs/mermaid/07-genesis-alteracao-go.mmd — bloco 1](../../docs/mermaid/07-genesis-alteracao-go.mmd) |
 | [06-runtime-local.mmd](../../docs/mermaid/06-runtime-local.mmd) | [docs/mermaid/06-runtime-local.mmd — bloco 1](../../docs/mermaid/06-runtime-local.mmd) |
 | [05-jornada-produto-proposta.mmd](../../docs/mermaid/05-jornada-produto-proposta.mmd) | [docs/mermaid/05-jornada-produto-proposta.mmd — bloco 1](../../docs/mermaid/05-jornada-produto-proposta.mmd) |
+| [04-jornada-sistemas.mmd](../../docs/mermaid/04-jornada-sistemas.mmd) | [docs/mermaid/04-jornada-sistemas.mmd — bloco 1](../../docs/mermaid/04-jornada-sistemas.mmd) |
 | [04-autonomia-proposta.mmd](../../docs/mermaid/04-autonomia-proposta.mmd) | [docs/mermaid/04-autonomia-proposta.mmd — bloco 1](../../docs/mermaid/04-autonomia-proposta.mmd) |
 | [03-sdr-crm.mmd](../../docs/mermaid/03-sdr-crm.mmd) | [docs/mermaid/03-sdr-crm.mmd — bloco 1](../../docs/mermaid/03-sdr-crm.mmd) |
+| [03-ecosistema-local-flutter.mmd](../../docs/mermaid/03-ecosistema-local-flutter.mmd) | [docs/mermaid/03-ecosistema-local-flutter.mmd — bloco 1](../../docs/mermaid/03-ecosistema-local-flutter.mmd) |
 | [02-genesis-multiagentes.mmd](../../docs/mermaid/02-genesis-multiagentes.mmd) | [docs/mermaid/02-genesis-multiagentes.mmd — bloco 1](../../docs/mermaid/02-genesis-multiagentes.mmd) |
 | [01-demo-integrada.mmd](../../docs/mermaid/01-demo-integrada.mmd) | [docs/mermaid/01-demo-integrada.mmd — bloco 1](../../docs/mermaid/01-demo-integrada.mmd) |
-| [apps-README-e1f611f0-01.mmd](../../docs/mermaid/importados/apps-README-e1f611f0-01.mmd) | [apps/portal/README.md — bloco 1](../../apps/portal/README.md) |
-| [apps-README-e1f611f0-02.mmd](../../docs/mermaid/importados/apps-README-e1f611f0-02.mmd) | [apps/portal/README.md — bloco 2](../../apps/portal/README.md) |
-| [apps-ARQUITETURA-DASH-UNIFICADO-3ba080d0-01.mmd](../../docs/mermaid/importados/apps-ARQUITETURA-DASH-UNIFICADO-3ba080d0-01.mmd) | [apps/portal/docs/ARQUITETURA-DASH-UNIFICADO.md — bloco 1](../../apps/portal/docs/ARQUITETURA-DASH-UNIFICADO.md) |
-| [apps-data-flow-c0893093-01.mmd](../../docs/mermaid/importados/apps-data-flow-c0893093-01.mmd) | [apps/portal/documentacao/architecture/data-flow.mdx — bloco 1](../../apps/portal/documentacao/architecture/data-flow.mdx) |
-| [apps-data-flow-c0893093-02.mmd](../../docs/mermaid/importados/apps-data-flow-c0893093-02.mmd) | [apps/portal/documentacao/architecture/data-flow.mdx — bloco 2](../../apps/portal/documentacao/architecture/data-flow.mdx) |
-| [apps-data-flow-c0893093-03.mmd](../../docs/mermaid/importados/apps-data-flow-c0893093-03.mmd) | [apps/portal/documentacao/architecture/data-flow.mdx — bloco 3](../../apps/portal/documentacao/architecture/data-flow.mdx) |
-| [apps-overview-c6f73b5f-01.mmd](../../docs/mermaid/importados/apps-overview-c6f73b5f-01.mmd) | [apps/portal/documentacao/architecture/overview.mdx — bloco 1](../../apps/portal/documentacao/architecture/overview.mdx) |
-| [apps-dash-4fe2e4d9-01.mmd](../../docs/mermaid/importados/apps-dash-4fe2e4d9-01.mmd) | [apps/portal/documentacao/components/dash.mdx — bloco 1](../../apps/portal/documentacao/components/dash.mdx) |
-| [apps-map-9abb3fe2-01.mmd](../../docs/mermaid/importados/apps-map-9abb3fe2-01.mmd) | [apps/portal/documentacao/components/map.mdx — bloco 1](../../apps/portal/documentacao/components/map.mdx) |
-| [apps-overview-0d3e4ca6-01.mmd](../../docs/mermaid/importados/apps-overview-0d3e4ca6-01.mmd) | [apps/portal/documentacao/components/overview.mdx — bloco 1](../../apps/portal/documentacao/components/overview.mdx) |
-| [apps-overview-1bdfe75c-01.mmd](../../docs/mermaid/importados/apps-overview-1bdfe75c-01.mmd) | [apps/portal/documentacao/database/overview.mdx — bloco 1](../../apps/portal/documentacao/database/overview.mdx) |
-| [apps-overview-b1e01525-01.mmd](../../docs/mermaid/importados/apps-overview-b1e01525-01.mmd) | [apps/portal/documentacao/endpoints/overview.mdx — bloco 1](../../apps/portal/documentacao/endpoints/overview.mdx) |
-| [apps-auth-sessao-b42412fa-01.mmd](../../docs/mermaid/importados/apps-auth-sessao-b42412fa-01.mmd) | [apps/portal/documentacao/logic/auth-sessao.mdx — bloco 1](../../apps/portal/documentacao/logic/auth-sessao.mdx) |
-| [apps-genesis-builder-5f78af78-01.mmd](../../docs/mermaid/importados/apps-genesis-builder-5f78af78-01.mmd) | [apps/portal/documentacao/logic/genesis-builder.mdx — bloco 1](../../apps/portal/documentacao/logic/genesis-builder.mdx) |
-| [apps-overview-f7a125a6-01.mmd](../../docs/mermaid/importados/apps-overview-f7a125a6-01.mmd) | [apps/portal/documentacao/prompts/overview.mdx — bloco 1](../../apps/portal/documentacao/prompts/overview.mdx) |
-| [apps-e2e-ea17455f-01.mmd](../../docs/mermaid/importados/apps-e2e-ea17455f-01.mmd) | [apps/portal/documentacao/testing/e2e.mdx — bloco 1](../../apps/portal/documentacao/testing/e2e.mdx) |
 | [services-clips-go-integracao-backends-3196c877-01.mmd](../../docs/mermaid/importados/services-clips-go-integracao-backends-3196c877-01.mmd) | [services/core/docs/clips-go-integracao-backends.md — bloco 1](../../services/core/docs/clips-go-integracao-backends.md) |
 | [services-clips-go-interface-homologacao-892c56d1-01.mmd](../../docs/mermaid/importados/services-clips-go-interface-homologacao-892c56d1-01.mmd) | [services/core/docs/clips-go-interface-homologacao.md — bloco 1](../../services/core/docs/clips-go-interface-homologacao.md) |
 | [services-fluxo-cliente-mermaid-07e73e7f-01.mmd](../../docs/mermaid/importados/services-fluxo-cliente-mermaid-07e73e7f-01.mmd) | [services/core/docs/fluxo-cliente-mermaid.md — bloco 1](../../services/core/docs/fluxo-cliente-mermaid.md) |
@@ -76,6 +62,22 @@ Para atualizar: `python3 scripts/catalog_mermaid.py`.
 | [services-workers-7423f93b-01.mmd](../../docs/mermaid/importados/services-workers-7423f93b-01.mmd) | [services/core/docs/workers.md — bloco 1](../../services/core/docs/workers.md) |
 | [services-README-938ad1eb-01.mmd](../../docs/mermaid/importados/services-README-938ad1eb-01.mmd) | [services/core/pilots/clips/README.md — bloco 1](../../services/core/pilots/clips/README.md) |
 | [packages-CHAT_CODEX_LEVEL_ARCHITECTURE-820f305d-01.mmd](../../docs/mermaid/importados/packages-CHAT_CODEX_LEVEL_ARCHITECTURE-820f305d-01.mmd) | [packages/deeph/docs/CHAT_CODEX_LEVEL_ARCHITECTURE.md — bloco 1](../../packages/deeph/docs/CHAT_CODEX_LEVEL_ARCHITECTURE.md) |
+| [apps-ARQUITETURA-DASH-UNIFICADO-3ba080d0-01.mmd](../../docs/mermaid/importados/apps-ARQUITETURA-DASH-UNIFICADO-3ba080d0-01.mmd) | [docs/mermaid/importados/apps-ARQUITETURA-DASH-UNIFICADO-3ba080d0-01.mmd — bloco 1](../../docs/mermaid/importados/apps-ARQUITETURA-DASH-UNIFICADO-3ba080d0-01.mmd) |
+| [apps-README-e1f611f0-01.mmd](../../docs/mermaid/importados/apps-README-e1f611f0-01.mmd) | [docs/mermaid/importados/apps-README-e1f611f0-01.mmd — bloco 1](../../docs/mermaid/importados/apps-README-e1f611f0-01.mmd) |
+| [apps-README-e1f611f0-02.mmd](../../docs/mermaid/importados/apps-README-e1f611f0-02.mmd) | [docs/mermaid/importados/apps-README-e1f611f0-02.mmd — bloco 1](../../docs/mermaid/importados/apps-README-e1f611f0-02.mmd) |
+| [apps-auth-sessao-b42412fa-01.mmd](../../docs/mermaid/importados/apps-auth-sessao-b42412fa-01.mmd) | [docs/mermaid/importados/apps-auth-sessao-b42412fa-01.mmd — bloco 1](../../docs/mermaid/importados/apps-auth-sessao-b42412fa-01.mmd) |
+| [apps-dash-4fe2e4d9-01.mmd](../../docs/mermaid/importados/apps-dash-4fe2e4d9-01.mmd) | [docs/mermaid/importados/apps-dash-4fe2e4d9-01.mmd — bloco 1](../../docs/mermaid/importados/apps-dash-4fe2e4d9-01.mmd) |
+| [apps-data-flow-c0893093-01.mmd](../../docs/mermaid/importados/apps-data-flow-c0893093-01.mmd) | [docs/mermaid/importados/apps-data-flow-c0893093-01.mmd — bloco 1](../../docs/mermaid/importados/apps-data-flow-c0893093-01.mmd) |
+| [apps-data-flow-c0893093-02.mmd](../../docs/mermaid/importados/apps-data-flow-c0893093-02.mmd) | [docs/mermaid/importados/apps-data-flow-c0893093-02.mmd — bloco 1](../../docs/mermaid/importados/apps-data-flow-c0893093-02.mmd) |
+| [apps-data-flow-c0893093-03.mmd](../../docs/mermaid/importados/apps-data-flow-c0893093-03.mmd) | [docs/mermaid/importados/apps-data-flow-c0893093-03.mmd — bloco 1](../../docs/mermaid/importados/apps-data-flow-c0893093-03.mmd) |
+| [apps-e2e-ea17455f-01.mmd](../../docs/mermaid/importados/apps-e2e-ea17455f-01.mmd) | [docs/mermaid/importados/apps-e2e-ea17455f-01.mmd — bloco 1](../../docs/mermaid/importados/apps-e2e-ea17455f-01.mmd) |
+| [apps-genesis-builder-5f78af78-01.mmd](../../docs/mermaid/importados/apps-genesis-builder-5f78af78-01.mmd) | [docs/mermaid/importados/apps-genesis-builder-5f78af78-01.mmd — bloco 1](../../docs/mermaid/importados/apps-genesis-builder-5f78af78-01.mmd) |
+| [apps-map-9abb3fe2-01.mmd](../../docs/mermaid/importados/apps-map-9abb3fe2-01.mmd) | [docs/mermaid/importados/apps-map-9abb3fe2-01.mmd — bloco 1](../../docs/mermaid/importados/apps-map-9abb3fe2-01.mmd) |
+| [apps-overview-0d3e4ca6-01.mmd](../../docs/mermaid/importados/apps-overview-0d3e4ca6-01.mmd) | [docs/mermaid/importados/apps-overview-0d3e4ca6-01.mmd — bloco 1](../../docs/mermaid/importados/apps-overview-0d3e4ca6-01.mmd) |
+| [apps-overview-1bdfe75c-01.mmd](../../docs/mermaid/importados/apps-overview-1bdfe75c-01.mmd) | [docs/mermaid/importados/apps-overview-1bdfe75c-01.mmd — bloco 1](../../docs/mermaid/importados/apps-overview-1bdfe75c-01.mmd) |
+| [apps-overview-b1e01525-01.mmd](../../docs/mermaid/importados/apps-overview-b1e01525-01.mmd) | [docs/mermaid/importados/apps-overview-b1e01525-01.mmd — bloco 1](../../docs/mermaid/importados/apps-overview-b1e01525-01.mmd) |
+| [apps-overview-c6f73b5f-01.mmd](../../docs/mermaid/importados/apps-overview-c6f73b5f-01.mmd) | [docs/mermaid/importados/apps-overview-c6f73b5f-01.mmd — bloco 1](../../docs/mermaid/importados/apps-overview-c6f73b5f-01.mmd) |
+| [apps-overview-f7a125a6-01.mmd](../../docs/mermaid/importados/apps-overview-f7a125a6-01.mmd) | [docs/mermaid/importados/apps-overview-f7a125a6-01.mmd — bloco 1](../../docs/mermaid/importados/apps-overview-f7a125a6-01.mmd) |
 
 ## Visão integrada da demo
 

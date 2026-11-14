@@ -16,35 +16,59 @@ import (
 	"time"
 )
 
-type constructionProvider struct{ planner *sdrsdk.OpenAIPlanner }
+type constructionProvider struct {
+	planner *sdrsdk.OpenAIPlanner
+	effort  shared.ReasoningEffort
+}
+
+// Construction has its own model budget, independent of customer SDR conversations.
+func newConstructionProvider(key, model, effort string) (constructionProvider, error) {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		model = "gpt-6.1-sol"
+	}
+	effort = strings.TrimSpace(effort)
+	if effort == "" {
+		effort = "high"
+	}
+	switch effort {
+	case "low", "medium", "high", "xhigh", "max":
+	default:
+		return constructionProvider{}, errors.New("invalid_genesis_reasoning_effort")
+	}
+	planner, err := sdrsdk.NewOpenAI(key, model)
+	return constructionProvider{planner: planner, effort: shared.ReasoningEffort(effort)}, err
+}
 
 func (p constructionProvider) Next(ctx context.Context, r construction.Request) (construction.Turn, error) {
 	var turn construction.Turn
-	input, _ := json.Marshal(r)
-	str := func() map[string]any { return map[string]any{"type": "string"} }
-	schema := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"summary", "actions", "verdict"}, "properties": map[string]any{
-		"summary": str(), "verdict": map[string]any{"type": "string", "enum": []string{"continue", "ready", "blocked"}},
-		"actions": map[string]any{"type": "array", "maxItems": 6, "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"tool", "path", "content"}, "properties": map[string]any{"tool": map[string]any{"type": "string", "enum": []string{"read", "list", "write", "test"}}, "path": str(), "content": str()}}},
-	}}
-	params := responses.ResponseNewParams{Model: p.planner.Model, Instructions: openai.String(r.Instruction), Input: responses.ResponseNewParamsInputUnion{OfString: openai.String(string(input))}, Store: openai.Bool(false), MaxOutputTokens: openai.Int(10000), Text: responses.ResponseTextConfigParam{Format: responses.ResponseFormatTextConfigUnionParam{OfJSONSchema: &responses.ResponseFormatTextJSONSchemaConfigParam{Name: "construction_actions", Strict: openai.Bool(true), Schema: schema}}}}
-	if strings.HasPrefix(p.planner.Model, "gpt-5") {
-		params.Reasoning = shared.ReasoningParam{Effort: "low"}
-	}
-	result, err := p.planner.Client.Responses.New(ctx, params, option.WithHTTPClient(&http.Client{Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}))
+	params := p.constructionParams(r)
+	result, err := p.planner.Client.Responses.New(ctx, params, option.WithHTTPClient(&http.Client{Timeout: 5 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}))
 	if err != nil {
-		var apiErr *openai.Error
-		if errors.As(err, &apiErr) {
-			if apiErr.StatusCode == 429 || apiErr.StatusCode >= 500 {
-				return turn, construction.ErrProviderUnavailable
-			}
-			return turn, fmt.Errorf("model_http_%d", apiErr.StatusCode)
-		}
-		if ctx.Err() != nil {
-			return turn, ctx.Err()
-		}
-		return turn, construction.ErrProviderUnavailable
+		return turn, constructionProviderError(ctx, err)
 	}
 	return parseConstructionResponse(*result)
+}
+
+func (p constructionProvider) constructionParams(r construction.Request) responses.ResponseNewParams {
+	input, _ := json.Marshal(r)
+	// Preserve key order so the stream identifies the target before source text.
+	schema := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"summary", "actions", "verdict"}, "properties": json.RawMessage(`{"summary":{"type":"string"},"actions":{"type":"array","maxItems":6,"items":{"type":"object","additionalProperties":false,"required":["tool","path","content"],"properties":{"tool":{"type":"string","enum":["read","list","write","test","generate_gif"]},"path":{"type":"string"},"content":{"type":"string"}}}},"verdict":{"type":"string","enum":["continue","ready","blocked"]}}`)}
+
+	return responses.ResponseNewParams{Model: p.planner.Model, Instructions: openai.String(r.Instruction), Input: responses.ResponseNewParamsInputUnion{OfString: openai.String(string(input))}, Store: openai.Bool(false), MaxOutputTokens: openai.Int(32000), Reasoning: shared.ReasoningParam{Effort: p.effort}, Text: responses.ResponseTextConfigParam{Format: responses.ResponseFormatTextConfigUnionParam{OfJSONSchema: &responses.ResponseFormatTextJSONSchemaConfigParam{Name: "construction_actions", Strict: openai.Bool(true), Schema: schema}}}}
+}
+func constructionProviderError(ctx context.Context, err error) error {
+	var apiErr *openai.Error
+	if errors.As(err, &apiErr) {
+		if apiErr.StatusCode == 429 || apiErr.StatusCode >= 500 {
+			return construction.ErrProviderUnavailable
+		}
+		return fmt.Errorf("model_http_%d", apiErr.StatusCode)
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return construction.ErrProviderUnavailable
 }
 
 // Structured actions belong to the final answer, never commentary/preambles.

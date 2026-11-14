@@ -18,7 +18,7 @@ test('preview backend binds requests to selected build and current session witho
  let receive,previewCall;const requests=[],delivered=[],parent={postMessage(){}};
  const global={document:{},parent,location:{origin:'http://localhost:3007'},addEventListener:(name,fn)=>{if(name==='message')receive=fn},AbortController,AbortSignal,TextDecoder,URL,setTimeout:()=>0,clearTimeout(){},genesisPreview:{createPreview:(_files,call)=>{previewCall=call;return {}}},fetch:async(url,options)=>{
  requests.push({url,options});
- if(url.includes('/events?'))return {ok:true,headers:{get:()=> 'text/event-stream'},body:{getReader:()=>({read:async()=>({done:true})})}};
+ if(url.includes('/events?')){let sent=false;return {ok:true,headers:{get:()=> 'text/event-stream'},body:{getReader:()=>({read:async()=>sent?{done:true}:(sent=true,{done:false,value:new TextEncoder().encode('event: snapshot\ndata: '+JSON.stringify({build:{id:url.split('/').at(-2),sequence:0,status:'ready',contract_status:'validated',runtime_compatible:true}})+'\n\nevent: end\ndata: {}\n\n')})})}};}
  return {ok:true,json:async()=>url.endsWith('/runtime')?{status:'running'}:url.endsWith('/request')?{status:200,body:'42',content_type:'text/plain'}:{builds:[]}};
  }};
  vm.runInNewContext(fs.readFileSync(require.resolve('../web/bridge.js'),'utf8'),global);
@@ -31,9 +31,9 @@ test('preview backend binds requests to selected build and current session witho
  const call=requests.find(r=>r.url.endsWith('/request'));
  assert.match(call.url,/construction\/first\/runtime\/request$/);assert.equal(call.options.headers.Authorization,'Bearer private-test-token');
  await global.genesisBridge.invoke('select','{"id":"second"}');await new Promise(setImmediate);
- await assert.rejects(()=>first({}),/Inicie/);
+ await assert.rejects(()=>first({}),/encerrada/);
  global.genesisBridge.createPreview('{}');const second=previewCall;
- session('new-private-token');await assert.rejects(()=>second({}),/Inicie/);
+ session('new-private-token');await assert.rejects(()=>second({}),/encerrada/);
  global.genesisBridge.disconnect();
  assert.equal(requests.filter(r=>r.url.endsWith('/request')).length,1);
 });

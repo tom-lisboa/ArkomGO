@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -23,12 +24,18 @@ func localSecretPath(name string) string {
 }
 
 func localWorkerAddress() string {
-	value := localRuntimeValue("SDR_LOCAL_WORKER_LISTEN", "0.0.0.0:8081")
-	if value != "0.0.0.0:8081" {
-		host, _, err := net.SplitHostPort(value)
-		if err != nil || host != "127.0.0.1" {
-			return "invalid-local-listen-address"
-		}
+	return localLoopbackAddress("SDR_LOCAL_WORKER_LISTEN", "0.0.0.0:8081")
+}
+
+func localLoopbackAddress(name, fallback string) string {
+	value := localRuntimeValue(name, fallback)
+	if value == fallback {
+		return fallback
+	}
+	host, port, err := net.SplitHostPort(value)
+	number, parseErr := strconv.ParseUint(port, 10, 16)
+	if err != nil || host != "127.0.0.1" || parseErr != nil || number == 0 {
+		return "invalid-local-listen-address"
 	}
 	return value
 }

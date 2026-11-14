@@ -1,9 +1,7 @@
 # Backend da prévia — etapa 2
 
 O Genesis pode iniciar o backend Go de uma construção concluída com contrato
-validado e encaminhar chamadas da interface a esse processo isolado. O início é
-explícito: no menu **Mais opções**, escolha **Iniciar backend da prévia**. O rodapé
-mostra a preparação e a conexão. O mesmo menu permite encerrar a execução.
+validado e encaminhar chamadas da interface a esse processo isolado. O estúdio inicia automaticamente o backend ao abrir uma construção concluída e compatível. O rodapé mostra a preparação e a conexão; **Conectar solução** permite retomar e **Mais opções → Pausar solução** encerra a execução. As chamadas aguardam a preparação e entram em fila.
 
 ## Entrada do backend
 

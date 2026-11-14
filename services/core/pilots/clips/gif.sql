@@ -19,3 +19,6 @@ CREATE TABLE IF NOT EXISTS gif_jobs (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS gif_one_active_per_account
     ON gif_jobs(account_id) WHERE status IN ('queued','running');
+ALTER TABLE gif_jobs ADD COLUMN IF NOT EXISTS request_key text;
+CREATE UNIQUE INDEX IF NOT EXISTS gif_request_per_account
+    ON gif_jobs(account_id,request_key) WHERE request_key IS NOT NULL;

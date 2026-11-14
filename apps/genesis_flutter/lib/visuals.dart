@@ -14,6 +14,8 @@ const agentColors = [
   Color(0xff8ac6ac),
   Color(0xfff0b4a2),
   Color(0xffa9baff),
+  Color(0xffedb876),
+  Color(0xff7dcbd1),
 ];
 const agentIds = [
   'architect',
@@ -22,8 +24,19 @@ const agentIds = [
   'reviewer',
   'ux',
   'designer',
+  'gif',
+  'motion',
 ];
-const agentNames = ['Atlas', 'Nilo', 'Íris', 'Vega', 'Lia', 'Cora'];
+const agentNames = [
+  'Atlas',
+  'Nilo',
+  'Íris',
+  'Vega',
+  'Lia',
+  'Cora',
+  'Luma',
+  'Fluxo',
+];
 const agentJobs = [
   'Arquitetura',
   'Backend Go',
@@ -31,6 +44,8 @@ const agentJobs = [
   'Qualidade',
   'Experiência UX',
   'Design visual',
+  'GIFs · CLIPS',
+  'Scroll e movimento',
 ];
 int agentIndex(String? id) => agentIds.indexOf(id ?? '');
 String agentName(String? id) {

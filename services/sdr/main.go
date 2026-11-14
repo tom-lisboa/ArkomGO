@@ -37,6 +37,7 @@ type Conversation struct {
 	ResumedAt    *time.Time `json:"automation_resumed_at,omitempty"`
 }
 type Message struct {
+	FollowupID      string        `json:"followup_id,omitempty"`
 	ID              string        `json:"id"`
 	Conversation    string        `json:"conversation_id"`
 	Sequence        int           `json:"sequence"`
@@ -84,6 +85,9 @@ type Task struct {
 	RunID        string
 }
 type State struct {
+	Followups       map[string]*followupJob      `json:",omitempty"`
+	Signups         map[string]platformAccount   `json:",omitempty"`
+	HomologCRMs     map[string]*homologCRM       `json:",omitempty"`
 	CRMContacts     map[string]map[string]string `json:",omitempty"`
 	CRMOutbox       map[string]crmEvent          `json:",omitempty"`
 	Voice           voiceState
@@ -115,6 +119,7 @@ type cursor struct {
 type App struct {
 	constructionRuns    map[string]constructionExecution
 	constructionSetup   constructionSetup
+	frontendEditing     map[string]bool
 	constructionClosed  bool
 	runtimeMu           sync.Mutex
 	runtimes            map[string]*previewRuntime
@@ -305,6 +310,9 @@ func (a *App) Handler() http.Handler {
 			a.activateVoiceHTTP(w, r)
 			return
 		}
+		if a.platformSignupHTTP(w, r) {
+			return
+		}
 		if a.genesisDemoHTTP(w, r) {
 			return
 		}
@@ -337,12 +345,15 @@ func (a *App) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := strings.Trim(r.URL.Path, "/")
+	if a.platformAuth(w, r, path) {
+		return
+	}
 	if r.Method == "GET" && path == "v1/platform/openapi.json" {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_, _ = w.Write(platformOpenAPI)
 		return
 	}
-	if r.Method == "POST" && path == "__test/ui/local-enter" && os.Getenv("SDR_GENESIS_DEMO") == "true" && os.Getenv("SDR_CRM_DEV_ENABLED") == "true" {
+	if r.Method == "POST" && path == "__test/ui/local-enter" && !platformRequiresLogin() && os.Getenv("SDR_GENESIS_DEMO") == "true" && os.Getenv("SDR_CRM_DEV_ENABLED") == "true" {
 		host, _, _ := net.SplitHostPort(r.RemoteAddr)
 		if host != "127.0.0.1" {
 			fail(w, 403, "forbidden")
@@ -360,11 +371,19 @@ func (a *App) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "POST" && path == "__test/ui/login" {
+		if platformRequiresLogin() {
+			fail(w, 404, "not_found")
+			return
+		}
 		a.demoLogin(w, r)
 		return
 	}
 	parts := strings.Split(path, "/")
 	if r.Method == "POST" && path == "v1/sdr/auth/login" {
+		if platformRequiresLogin() {
+			fail(w, 404, "not_found")
+			return
+		}
 		var b struct {
 			Username string `json:"username"`
 			Password string `json:"password"`
@@ -425,6 +444,9 @@ func (a *App) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.mediaRoute(w, r, u, path) {
+		return
+	}
+	if a.followupHTTP(w, r, u, path) {
 		return
 	}
 	if path == voicePath || strings.HasPrefix(path, voicePath+"/") {
@@ -514,9 +536,9 @@ func (a *App) inbound(w http.ResponseWriter, r *http.Request, connection string)
 	if !a.allow(w, r, []quota{{"harness:" + connection, 120, time.Minute}}) {
 		return
 	}
-	a.acceptInbound(w, r, connection)
+	a.acceptInbound(w, r, "org_demo_"+strings.TrimPrefix(connection, "conn_demo_"), connection)
 }
-func (a *App) acceptInbound(w http.ResponseWriter, r *http.Request, connection string) {
+func (a *App) acceptInbound(w http.ResponseWriter, r *http.Request, org, connection string) {
 	var b struct {
 		Event        string `json:"provider_event_id"`
 		Conversation string `json:"conversation_id"`
@@ -526,8 +548,7 @@ func (a *App) acceptInbound(w http.ResponseWriter, r *http.Request, connection s
 		return
 	}
 	c := a.state.Conversations[b.Conversation]
-	company := strings.TrimPrefix(connection, "conn_demo_")
-	if c == nil || c.Org != "org_demo_"+company {
+	if c == nil || c.Org != org {
 		fail(w, 404, "not_found")
 		return
 	}
@@ -865,6 +886,9 @@ func (a *App) Drain() error {
 	})
 }
 func main() {
+	if platformWebEntrypoint() {
+		return
+	}
 	if workerEntrypoint() {
 		return
 	}
@@ -909,7 +933,7 @@ func main() {
 		if err := a.configureVoice(); err != nil {
 			log.Fatal("voice configuration invalid")
 		}
-		go a.runVoiceWorker(context.Background())
+
 	}
 	if os.Getenv("SDR_CALENDAR_ENABLED") == "true" {
 		if os.Getenv("SDR_PIPELINE_ENABLED") != "true" {
@@ -927,6 +951,9 @@ func main() {
 	}
 	if err := a.configurePipeline(); err != nil {
 		log.Fatal("isolated worker configuration invalid")
+	}
+	if a.voice != nil {
+		go a.runVoiceWorker(context.Background())
 	}
 	if os.Getenv("SDR_CUSTOMER_DATA_ENABLED") == "true" {
 		if err := a.configureCustomerData(); err != nil {
@@ -964,7 +991,7 @@ func main() {
 	}
 	listenAddress := "0.0.0.0:8080"
 	if os.Getenv("SDR_CRM_DEV_ENABLED") == "true" {
-		listenAddress = "127.0.0.1:8080"
+		listenAddress = localLoopbackAddress("ARKOM_LOCAL_API_LISTEN", "127.0.0.1:8080")
 	}
 	listener, err := net.Listen("tcp4", listenAddress)
 	if err != nil {
@@ -979,6 +1006,9 @@ func main() {
 			}
 		}
 	}()
+	if platformSignupEnabled() {
+		go a.runPlatformSignups(context.Background())
+	}
 	log.Print("SDR next pilot: isolated API; protected access; delivery restricted to test conversations")
 	formOrigins := []string{}
 	if a.calendarGoogle != nil {

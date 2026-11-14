@@ -14,7 +14,12 @@ dev_dependencies:
     sdk: flutter
 flutter:
   uses-material-design: true
+  assets:
+    - assets/arkom-clips-logo.png
   fonts:
+    - family: ArkomEditorial
+      fonts:
+        - asset: assets/fonts/Marcellus-Regular.ttf
     - family: ArkomSans
       fonts:
         - asset: assets/fonts/Roboto-Regular.ttf

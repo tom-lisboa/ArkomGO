@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -40,11 +41,14 @@ func (p *stepProvider) Next(_ context.Context, r construction.Request) (construc
 			return construction.Turn{}, err
 		}
 		actions = []construction.Action{{Tool: "write", Path: name, Content: string(data)}}
+		if r.Agent == "ux" && strings.Contains(r.Instruction, "plano versão 3") {
+			actions = append(actions, construction.Action{Tool: "write", Path: construction.NavigationPath, Content: `{"schema":"arkom.navigation.v1","home":"/","routes":[{"path":"/","title":"Calculadora","component":"frontend/src/pages/Calculator.svelte","menu":true}]}`})
+		}
 	case "backend":
 		actions = []construction.Action{{Tool: "write", Path: "backend/add.go", Content: "package solution\nfunc Add(a,b int)int{return a+b}"}, {Tool: "write", Path: "backend/add_test.go", Content: "package solution\nimport \"testing\"\nfunc TestAdd(t *testing.T){if Add(12,30)!=42{t.Fatal(\"sum\")}}"}}
 	case "interface":
 		if construction.IsSvelte(r.Files) {
-			return construction.Turn{Actions: []construction.Action{{Tool: "write", Path: "frontend/src/App.svelte", Content: "<h1>Calculadora</h1>"}}, Verdict: "ready"}, nil
+			return construction.Turn{Actions: []construction.Action{{Tool: "write", Path: "frontend/src/App.svelte", Content: "<h1>Calculadora</h1>"}, {Tool: "write", Path: "frontend/src/pages/Calculator.svelte", Content: "<h1>Calculadora</h1>"}}, Verdict: "ready"}, nil
 		}
 		actions = []construction.Action{{Tool: "write", Path: "frontend/index.html", Content: "<h1>Calculadora</h1>"}}
 	}
@@ -327,13 +331,14 @@ func TestConstructionStepCannotFinishWithoutEngineReceipt(t *testing.T) {
 	}
 }
 
-func (t *stepTester) CompileFrontend(context.Context, map[string]string) (construction.FrontendResult, error) {
+func (t *stepTester) CompileFrontend(_ context.Context, files map[string]string) (construction.FrontendResult, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.frontendFail {
 		return construction.FrontendResult{Errors: []map[string]any{{"message": "invalid component", "line": 2}}}, errors.New("frontend_compilation_failed")
 	}
-	return construction.FrontendResult{OK: true, Javascript: `document.getElementById("app").textContent="Calculadora"`}, nil
+	plan, _ := construction.ValidateNavigation(files, true)
+	return construction.FrontendResult{OK: true, Navigation: plan, Javascript: `document.getElementById("app").textContent="Calculadora"`}, nil
 }
 
 func TestSvelteFailureStaysAtInterfaceAndRetryPersistsBuildEvidence(t *testing.T) {
@@ -420,7 +425,7 @@ func TestUXCheckpointSurvivesRestartAndLegacyRevisionKeepsFourSteps(t *testing.T
 	stepSetup(a, &stepProvider{}, &stepTester{})
 	id := startSteps(t, a, admin)
 	out := stepCheckpoint(t, a, admin, id, "awaiting_step")
-	if out["build"].(map[string]any)["steps_version"] != float64(2) || stepInput(out)["step_id"] != "ux" {
+	if out["build"].(map[string]any)["steps_version"] != float64(3) || stepInput(out)["step_id"] != "ux" {
 		t.Fatal(out)
 	}
 	base := "/v1/sdr/genesis-demo/construction/" + id
@@ -461,5 +466,89 @@ func TestUXCheckpointSurvivesRestartAndLegacyRevisionKeepsFourSteps(t *testing.T
 	b := revised["build"].(map[string]any)
 	if b["steps_version"] != float64(1) || len(b["steps"].([]any)) != 4 || b["next_step_id"] != "backend" {
 		t.Fatal("legacy plan changed", b)
+	}
+}
+
+func TestInterfaceRevisionReusesVerifiedStepsAndSurvivesRestart(t *testing.T) {
+	a, creds, db := genesisApp(t)
+	admin := login(t, a, creds, "alfa.admin")
+	p, tt := &stepProvider{}, &stepTester{}
+	stepSetup(a, p, tt)
+	id := startSteps(t, a, admin)
+	base := "/v1/sdr/genesis-demo/construction/" + id
+	out := stepCheckpoint(t, a, admin, id, "awaiting_step")
+	for _, stage := range []string{"ux", "designer", "backend", "interface", "reviewer"} {
+		code, reply := req(a, "POST", base+"/advance", admin, "", stepInput(out))
+		if code != 202 {
+			t.Fatal(code, reply)
+		}
+		want := "awaiting_step"
+		if stage == "reviewer" {
+			want = "ready"
+		}
+		out = stepCheckpoint(t, a, admin, id, want)
+	}
+	a.mu.Lock()
+	parent := a.state.Platform.Constructions[id]
+	digest := application.Digest(parent.Files)
+	a.mu.Unlock()
+	p2 := &stepProvider{}
+	stepSetup(a, p2, tt)
+	code, reply := req(a, "POST", "/v1/sdr/genesis-demo/construction", admin, "", map[string]any{"goal": "Melhore a hierarquia visual preservando o produto", "parent_id": id, "revision_scope": "interface"})
+	if code != 202 {
+		t.Fatal(code, reply)
+	}
+	child := reply["id"].(string)
+	out = stepCheckpoint(t, a, admin, child, "awaiting_step")
+	if out["build"].(map[string]any)["next_step_id"] != "reviewer" {
+		t.Fatal(out["build"])
+	}
+	for _, step := range out["build"].(map[string]any)["steps"].([]any) {
+		s := step.(map[string]any)
+		if s["id"] != "interface" && s["id"] != "reviewer" && s["status"] != "reused" {
+			t.Fatal("reran prerequisite", s)
+		}
+	}
+	p2.mu.Lock()
+	for _, agent := range p2.agents {
+		if agent != "interface" {
+			t.Error("unrequested stage", agent)
+		}
+	}
+	p2.mu.Unlock()
+	a.mu.Lock()
+	b := a.state.Platform.Constructions[child]
+	for path, content := range parent.Files {
+		if !strings.HasPrefix(path, "frontend/") && b.Files[path] != content {
+			t.Error("changed preserved file", path)
+		}
+	}
+	if application.Digest(parent.Files) != digest {
+		t.Error("mutated parent")
+	}
+	for _, tr := range b.Traces {
+		if tr.Kind == "step.reused" {
+			var receipt map[string]any
+			if json.Unmarshal([]byte(tr.Output), &receipt) != nil || receipt["parent_id"] != id || receipt["source_digest"] != digest {
+				t.Error("missing reuse evidence")
+			}
+		}
+	}
+	a.mu.Unlock()
+	a.Close()
+	restored, keys, err := newApp(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+	admin = login(t, restored, keys, "alfa.admin")
+	out = stepCheckpoint(t, restored, admin, child, "awaiting_step")
+	if out["build"].(map[string]any)["revision_scope"] != "interface" || stepInput(out)["step_id"] != "reviewer" {
+		t.Fatal("lost revision scope/checkpoint")
+	}
+	// Partial/invalid parents cannot bypass prerequisite stages.
+	code, _ = req(restored, "POST", "/v1/sdr/genesis-demo/construction", admin, "", map[string]any{"goal": "Outra alteração visual pequena", "parent_id": child, "revision_scope": "interface"})
+	if code != 409 {
+		t.Fatal("unvalidated parent reused", code)
 	}
 }

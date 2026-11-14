@@ -29,7 +29,8 @@ if "$video"; then
     [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
 fi
 
-if "$studio" && [[ ! -x "$video_runtime/bin/ffmpeg" ]]; then
+studio_ffmpeg="${CLIPS_PILOT_FFMPEG:-$video_runtime/bin/ffmpeg}"
+if "$studio" && [[ ! -x "$studio_ffmpeg" ]]; then
     printf 'Prepare o FFmpeg com ./pilots/clips/prepare-video.sh\n' >&2
     exit 1
 fi
@@ -97,7 +98,7 @@ fi
 
 app_flags=(--socket "$socket_dir")
 if "$studio"; then
-    app_flags+=(--studio-ffmpeg "$video_runtime/bin/ffmpeg")
+    app_flags+=(--studio-ffmpeg "$studio_ffmpeg")
 fi
 if "$video"; then
     video_socket="$socket_dir/worker.sock"

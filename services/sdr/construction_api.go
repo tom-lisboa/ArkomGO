@@ -25,6 +25,9 @@ type ConstructionTrace struct {
 	At       time.Time `json:"at"`
 }
 type ConstructionBuild struct {
+	Creator       User                  `json:"creator,omitempty"`
+	Mode          string                `json:"mode,omitempty"`
+	RevisionScope string                `json:"revision_scope,omitempty"`
 	StepsVersion  int                   `json:"steps_version,omitempty"`
 	ExecutionID   string                `json:"execution_id,omitempty"`
 	ID            string                `json:"id"`
@@ -42,7 +45,19 @@ type ConstructionBuild struct {
 }
 
 func (b *ConstructionBuild) summary() map[string]any {
-	return map[string]any{"id": b.ID, "goal": b.Goal, "status": b.Status, "parent_id": b.ParentID, "created_at": b.CreatedAt, "updated_at": b.UpdatedAt, "files_count": len(b.Files), "sequence": len(b.Traces), "application_id": b.ApplicationID, "revision": b.Revision, "contract_status": b.contractStatus(), "runtime_compatible": construction.RuntimeCompatible(b.Files), "frontend_framework": frontendFramework(b.Files), "steps_version": b.StepsVersion, "steps": b.steps(), "next_step_id": b.nextStepID()}
+	status := b.contractStatus()
+	name := ""
+	if status == "validated" {
+		name = b.Contract.Manifest.Name
+	}
+	return map[string]any{
+		"mode": b.Mode, "autopilot": b.Mode == "frontend", "id": b.ID, "name": name, "goal": b.Goal, "status": b.Status, "parent_id": b.ParentID,
+		"created_at": b.CreatedAt, "updated_at": b.UpdatedAt, "files_count": len(b.Files), "sequence": len(b.Traces),
+		"application_id": b.ApplicationID, "revision": b.Revision, "contract_status": status,
+		"has_frontend":       strings.TrimSpace(b.Files["frontend/index.html"]) != "",
+		"runtime_compatible": construction.RuntimeCompatible(b.Files), "frontend_framework": frontendFramework(b.Files),
+		"steps_version": b.StepsVersion, "revision_scope": b.RevisionScope, "steps": b.steps(), "next_step_id": b.nextStepID(),
+	}
 }
 func (a *App) constructionTrace(id string, event construction.Event) error {
 	return a.constructionRunTrace(id, "", event)
@@ -115,6 +130,14 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 	}
 	suffix := strings.TrimPrefix(r.URL.Path, prefix)
 	parts := strings.Split(strings.Trim(suffix, "/"), "/")
+	if suffix == "/blank" && r.Method == "POST" {
+		a.createBlankFrontend(w, r, u)
+		return true
+	}
+	if len(parts) == 2 && parts[1] == "frontend" && r.Method == "POST" {
+		a.editConstructionFrontend(w, r, u, parts[0])
+		return true
+	}
 	if len(parts) >= 2 && parts[1] == "runtime" {
 		a.runtimeHTTP(w, r, u, parts)
 		return true
@@ -144,14 +167,32 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			return true
 		}
 		var body struct {
-			Goal     string `json:"goal"`
-			ParentID string `json:"parent_id,omitempty"`
+			Mode          string `json:"mode,omitempty"`
+			Goal          string `json:"goal"`
+			ParentID      string `json:"parent_id,omitempty"`
+			RevisionScope string `json:"revision_scope,omitempty"`
 		}
 		if !decodeCore(w, r, &body) {
 			return true
 		}
-		if !textOK(body.Goal, 4000, true) || len([]rune(body.Goal)) < 15 {
+		if body.Mode != "" && body.Mode != "frontend" {
+			fail(w, 422, "invalid_construction_mode")
+			return true
+		}
+		minGoal := 15
+		if body.Mode == "frontend" {
+			minGoal = 3
+		}
+		if !textOK(body.Goal, 4000, true) || len([]rune(body.Goal)) < minGoal {
 			fail(w, 422, "invalid_goal")
+			return true
+		}
+		if body.RevisionScope != "" && body.RevisionScope != "interface" {
+			fail(w, 422, "invalid_revision_scope")
+			return true
+		}
+		if body.RevisionScope != "" && body.ParentID == "" {
+			fail(w, 422, "revision_parent_required")
 			return true
 		}
 		count := 0
@@ -168,7 +209,7 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			fail(w, 409, "construction_limit")
 			return true
 		}
-		version := 2
+		version := 3
 		initial := construction.NewSeed()
 		var parent *ConstructionBuild
 		if body.ParentID != "" {
@@ -187,21 +228,68 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			}
 		}
 		for name, data := range construction.Seed() {
+			if body.Mode == "frontend" && parent != nil {
+				continue
+			}
 			initial[name] = data
 		}
-		provider, tester, err := a.prepareConstruction("architect")
+		startStep := "architect"
+		if body.RevisionScope == "interface" && body.Mode != "frontend" {
+			if parent.Status != "ready" || parent.contractStatus() != "validated" || !construction.SupportsSteps(parent.StepsVersion) || !construction.FrontendCurrent(parent.Files) || application.Digest(initial) != application.Digest(parent.Files) {
+				fail(w, 409, "revision_reuse_unavailable")
+				return true
+			}
+			if parent.StepsVersion >= 2 {
+				if err := construction.ValidateDesign(initial, "interface"); err != nil {
+					fail(w, 409, "revision_reuse_unavailable")
+					return true
+				}
+			}
+			if parent.StepsVersion >= 3 {
+				if _, err := construction.ValidateNavigation(initial, true); err != nil {
+					fail(w, 409, "revision_reuse_unavailable")
+					return true
+				}
+			}
+			startStep = "interface"
+		}
+		if body.Mode == "frontend" {
+			version = 5
+			// Frontend mode never invents or changes an API/backend contract.
+			if parent == nil {
+				manifest, _ := json.Marshal(application.Manifest{SchemaVersion: application.SchemaVersion, CatalogVersion: "arkom-capabilities-v1", Name: "Sua página", Backend: "go", Entrypoint: "frontend/index.html", Routes: []application.Route{}, Capabilities: []string{}})
+				initial[application.ManifestPath] = string(manifest)
+			} else if parent.Mode != "frontend" && (parent.Status != "ready" || parent.contractStatus() != "validated") {
+				fail(w, 409, "frontend_parent_unavailable")
+				return true
+			}
+			// Every conversational request may change the visual direction and pages.
+			// Revisit UX/UI automatically; the backend remains immutable.
+
+			body.RevisionScope = ""
+		}
+		provider, tester, err := a.prepareConstruction(startStep)
 		if err != nil {
 			fail(w, 503, err.Error())
 			return true
 		}
 		applicationID, revision := a.constructionIdentity(u.Org, parent)
-		b := &ConstructionBuild{StepsVersion: version, ExecutionID: token(), ApplicationID: applicationID, Revision: revision, ID: "build_" + token(), Org: u.Org, Goal: body.Goal, ParentID: body.ParentID, Status: "running", CreatedAt: a.now().UTC(), UpdatedAt: a.now().UTC(), Files: initial, Traces: []ConstructionTrace{}}
+		b := &ConstructionBuild{Creator: User{ID: u.ID, Org: u.Org, Role: u.Role, Environment: u.Environment}, Mode: body.Mode, RevisionScope: body.RevisionScope, StepsVersion: version, ExecutionID: token(), ApplicationID: applicationID, Revision: revision, ID: "build_" + token(), Org: u.Org, Goal: body.Goal, ParentID: body.ParentID, Status: "running", CreatedAt: a.now().UTC(), UpdatedAt: a.now().UTC(), Files: initial, Traces: []ConstructionTrace{}}
 		if a.transact(func() {
 			if a.state.Platform.Constructions == nil {
 				a.state.Platform.Constructions = map[string]*ConstructionBuild{}
 			}
 			a.state.Platform.Constructions[b.ID] = b
-			b.appendStepEvent("step.started", b.nextStepID(), "Planejamento iniciado pelo cliente.", "", a.now().UTC())
+			if body.RevisionScope == "interface" {
+				evidence, _ := json.Marshal(map[string]any{"parent_id": parent.ID, "parent_revision": parent.Revision, "source_digest": application.Digest(parent.Files), "reason": "Revisão somente de interface solicitada pelo cliente; arquivos anteriores preservados"})
+				for _, step := range construction.StepsForVersion(version) {
+					if step.ID == "interface" {
+						break
+					}
+					b.appendStepEvent("step.reused", step.ID, "Reaproveitou etapa da revisão validada; não executada novamente.", string(evidence), a.now().UTC())
+				}
+			}
+			b.appendStepEvent("step.started", startStep, "Etapa iniciada pelo cliente.", "", a.now().UTC())
 			a.record(AuditEntry{Org: u.Org, Actor: u.ID, Action: "construction.started", Operation: b.ID})
 		}) != nil {
 			fail(w, 503, "storage_unavailable")

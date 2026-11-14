@@ -56,7 +56,7 @@ Campos suportados: empresa, objetivo, nome, segmento, quantidade de vendedores, 
 ```sh
 (cd packages/deeph && go test ./pkg/arkom)
 (cd services/sdr && go test ./...)
-(cd apps/portal && npx tsc --noEmit)
+(cd apps/agents/bia && npm run build)
 ```
 
 Os testes cobrem compilação real do artefato, escape de conteúdo, rejeição de backend externo, contrato desconhecido, prévia sem efeitos, aprovação, isolamento por empresa, persistência, rollback, repetição, conflitos de versão e o enfileiramento efetivo da oportunidade somente após preencher todos os fatos válidos. Go deve estar no PATH da API Genesis para compilar a proposta.

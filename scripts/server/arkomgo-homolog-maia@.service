@@ -1,0 +1,25 @@
+[Unit]
+Description=ArkomGO Maia homologation (%i)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+User=arkomgo-homolog
+Group=arkomgo-homolog
+WorkingDirectory=/opt/arkomgo-homolog/multi
+ExecStart=/opt/arkomgo-homolog/multi/run-maia.sh %i
+Restart=on-failure
+RestartSec=7
+TimeoutStopSec=15
+MemoryHigh=210M
+MemoryMax=300M
+TasksMax=100
+UMask=0077
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/arkomgo-homolog/maia /opt/arkomgo-homolog/multi/node_modules/.vite /opt/arkomgo-homolog/multi/node_modules/.vite-temp /opt/arkomgo-homolog/multi/src
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

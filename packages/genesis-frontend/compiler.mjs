@@ -1,13 +1,18 @@
 // Trusted build configuration. Application sources are parsed and bundled,
 // never imported/executed by Node; no project scripts/plugins are loaded.
-import { compile, compileModule } from 'svelte/compiler';
+import { readNavigation, navigationSources } from './navigation.mjs';
+import { compile, compileModule, parse } from 'svelte/compiler';
 import { build } from 'esbuild';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const sourcesRoot = 'frontend/src/';
-const runtimeModules = new Set(['svelte', 'svelte/store', 'svelte/motion', 'svelte/transition', 'svelte/easing', 'svelte/events', 'svelte/animate', 'svelte/reactivity']);
+const thirdPartyNotice = "/*! Third-party notices\nsvelte\nCopyright (c) 2016-2025 [Svelte Contributors](https://github.com/sveltejs/svelte/graphs/contributors)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n\n\nmotion\nThe MIT License (MIT)\n\nCopyright (c) 2024 [Motion](https://motion.dev) B.V.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n\n\nframer-motion\nThe MIT License (MIT)\n\nCopyright (c) 2018 Framer B.V.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n\n\nmotion-dom\nThe MIT License (MIT)\n\nCopyright (c) 2024 [Motion](https://motion.dev) B.V.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n\n\nmotion-utils\nThe MIT License (MIT)\n\nCopyright (c) 2024 [Motion](https://motion.dev) B.V.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n\n\nlenis\nThe MIT License\n\nCopyright (c) 2024 darkroom.engineering\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \u201cSoftware\u201d), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \u201cAS IS\u201d, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n\ntslib\nCopyright (c) Microsoft Corporation.\n\nPermission to use, copy, modify, and/or distribute this software for any\npurpose with or without fee is hereby granted.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH\nREGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY\nAND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,\nINDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM\nLOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR\nOTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR\nPERFORMANCE OF THIS SOFTWARE.\n*/\n";
+const visualModules = {'@arkom/motion':'motion.mjs','@arkom/assets':'assets.mjs','@arkom/AnimatedImage.svelte':'AnimatedImage.svelte'};
+const visualSources = Object.fromEntries(Object.entries(visualModules).map(([name,file])=>[name,readFileSync(path.join(root,file),'utf8')]));
+const runtimeModules = new Set(['svelte', 'svelte/store', 'svelte/motion', 'svelte/transition', 'svelte/easing', 'svelte/events', 'svelte/animate', 'svelte/reactivity', 'motion', 'lenis', 'lenis/dist/lenis.css']);
 const validSource = name => /^frontend\/src\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_.-]+\.(?:svelte|js|ts|css)$/.test(name) && !name.split('/').some(p => p.startsWith('.'));
 const diagnostic = (v, fallback = 'frontend/src/App.svelte') => ({
   file: v.filename || v.location?.file?.replace(/^application:/, '') || fallback,
@@ -17,11 +22,52 @@ const diagnostic = (v, fallback = 'frontend/src/App.svelte') => ({
   code: v.code || 'compile_error',
 });
 
-export async function compileFrontend(files) {
+// Source positions refer to the original Svelte, never to serialized DOM.
+// Repeated component instances intentionally share one source identifier.
+export function instrument(source, filename) {
+  const elements = [], inserts = [];
+  const walk = node => {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'RegularElement' && !['script','style','svelte:head'].includes(node.name)) {
+      const id = filename+':'+node.start;
+      const attrs = node.attributes || [];
+      // Spreads may replace editor markers or contain dynamic style values.
+      const safe = !attrs.some(a=>a.type==='SpreadAttribute' || a.name==='data-genesis-node');
+      if (safe) {
+        const at = node.start+1+node.name.length;
+        const style = attrs.find(a=>a.name==='style');
+        const staticStyle = !attrs.some(a=>a.type==='StyleDirective') && (!style || (Array.isArray(style.value) && style.value.every(v=>v.type==='Text')));
+        const text = node.fragment?.nodes;
+        const literal = text?.length===1 && text[0].type==='Text' ? text[0] : null;
+        elements.push({id,path:filename,tag:node.name,insert:at,
+          text:literal ? {start:literal.start,end:literal.end,value:literal.data} : null,
+          style:staticStyle ? {start:style?.start??at,end:style?.end??at,value:style?.value.map(v=>v.data).join('')??''} : null});
+        inserts.push({at,value:' data-genesis-node="'+id+'"'+(literal?' data-genesis-literal':'')});
+      }
+    }
+    for(const [key,value] of Object.entries(node)) {
+      if (['parent','loc','name_loc','metadata'].includes(key)) continue;
+      if (Array.isArray(value)) value.forEach(walk);
+      else if (value && typeof value==='object') walk(value);
+    }
+  };
+  walk(parse(source,{modern:true,filename}));
+  for (const {at,value} of inserts.sort((a,b)=>b.at-a.at)) source=source.slice(0,at)+value+source.slice(at);
+  return {source,elements};
+}
+
+export async function compileFrontend(files, {preview=false}={}) {
   const sources = Object.fromEntries(Object.entries(files).filter(([name]) => name.startsWith(sourcesRoot)));
   if (!sources['frontend/src/App.svelte']) throw Error('Escreva frontend/src/App.svelte antes de compilar.');
   if (Object.keys(sources).length > 48 || Object.values(sources).some(v => typeof v !== 'string' || Buffer.byteLength(v) > 48000) || Object.values(sources).reduce((n,v) => n + Buffer.byteLength(v),0) > 350000 || Object.keys(sources).some(name => !validSource(name))) throw Error('Fontes fora dos limites do frontend.');
-  const warnings = [];
+  let navigation = readNavigation(files);
+  if (preview && navigation) {
+    const routes=navigation.routes.filter(route=>sources[route.component]);
+    navigation=routes.length ? {...navigation,routes,home:routes.some(r=>r.path===navigation.home)?navigation.home:routes[0].path} : null;
+  }
+  const hostSources = navigation ? navigationSources(navigation) : {};
+  if (navigation) for (const route of navigation.routes) if (!sources[route.component]) throw Error('Implemente a tela declarada: '+route.component);
+  const warnings = [], elements = [];
   const plugin = {
     name: 'genesis-svelte',
     setup(builder) {
@@ -30,6 +76,11 @@ export async function compileFrontend(files) {
         return {path:resolved.path,errors:resolved.errors};
       };
       builder.onResolve({filter: /.*/, namespace: 'application'}, async args => {
+        if (Object.hasOwn(visualSources,args.path)) return {path:args.path,namespace:'visual'};
+        if (args.path === '@arkom/navigation' || args.path === '@arkom/Router.svelte') {
+          if (!navigation) return {errors:[{text:'Declare design/navigation.json antes de usar o roteador.'}]};
+          return {path:args.path === '@arkom/navigation' ? 'navigation.js' : 'Router.svelte',namespace:'navigation'};
+        }
         if (runtimeModules.has(args.path) || (args.pluginData?.compiled && /^svelte\/(?:internal|legacy)(?:\/|$)/.test(args.path))) {
           return resolveRuntime(args.path);
         }
@@ -38,6 +89,19 @@ export async function compileFrontend(files) {
         if (!validSource(resolved) || !Object.hasOwn(sources,resolved)) return {errors:[{text:`Arquivo local indisponível: ${args.path}`} ]};
         return {path:resolved,namespace:'application'};
       });
+      builder.onResolve({filter:/.*/,namespace:'visual'}, async args => {
+        if (Object.hasOwn(visualSources,args.path)) return {path:args.path,namespace:'visual'};
+        if (runtimeModules.has(args.path) || args.path.startsWith('svelte/internal/')) return resolveRuntime(args.path);
+        return {errors:[{text:'Módulo visual indisponível'}]};
+      });
+      builder.onLoad({filter:/.*/,namespace:'visual'}, args => ({contents:args.path.endsWith('.svelte') ? compile(visualSources[args.path],{filename:args.path,generate:'client',css:'injected',dev:false}).js.code : visualSources[args.path],loader:'js'}));
+      builder.onResolve({filter:/.*/,namespace:'navigation'}, async args => {
+        if (args.path.startsWith('svelte')) return resolveRuntime(args.path);
+        if (args.path === './navigation.js') return {path:'navigation.js',namespace:'navigation'};
+        if (sources[args.path]) return {path:args.path,namespace:'application'};
+        return {errors:[{text:'Módulo de navegação indisponível'}]};
+      });
+      builder.onLoad({filter:/.*/,namespace:'navigation'}, args => ({contents:args.path.endsWith('.svelte') ? compile(hostSources[args.path],{filename:args.path,generate:'client',css:'injected',dev:false}).js.code : hostSources[args.path],loader:'js'}));
       builder.onResolve({filter:/^genesis-entry$/}, () => ({path:'entry.js',namespace:'entry'}));
       builder.onLoad({filter:/.*/,namespace:'entry'}, () => ({contents:`import { mount } from 'svelte'; import App from './App.svelte'; mount(App,{target:document.getElementById('app')});`,loader:'js'}));
       builder.onResolve({filter:/.*/,namespace:'entry'}, async args => args.path === 'svelte' ? await resolveRuntime('svelte') : {path:'frontend/src/App.svelte',namespace:'application'});
@@ -45,7 +109,9 @@ export async function compileFrontend(files) {
         const source = sources[args.path];
         try {
           if (args.path.endsWith('.svelte')) {
-            const output = compile(source,{filename:args.path,generate:'client',css:'injected',dev:false});
+            const mapped = instrument(source,args.path);
+            elements.push(...mapped.elements);
+            const output = compile(mapped.source,{filename:args.path,generate:'client',css:'injected',dev:false});
             warnings.push(...output.warnings.map(v=>diagnostic(v,args.path)));
             return {contents:output.js.code,loader:'js',pluginData:{compiled:true}};
           }
@@ -63,14 +129,16 @@ export async function compileFrontend(files) {
   };
   const result = await build({entryPoints:['genesis-entry'],bundle:true,write:false,metafile:true,outdir:'/output',entryNames:'bundle',format:'iife',platform:'browser',conditions:['browser'],target:['es2022'],minify:true,sourcemap:false,legalComments:'inline',logLevel:'silent',plugins:[plugin],absWorkingDir:root,define:{'process.env.NODE_ENV':'"production"'}});
   const outputs = Object.fromEntries(result.outputFiles.map(v=>[path.basename(v.path),v.text]));
-  if (!outputs['bundle.js'] || result.outputFiles.some(v=>v.contents.length>256*1024) || result.outputFiles.reduce((n,v)=>n+v.contents.length,0)>384*1024) throw Error('O frontend compilado ultrapassa o limite. Reduza esta entrega.');
+  outputs['bundle.js'] = thirdPartyNotice + (outputs['bundle.js'] || '');
+  if (!outputs['bundle.js'] || Buffer.byteLength(outputs['bundle.js']) > 256*1024 || result.outputFiles.some(v=>v.contents.length>256*1024) || result.outputFiles.reduce((n,v)=>n+v.contents.length,0)>384*1024) throw Error('O frontend compilado ultrapassa o limite. Reduza esta entrega.');
   if (Object.keys(outputs).some(name=>!['bundle.js','bundle.css'].includes(name))) throw Error('Saída de compilação inesperada.');
   warnings.push(...result.warnings.map(v=>diagnostic(v)));
   const used = new Set(Object.keys(result.metafile.inputs).filter(name=>name.startsWith('application:')).map(name=>name.slice('application:'.length)));
+  if (!preview && navigation && !Object.hasOwn(result.metafile.inputs,'navigation:Router.svelte')) throw Error('Renderize o roteador compartilhado: importe Router de @arkom/Router.svelte e use <Router /> em App.svelte.');
   for (const name of Object.keys(sources)) {
     if (!used.has(name)) warnings.push({file:name,line:0,column:0,code:'unused_source',message:'Este arquivo não faz parte do bundle. O host monta App.svelte; importe CSS e componentes a partir dele ou de seus módulos.'});
   }
-  return {javascript:outputs['bundle.js'],css:outputs['bundle.css'] || '',warnings:warnings.slice(0,30)};
+  return {javascript:outputs['bundle.js'],css:outputs['bundle.css'] || '',warnings:warnings.slice(0,30),elements:elements.slice(0,2000),navigation:navigation ? {schema:navigation.schema,home:navigation.home,routes:navigation.routes} : null};
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -80,7 +148,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       input += part;
       if (Buffer.byteLength(input)>512*1024) throw Error('Entrada muito grande.');
     }
-    process.stdout.write(JSON.stringify({ok:true,...await compileFrontend(JSON.parse(input))}));
+    const request=JSON.parse(input);
+    process.stdout.write(JSON.stringify({ok:true,...await compileFrontend(request.files||request,{preview:request.preview===true})}));
   } catch(error) {
     const diagnostics = error.errors?.map(v=>diagnostic(v)) || [diagnostic(error)];
     process.stdout.write(JSON.stringify({ok:false,errors:diagnostics.slice(0,20)}));

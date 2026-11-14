@@ -1,5 +1,0 @@
-# Kit Bilhon — CODEOWNERS (rascunho: time ajusta os donos na review desta PR)
-# Enforcement real: em conta paga, ruleset da main exige review de code owner.
-# Neste repo (conta pessoal Free, sem ruleset), a protecao e o guard-main.yml —
-# CODEOWNERS fica declarativo ate haver plano com ruleset.
-*  @thiagofinch

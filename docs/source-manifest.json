@@ -2,11 +2,11 @@
   "captured_at": "2026-11-11",
   "projects": [
     {
-      "directory": "apps/portal",
+      "directory": "apps/agents/bia",
       "source": "https://github.com/bilhon-business/arkom-dash.git",
       "base_commit": "82d36ecfffd7ddb73c606c1ce2638e63f9b35325",
-      "snapshot": "working tree including local modifications, excluding runtime data and secrets",
-      "files": 545
+      "snapshot": "BIA agent runtime extracted from the former platform; Next platform removed 2026-11-13",
+      "files": 68
     },
     {
       "directory": "services/sdr",

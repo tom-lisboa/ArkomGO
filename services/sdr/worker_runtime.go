@@ -27,7 +27,7 @@ var pipelineStopRE = regexp.MustCompile(`(?im)(pare de (me )?(ligar|mandar|envia
 
 func pipelineOptOut(s string) bool { return pipelineStopRE.MatchString(strings.TrimSpace(s)) }
 func workerToken(role string) (string, error) {
-	if role != "context" && role != "execution" && role != "media" && role != "metrics" && role != "calendar" {
+	if role != "context" && role != "execution" && role != "media" && role != "metrics" && role != "calendar" && role != "followup" {
 		return "", errors.New("unknown_worker")
 	}
 	b, e := os.ReadFile(localSecretPath(role + "-worker"))
@@ -61,12 +61,16 @@ func (a *App) configurePipeline() error {
 		if err != nil {
 			return err
 		}
-		admin, err := os.ReadFile("/run/secrets/metrics-admin")
+		admin, err := os.ReadFile(localSecretPath("metrics-admin"))
 		if err != nil || len(strings.TrimSpace(string(admin))) < 32 {
 			return errors.New("metrics_admin_missing")
 		}
 		a.workerSecrets["metrics"] = sha256.Sum256([]byte(secret))
-		a.ops = newMetricsOps(strings.TrimSpace(string(admin)), secret, "http://sdr-next-metrics:8090")
+		reportAddress := localLoopbackAddress("SDR_METRICS_LISTEN", "sdr-next-metrics:8090")
+		if reportAddress == "invalid-local-listen-address" {
+			return errors.New("invalid_metrics_address")
+		}
+		a.ops = newMetricsOps(strings.TrimSpace(string(admin)), secret, "http://"+reportAddress)
 	}
 	if os.Getenv("SDR_CALENDAR_ENABLED") == "true" {
 		secret, err := workerToken("calendar")
@@ -74,6 +78,13 @@ func (a *App) configurePipeline() error {
 			return err
 		}
 		a.workerSecrets["calendar"] = sha256.Sum256([]byte(secret))
+	}
+	if os.Getenv("SDR_FOLLOWUP_ENABLED") == "true" {
+		secret, err := workerToken("followup")
+		if err != nil {
+			return err
+		}
+		a.workerSecrets["followup"] = sha256.Sum256([]byte(secret))
 	}
 	a.executionModel = strings.TrimSpace(os.Getenv("SDR_OPENAI_MODEL"))
 	if a.executionModel == "" {
@@ -93,12 +104,12 @@ func (a *App) configurePipeline() error {
 	return nil
 }
 func workerEntrypoint() bool {
-	mode := flag.String("worker", "", "context, execution, media, metrics or calendar; empty starts the API")
+	mode := flag.String("worker", "", "context, execution, media, metrics, calendar or followup; empty starts the API")
 	flag.Parse()
 	if *mode == "" {
 		return false
 	}
-	if *mode != "context" && *mode != "execution" && *mode != "media" && *mode != "metrics" && *mode != "calendar" {
+	if *mode != "context" && *mode != "execution" && *mode != "media" && *mode != "metrics" && *mode != "calendar" && *mode != "followup" {
 		log.Fatal("unknown isolated worker mode")
 	}
 	token, e := workerToken(*mode)
@@ -133,6 +144,10 @@ func workerEntrypoint() bool {
 		worker.Run(ctx)
 		return true
 	}
+	if *mode == "followup" {
+		log.Print("isolated follow-up worker started")
+		return runFollowupWorker(ctx, client)
+	}
 	if *mode == "metrics" {
 		path := os.Getenv("SDR_METRICS_DB")
 		if path == "" {
@@ -145,7 +160,11 @@ func workerEntrypoint() bool {
 		defer store.Close()
 		worker := metricsworker.Worker{Source: client, Store: store}
 		go worker.Run(ctx)
-		server := http.Server{Addr: "0.0.0.0:8090", Handler: store.Handler("Bearer " + token), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second}
+		address := localLoopbackAddress("SDR_METRICS_LISTEN", "0.0.0.0:8090")
+		if address == "invalid-local-listen-address" {
+			log.Fatal("metrics report listener requires loopback")
+		}
+		server := http.Server{Addr: address, Handler: store.Handler("Bearer " + token), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second}
 		go func() {
 			<-ctx.Done()
 			stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -154,7 +173,7 @@ func workerEntrypoint() bool {
 		}()
 		log.Print("isolated metrics worker started")
 		if err = server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Print("metrics report listener stopped")
+			log.Fatal("metrics report listener stopped")
 		}
 		return true
 	}

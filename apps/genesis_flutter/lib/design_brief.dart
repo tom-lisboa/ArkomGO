@@ -9,6 +9,13 @@ class DesignBrief extends StatelessWidget {
   final String source;
   const DesignBrief({super.key, required this.source});
   static const labels = {
+    'schema': 'Formato',
+    'home': 'Página inicial',
+    'routes': 'Telas e rotas',
+    'path': 'Endereço',
+    'title': 'Título',
+    'component': 'Componente',
+    'menu': 'Mostrar no menu',
     'audience': 'Público e contexto',
     'primary_task': 'Tarefa principal',
     'journey': 'Jornada',
@@ -62,10 +69,15 @@ class DesignBrief extends StatelessWidget {
           for (var i = 0; i < data.length; i++)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: SelectableText(
-                '${i + 1}. ${data[i]}',
-                style: const TextStyle(color: Color(0xffd4d9e0), height: 1.5),
-              ),
+              child: data[i] is Map
+                  ? value(data[i])
+                  : SelectableText(
+                      '${i + 1}. ${data[i]}',
+                      style: const TextStyle(
+                        color: Color(0xffd4d9e0),
+                        height: 1.5,
+                      ),
+                    ),
             ),
         ],
       );

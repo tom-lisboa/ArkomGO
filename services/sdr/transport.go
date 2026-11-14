@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"net/url"
 	"regexp"
 	"sdr-next-pilot/pkg/sdrsdk"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -352,6 +354,13 @@ func (a *App) ingestReal(v realInbound) error {
 			text = "[Mídia recebida; processamento pendente]"
 		}
 		m := a.applyLead(c, text)
+		// A delayed gateway receipt must not extend the WhatsApp service window.
+		for i := len(a.state.Messages[id]) - 1; i >= 0; i-- {
+			if a.state.Messages[id][i].ID == m.ID {
+				a.state.Messages[id][i].Created = v.At
+				break
+			}
+		}
 		if v.Media != nil {
 			a.incomingMedia(c, m.ID, v)
 		}
@@ -393,6 +402,14 @@ func (a *App) realEligible(d *realDelivery) bool {
 	found := false
 	for _, m := range a.state.Messages[c.ID] {
 		if m.ID == e.ID && (m.Status == "queued" || m.Status == "sending") {
+			if m.FollowupID != "" {
+				j := a.state.Followups[m.FollowupID]
+				now := a.now()
+				if j == nil || j.Org != c.Org || j.Conversation != c.ID || j.Message != m.ID ||
+					!now.Before(j.Expires) || a.followupReason(c, j, now) != "" {
+					return false
+				}
+			}
 			if !a.workflowMediaDeliveryAllowed(c, &m) {
 				return false
 			}
@@ -479,12 +496,33 @@ func (a *App) TransportTick(ctx context.Context) error {
 		return nil
 	}
 	var firstErr error
+	a.mu.Lock()
+	orgs := make([]string, 0, len(a.state.Transport.Policies))
+	for org := range a.state.Transport.Policies {
+		orgs = append(orgs, org)
+	}
+	slices.SortFunc(orgs, func(left, right string) int {
+		return a.state.Transport.LastSync[left].Compare(a.state.Transport.LastSync[right])
+	})
+	a.mu.Unlock()
 companyLoop:
-	for _, org := range []string{"org_demo_alfa", "org_demo_beta"} {
+	for _, org := range orgs {
 		a.mu.Lock()
 		p := a.state.Transport.Policies[org]
 		needSync := a.state.Transport.Synced[org] != p.Revision || a.now().Sub(a.state.Transport.LastSync[org]) >= 30*time.Second
 		a.mu.Unlock()
+		// A fresh demo company has no gateway binding until the connection worker
+		// provisions it. Synchronize disabled policies only after that step.
+		if !p.Enabled && p.Revision == 1 && a.db != nil {
+			var status string
+			err := a.db.QueryRowContext(ctx, "SELECT provisioning FROM whatsapp_channels WHERE organization_id=?", org).Scan(&status)
+			if errors.Is(err, sql.ErrNoRows) || (err == nil && status != "ready") {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+		}
 		var err error
 		if needSync {
 			err = engine.PutMessaging(ctx, org, p)

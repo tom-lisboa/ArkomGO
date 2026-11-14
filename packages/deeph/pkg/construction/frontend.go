@@ -39,7 +39,7 @@ func frontendSource(name string) bool {
 func frontendDigest(files map[string]string) string {
 	names := []string{}
 	for name := range files {
-		if frontendSource(name) || name == FrontendContractPath || name == "application.json" {
+		if frontendSource(name) || name == FrontendContractPath || name == "application.json" || name == NavigationPath || name == MediaPath {
 			names = append(names, name)
 		}
 	}
@@ -55,7 +55,9 @@ type FrontendResult struct {
 	OK         bool             `json:"ok"`
 	Javascript string           `json:"javascript"`
 	CSS        string           `json:"css"`
+	Navigation *NavigationPlan  `json:"navigation,omitempty"`
 	Warnings   []map[string]any `json:"warnings"`
+	Elements   []map[string]any `json:"elements,omitempty"`
 	Errors     []map[string]any `json:"errors"`
 }
 type FrontendCompiler interface {
@@ -70,8 +72,9 @@ func FrontendCurrent(files map[string]string) bool {
 	var receipt struct {
 		SourceDigest string `json:"source_digest"`
 		BundleDigest string `json:"bundle_digest"`
+		PreviewOnly  bool   `json:"preview_only"`
 	}
-	return files[FrontendContractPath] == FrontendContract && json.Unmarshal([]byte(files["frontend/build.json"]), &receipt) == nil && receipt.SourceDigest == frontendDigest(files) && receipt.BundleDigest == compiledDigest(files) && files["frontend/index.html"] != "" && files["frontend/bundle.js"] != ""
+	return files[FrontendContractPath] == FrontendContract && json.Unmarshal([]byte(files["frontend/build.json"]), &receipt) == nil && !receipt.PreviewOnly && receipt.SourceDigest == frontendDigest(files) && receipt.BundleDigest == compiledDigest(files) && files["frontend/index.html"] != "" && files["frontend/bundle.js"] != ""
 }
 func compiledDigest(files map[string]string) string {
 	h := sha256.New()
@@ -80,7 +83,18 @@ func compiledDigest(files map[string]string) string {
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
+
+type FrontendPreviewCompiler interface {
+	CompileFrontendPreview(context.Context, map[string]string) (FrontendResult, error)
+}
+
 func (e *Engine) compileFrontend(ctx context.Context, files map[string]string, agent string, emit func(Event) error) error {
+	return e.compileFrontendMode(ctx, files, agent, emit, false)
+}
+func (e *Engine) compileFrontendPreview(ctx context.Context, files map[string]string, agent string, emit func(Event) error) error {
+	return e.compileFrontendMode(ctx, files, agent, emit, true)
+}
+func (e *Engine) compileFrontendMode(ctx context.Context, files map[string]string, agent string, emit func(Event) error, preview bool) error {
 	if err := emit(Event{Kind: "frontend.build.started", Agent: agent, Summary: "Compilando componentes Svelte em isolamento"}); err != nil {
 		return err
 	}
@@ -92,7 +106,21 @@ func (e *Engine) compileFrontend(ctx context.Context, files map[string]string, a
 	} else if files[FrontendContractPath] != FrontendContract {
 		err = errors.New("frontend_contract_invalid")
 	} else {
-		result, err = compiler.CompileFrontend(ctx, clone(files))
+		if partial, ok := compiler.(FrontendPreviewCompiler); preview && ok {
+			result, err = partial.CompileFrontendPreview(ctx, clone(files))
+		} else {
+			result, err = compiler.CompileFrontend(ctx, clone(files))
+		}
+	}
+	if !preview && err == nil && files[NavigationPath] != "" {
+		expected, issue := ValidateNavigation(files, true)
+		want, _ := json.Marshal(expected)
+		got, _ := json.Marshal(result.Navigation)
+		if issue != nil {
+			err = issue
+		} else if string(want) != string(got) {
+			err = errors.New("navigation_build_receipt_invalid")
+		}
 	}
 	if err == nil && (!result.OK || result.Javascript == "" || len(result.Javascript) > 256*1024 || len(result.CSS) > 256*1024 || len(result.Javascript)+len(result.CSS) > 384*1024) {
 		err = errors.New("frontend_build_invalid")
@@ -112,11 +140,15 @@ func (e *Engine) compileFrontend(ctx context.Context, files map[string]string, a
 		Name string `json:"name"`
 	}
 	_ = json.Unmarshal([]byte(files["application.json"]), &manifest)
+	media, mediaErr := mediaScript(files[MediaPath])
+	if mediaErr != nil {
+		return mediaErr
+	}
 	outputs := map[string]string{
-		"frontend/index.html": "<!doctype html>\n<html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + html.EscapeString(manifest.Name) + "</title><link rel=\"stylesheet\" href=\"./bundle.css\"></head><body><div id=\"app\"></div><script src=\"./bundle.js\"></script></body></html>",
+		"frontend/index.html": "<!doctype html>\n<html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + html.EscapeString(manifest.Name) + "</title><link rel=\"stylesheet\" href=\"./bundle.css\"></head><body><div id=\"app\"></div>" + media + "<script src=\"./bundle.js\"></script></body></html>",
 		"frontend/bundle.js":  result.Javascript, "frontend/bundle.css": result.CSS,
 	}
-	receipt, _ := json.Marshal(map[string]any{"schema": "arkom.svelte.build.v1", "source_digest": frontendDigest(files), "bundle_digest": compiledDigest(outputs), "warnings": result.Warnings})
+	receipt, _ := json.Marshal(map[string]any{"schema": "arkom.svelte.build.v1", "source_digest": frontendDigest(files), "bundle_digest": compiledDigest(outputs), "warnings": result.Warnings, "navigation": result.Navigation, "elements": result.Elements, "preview_only": preview})
 	outputs["frontend/build.json"] = string(receipt)
 	for _, name := range frontendArtifacts {
 		if err := emit(Event{Kind: "file.written", Agent: "system", Path: name, Before: files[name], After: outputs[name], Summary: "Salvou artefato compilado do frontend"}); err != nil {
@@ -124,10 +156,25 @@ func (e *Engine) compileFrontend(ctx context.Context, files map[string]string, a
 		}
 		files[name] = outputs[name]
 	}
+	if files[NavigationPath] != "" {
+		output, _ := json.Marshal(result.Navigation)
+		if err := emit(Event{Kind: "navigation.built", Agent: agent, Path: NavigationPath, Summary: "Rotas e componentes conectados ao bundle; comportamento da aplicação ainda não verificado", Output: string(output)}); err != nil {
+			return err
+		}
+	}
 	warnings, _ := json.Marshal(result.Warnings)
-	return emit(Event{Kind: "frontend.build.passed", Agent: agent, Summary: "Svelte compilado; inspeção visual ainda pendente", Output: string(warnings)})
+	summary := "Svelte compilado; inspeção visual ainda pendente"
+	if preview {
+		summary = "Prévia parcial compilada; a página continua em construção"
+	}
+	return emit(Event{Kind: "frontend.build.passed", Agent: agent, Summary: summary, Output: string(warnings)})
 }
 
-const FrontendReference = `FRONTEND SVELTE: este projeto usa Svelte 5.57.3. Escreva frontend/src/App.svelte e componentes .svelte, módulos .js/.ts e estilos .css em frontend/src/. O host monta App.svelte automaticamente; não crie main.ts nem monte App manualmente. Importe estilos globais diretamente de App.svelte (ex.: import './styles.css'). Arquivos não importados não entram no bundle e geram aviso. Importe arquivos relativos com extensão. Svelte compila TypeScript simples em <script lang="ts">; não use preprocessadores. Use $state, $derived, $props e eventos onclick/onsubmit. Exemplo: <script>let count = $state(0);</script><button onclick={() => count++}>{count}</button>. Componentes são importados com import Card from './Card.svelte'. Use CSS no componente ou import './styles.css'. Não use @import remoto, URLs externas, bibliotecas de ícones, fontes de CDN ou pacotes adicionais; somente svelte e seus módulos oficiais de UI. Prefira SVG inline para ícones.
+const FrontendReference = `FRONTEND SVELTE: este projeto usa Svelte 5.57.3. Escreva frontend/src/App.svelte e componentes .svelte, módulos .js/.ts e estilos .css em frontend/src/. O host monta App.svelte automaticamente; não crie main.ts nem monte App manualmente. Importe estilos globais diretamente de App.svelte (ex.: import './styles.css'). Arquivos não importados não entram no bundle e geram aviso. Importe arquivos relativos com extensão. Svelte compila TypeScript simples em <script lang="ts">; não use preprocessadores. Use $state, $derived, $props e eventos onclick/onsubmit. Exemplo: <script>let count = $state(0);</script><button onclick={() => count++}>{count}</button>. Componentes são importados com import Card from './Card.svelte'. Use CSS no componente ou import './styles.css'. Não use @import remoto, URLs externas, bibliotecas de ícones, fontes de CDN ou pacotes adicionais; svelte e seus módulos oficiais de UI, motion e lenis já fornecidos pelo host. As integrações @arkom/motion, @arkom/assets e @arkom/AnimatedImage.svelte são descritas em reference/visual-agents.md. Prefira SVG inline para ícones. Quando houver design/navigation.json, o host também fornece @arkom/navigation e @arkom/Router.svelte; consulte reference/navigation.md.
 O host controla frontend/svelte.json, frontend/index.html, bundle.js, bundle.css e build.json; nunca escreva esses arquivos. Não crie package.json, vite.config ou scripts de instalação. A ferramenta test na etapa interface compila Svelte; erros e warnings voltam nos traces. Para concluir interface e revisão, o host compila novamente as fontes finais. Compilação não é teste visual, de acessibilidade nem de comportamento.
-Use fetch('/api/...') no navegador para o backend Go já declarado. Trate loading, vazio, sucesso e erro; verifique response.ok. Use somente dados da API ou exemplos claramente identificados. Crie componentes reutilizáveis, layout responsivo, HTML semântico, labels, foco visível, navegação por teclado e contraste legível. Escolha identidade visual apropriada ao produto e ao pedido do cliente; não aplique o tema Arkom automaticamente. Entregue somente o escopo de DESIGN.md. Sem SSR/SvelteKit nesta etapa.`
+Use fetch('/api/...') no navegador para o backend Go já declarado. Trate loading, vazio, sucesso e erro; verifique response.ok. Use somente dados da API ou exemplos claramente identificados. Crie componentes reutilizáveis, layout responsivo, HTML semântico, labels, foco visível, navegação por teclado e contraste legível. Escolha identidade visual apropriada ao produto e ao pedido do cliente; não aplique o tema Arkom automaticamente. Entregue somente o escopo de DESIGN.md. Sem SSR/SvelteKit nesta etapa.
+QUALIDADE DE FRONTEND E AUTONOMIA DO CLIENTE: trate as fontes recebidas como o estado atual do projeto, incluindo edições manuais. Em ajustes, preserve conteúdo, composição, componentes, comportamento e escolhas anteriores que o pedido não mandou mudar. Faça a menor revisão que cumpra o pedido; não regenere a página inteira por conveniência.
+Escolha uma direção visual específica para o negócio e a tarefa, coerente com design/ui.json e design/ux.json quando presentes. Uma página de apresentação precisa de composição, tipografia, ritmo e conteúdo próprios; um aplicativo precisa privilegiar navegação, densidade e tarefa. Evite repetir o mesmo hero, grade de cartões, paleta ou efeitos em todos os projetos. Use textos concretos e exemplos identificados; não invente depoimentos, resultados, clientes ou selos de confiança.
+Implemente cores, tipografia, larguras, raios e espaçamentos como variáveis CSS reutilizáveis. Use componentes Svelte pequenos para regiões com responsabilidade clara. Trate celular primeiro, grades flexíveis, textos longos, foco visível, toque e prefers-reduced-motion. Animações devem apoiar a interação e não atrasar a leitura.
+Todo controle apresentado deve responder de forma coerente: navegação alcançável, formulários com validação e feedback, estados vazios e erros recuperáveis. Preserve texto e estilos estáticos como marcação Svelte editável quando não dependem de dados; mantenha expressões e eventos para o comportamento real. Não esconda toda a interface em strings HTML, imagens da página ou canvas.
+Antes de concluir, revise as fontes finais e compile: verifique alinhamento com o pedido, hierarquia, consistência de tokens, responsividade e comportamento implementado. Registre lacunas reais. Compilar não comprova que a página foi vista nem que um teste visual passou; só afirme inspeção visual quando houver essa evidência.`

@@ -18,7 +18,7 @@ jobs:
             packages/deeph/go.sum
       - run: go test ./...
         working-directory: ${{ matrix.module }}
-  portal:
+  bia-agent:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,9 +26,9 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci --ignore-scripts --no-audit --no-fund
-        working-directory: apps/portal
-      - run: npx next typegen && npx tsc --noEmit && node --test scripts/test-demo-session.cjs scripts/test-demo-proxy.cjs
-        working-directory: apps/portal
+        working-directory: apps/agents/bia
+      - run: npm run build
+        working-directory: apps/agents/bia
   diagrams:
     runs-on: ubuntu-latest
     steps:

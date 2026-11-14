@@ -26,13 +26,19 @@ func (b *frontendBuffer) Write(p []byte) (int, error) {
 	return b.Buffer.Write(p)
 }
 
-func (Sandbox) CompileFrontend(ctx context.Context, files map[string]string) (FrontendResult, error) {
+func (s Sandbox) CompileFrontend(ctx context.Context, files map[string]string) (FrontendResult, error) {
+	return s.compileFrontend(ctx, files, false)
+}
+func (s Sandbox) CompileFrontendPreview(ctx context.Context, files map[string]string) (FrontendResult, error) {
+	return s.compileFrontend(ctx, files, true)
+}
+func (Sandbox) compileFrontend(ctx context.Context, files map[string]string, preview bool) (FrontendResult, error) {
 	var result FrontendResult
 	toolchain, err := filepath.EvalSymlinks(os.Getenv("ARKOM_FRONTEND_TOOLCHAIN"))
 	if err != nil || !filepath.IsAbs(toolchain) {
 		return result, fmt.Errorf("%w: frontend_compiler_unavailable", ErrFrontendRunner)
 	}
-	for _, name := range []string{"compiler.mjs", "node_modules/svelte/package.json", "node_modules/esbuild/package.json"} {
+	for _, name := range []string{"compiler.mjs", "navigation.mjs", "motion.mjs", "assets.mjs", "AnimatedImage.svelte", "node_modules/motion/package.json", "node_modules/lenis/package.json", "node_modules/svelte/package.json", "node_modules/esbuild/package.json"} {
 		if _, err := os.Stat(filepath.Join(toolchain, name)); err != nil {
 			return result, fmt.Errorf("%w: frontend_compiler_unavailable", ErrFrontendRunner)
 		}
@@ -52,7 +58,14 @@ func (Sandbox) CompileFrontend(ctx context.Context, files map[string]string) (Fr
 	if size > 350000 || len(sources) > 48 {
 		return result, errors.New("frontend_source_limit")
 	}
-	input, _ := json.Marshal(sources)
+	if value, ok := files[NavigationPath]; ok {
+		sources[NavigationPath] = value
+	}
+	var payload any = sources
+	if preview {
+		payload = map[string]any{"files": sources, "preview": true}
+	}
+	input, _ := json.Marshal(payload)
 	dir, err := os.MkdirTemp("", "arkom-frontend-")
 	if err != nil {
 		return result, err

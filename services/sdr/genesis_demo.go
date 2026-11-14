@@ -121,6 +121,9 @@ func (a *App) genesisDemoHTTP(w http.ResponseWriter, r *http.Request) bool {
 		fail(w, 401, "unauthorized")
 		return true
 	}
+	if a.ecosystemHTTP(w, r, s.User) {
+		return true
+	}
 	if a.constructionHTTP(w, r, s.User) {
 		return true
 	}

@@ -5,12 +5,29 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import 'code_workspace.dart';
+import 'genesis_tools.dart';
 import 'live_activity.dart';
+import 'frontend_planning.dart';
 import 'solution_preview.dart';
 import 'studio_controller.dart';
 import 'visuals.dart';
+import 'platform.dart';
 
-void main() => runApp(const GenesisApp());
+void main() {
+  final segments = Uri.base.pathSegments;
+  final route =
+      segments.isNotEmpty &&
+          (segments.first == 'demo' || segments.first == 'arkomgo')
+      ? segments.skip(1).join('/')
+      : '';
+  runApp(
+    ArkomPlatform(
+      initialView:
+          Uri.base.queryParameters['view'] ?? (route.isEmpty ? 'team' : route),
+      navigationOnly: Uri.base.queryParameters['navigation'] == 'only',
+    ),
+  );
+}
 
 class GenesisApp extends StatelessWidget {
   final StudioController? controller;
@@ -46,7 +63,18 @@ class GenesisApp extends StatelessWidget {
 
 class Studio extends StatefulWidget {
   final StudioController? controller;
-  const Studio({super.key, this.controller});
+  final String? initialBuildId;
+  final bool startNew, toolMode;
+  final VoidCallback? onBack, onOpenNavigation;
+  const Studio({
+    super.key,
+    this.controller,
+    this.initialBuildId,
+    this.startNew = false,
+    this.toolMode = false,
+    this.onBack,
+    this.onOpenNavigation,
+  });
   @override
   State<Studio> createState() => _StudioState();
 }
@@ -82,18 +110,59 @@ class _StudioState extends State<Studio> {
             e['kind'] == 'frontend.build.failed',
       )
       .toList();
+  Map<String, String> lastGoodPreview = {};
+  Map<String, String> get previewFiles =>
+      model.build?['mode'] == 'frontend' &&
+          ((model.files['frontend/index.html'] ?? '').isEmpty ||
+              (model.files['frontend/build.json'] ?? '').isEmpty)
+      ? lastGoodPreview
+      : model.files;
+  List<Map<String, dynamic>> get liveCanvasActions =>
+      model.lastDelivery == 'update'
+      ? model.traces
+            .where(
+              (e) =>
+                  [
+                    'file.written',
+                    'file.read',
+                    'file.generating',
+                  ].contains(e['kind']) &&
+                  (e['path'] ?? '').startsWith('frontend/src/'),
+            )
+            .toList()
+            .reversed
+            .take(12)
+            .toList()
+            .reversed
+            .map(
+              (e) => <String, dynamic>{
+                for (final key in ['sequence', 'agent', 'kind', 'path'])
+                  key: e[key],
+              },
+            )
+            .toList()
+      : [];
+  bool get frontendMode => model.build?['mode'] == 'frontend';
   bool get hasPreview =>
-      !newIdea && (model.files['frontend/index.html'] ?? '').trim().isNotEmpty;
+      !newIdea && (previewFiles['frontend/index.html'] ?? '').trim().isNotEmpty;
   bool get canSend =>
       model.canEdit &&
       !model.busy &&
       !model.anyRunning &&
-      goal.text.trim().length >= 15;
+      goal.text.trim().length >= 3;
 
   @override
   void initState() {
     super.initState();
-    model = widget.controller ?? StudioController();
+    model =
+        widget.controller ??
+        StudioController(
+          initialBuildId: widget.initialBuildId,
+          startNew: widget.startNew,
+        );
+    newIdea = widget.startNew;
+    mobileChat = widget.startNew;
+    lastGoodPreview = Map.of(model.files);
     lastBuild = model.id;
     lastStatus = model.build?['status'] ?? '';
     lastSequence = model.build?['sequence'] ?? 0;
@@ -111,6 +180,7 @@ class _StudioState extends State<Studio> {
       stopReplay();
     final switched = lastBuild != model.id;
     if (switched) {
+      lastGoodPreview.clear();
       previewDebounce?.cancel();
       lastBuild = model.id;
       lastSequence = 0;
@@ -119,6 +189,10 @@ class _StudioState extends State<Studio> {
       mode = 0;
       newIdea = false;
     }
+    if ((model.files['frontend/index.html'] ?? '').isNotEmpty &&
+        (!model.files.containsKey('frontend/svelte.json') ||
+            (model.files['frontend/build.json'] ?? '').isNotEmpty))
+      lastGoodPreview = Map.of(model.files);
     activity.sync(
       model.id,
       model.traces,
@@ -189,6 +263,9 @@ class _StudioState extends State<Studio> {
                 'frontend.build.failed',
                 'design.validated',
                 'design.rejected',
+                'navigation.validated',
+                'navigation.rejected',
+                'navigation.built',
                 'agent.finished',
               ].contains(e['kind']),
         )
@@ -264,59 +341,171 @@ class _StudioState extends State<Studio> {
   );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: LayoutBuilder(
-      builder: (context, c) {
-        final narrow = c.maxWidth < 760;
-        return Column(
-          children: [
-            header(narrow),
-            if (model.error.isNotEmpty)
-              Container(
-                width: double.infinity,
-                color: const Color(0xff30201e),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 9,
+  Widget build(BuildContext context) {
+    if (widget.toolMode) return toolWorkspace();
+    return Scaffold(
+      body: LayoutBuilder(
+        builder: (context, c) {
+          final narrow = c.maxWidth < 960;
+          final compactBackend = c.maxWidth < 1180;
+          return Column(
+            children: [
+              header(narrow),
+              if (model.error.isNotEmpty || model.initialBuildMissing)
+                Container(
+                  width: double.infinity,
+                  color: const Color(0xff30201e),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 9,
+                  ),
+                  child: label(
+                    model.initialBuildMissing
+                        ? 'Este projeto não está disponível nesta conta.'
+                        : model.error,
+                    color: const Color(0xfff0b0a0),
+                    size: 11,
+                    lines: 3,
+                  ),
                 ),
-                child: label(
-                  model.error,
-                  color: const Color(0xfff0b0a0),
-                  size: 11,
-                  lines: 3,
+              Expanded(
+                child: Row(
+                  children: [
+                    if (!narrow) ...[
+                      SizedBox(
+                        width: compactBackend ? 56 : 208,
+                        child: backendConversation(compact: compactBackend),
+                      ),
+                      const VerticalDivider(width: 1, color: line),
+                    ],
+                    Expanded(
+                      child: Column(
+                        children: [
+                          toolbar(narrow),
+                          Expanded(
+                            child: IndexedStack(
+                              index: narrow && mobileChat ? 1 : 0,
+                              children: [
+                                workspace(),
+                                if (narrow) conversation(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!narrow && showChat) ...[
+                      const VerticalDivider(width: 1, color: line),
+                      SizedBox(
+                        width: c.maxWidth >= 1280 ? 348 : 316,
+                        child: conversation(),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            Expanded(
-              child: Row(
-                children: [
-                  if (!narrow && showChat)
-                    SizedBox(
-                      width: c.maxWidth < 1050 ? 280 : 316,
-                      child: conversation(),
-                    ),
-                  if (!narrow && showChat)
-                    const VerticalDivider(width: 1, color: line),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        toolbar(narrow),
-                        Expanded(
-                          child: IndexedStack(
-                            index: narrow && mobileChat ? 1 : 0,
-                            children: [workspace(), if (narrow) conversation()],
-                          ),
-                        ),
-                      ],
-                    ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget toolWorkspace() {
+    final build = model.build;
+    final available = build != null && hasGenesisTool(build);
+    final missing = model.initialBuildMissing || (build != null && !available);
+    final needsConnection =
+        available && build['runtime_compatible'] == true && model.canEdit;
+    return Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            height: 62,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: const BoxDecoration(
+              color: panel,
+              border: Border(bottom: BorderSide(color: line)),
+            ),
+            child: Row(
+              children: [
+                if (widget.onOpenNavigation != null)
+                  iconAction(
+                    'Mostrar menu Arkom',
+                    Icons.menu,
+                    widget.onOpenNavigation,
                   ),
-                ],
+                iconAction(
+                  'Voltar para Ferramentas',
+                  Icons.arrow_back,
+                  widget.onBack,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: label(
+                    available ? genesisToolName(build) : 'Ferramentas',
+                    size: 15,
+                    lines: 1,
+                    weight: FontWeight.w500,
+                  ),
+                ),
+                if (needsConnection &&
+                    ['failed', 'stopped'].contains(model.runtimeStatus))
+                  iconAction(
+                    'Conectar ferramenta',
+                    Icons.link,
+                    () => model.action('runtime_start'),
+                  ),
+                if (available)
+                  iconAction(
+                    'Atualizar ferramenta',
+                    Icons.refresh,
+                    () => setState(() => previewRevision++),
+                  ),
+                if (available && model.canEdit)
+                  iconAction(
+                    'Editar no Genesis',
+                    Icons.edit_outlined,
+                    () =>
+                        model.call('navigate', {'view': 'genesis/${model.id}'}),
+                  ),
+              ],
+            ),
+          ),
+          if (!missing && model.error.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: label(
+                model.error,
+                color: const Color(0xfff0b0a0),
+                size: 12,
               ),
             ),
-          ],
-        );
-      },
-    ),
-  );
+          Expanded(
+            child: missing
+                ? Center(
+                    child: label(
+                      'Esta ferramenta não está disponível nesta conta.',
+                      color: muted,
+                      size: 14,
+                    ),
+                  )
+                : !hasPreview || !available
+                ? model.error.isNotEmpty
+                      ? const SizedBox.shrink()
+                      : const Center(
+                          child: CircularProgressIndicator(color: gold),
+                        )
+                : SolutionPreview(
+                    key: ValueKey('${model.id}-$previewRevision'),
+                    files: Map.of(model.files),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget header(bool narrow) => Container(
     height: 62,
@@ -327,6 +516,16 @@ class _StudioState extends State<Studio> {
     ),
     child: Row(
       children: [
+        if (widget.onOpenNavigation != null)
+          iconAction('Mostrar menu Arkom', Icons.menu, widget.onOpenNavigation),
+        if (widget.onBack != null) ...[
+          iconAction(
+            'Voltar para Ferramentas',
+            Icons.arrow_back,
+            widget.onBack,
+          ),
+          const SizedBox(width: 5),
+        ],
         Container(
           width: 30,
           height: 30,
@@ -337,7 +536,14 @@ class _StudioState extends State<Studio> {
           child: const Icon(Icons.auto_awesome, size: 16, color: gold),
         ),
         const SizedBox(width: 10),
-        label('GENESIS', size: 11, weight: FontWeight.w600, spacing: 2.1),
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            label('GENESIS', size: 11, weight: FontWeight.w600, spacing: 2.1),
+            label('Agentes Visuais', size: 9, color: muted),
+          ],
+        ),
         const SizedBox(width: 18),
         const SizedBox(
           height: 18,
@@ -438,10 +644,10 @@ class _StudioState extends State<Studio> {
       children: [
         iconAction(
           narrow
-              ? 'Conversar com o Genesis'
+              ? 'Conversar sobre o Front-end'
               : showChat
-              ? 'Recolher conversa'
-              : 'Mostrar conversa',
+              ? 'Recolher conversa de Front-end'
+              : 'Mostrar conversa de Front-end',
           Icons.chat_bubble_outline,
           () => setState(() {
             if (narrow) {
@@ -462,11 +668,34 @@ class _StudioState extends State<Studio> {
           child: Row(
             children: [
               modeButton('Solução', Icons.web_asset_outlined, 0, narrow),
-              modeButton('Código', Icons.code, 1, narrow),
+              if (model.build?['mode'] != 'frontend' &&
+                  !newIdea &&
+                  model.id.isNotEmpty)
+                modeButton('Código', Icons.code, 1, narrow),
             ],
           ),
         ),
         const Spacer(),
+        if (model.steps.isNotEmpty)
+          iconAction(
+            'Passo a passo do frontend',
+            Icons.format_list_numbered,
+            () => showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              builder: (context) => SafeArea(
+                child: SizedBox(
+                  height: MediaQuery.sizeOf(context).height * .8,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(22),
+                    child: model.build?['mode'] == 'frontend'
+                        ? agenticProgress()
+                        : constructionSteps(dismissOnSelect: true),
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (!narrow && mode == 0) ...[
           iconAction(
             'Visualizar em desktop',
@@ -510,11 +739,21 @@ class _StudioState extends State<Studio> {
           onSelected: (v) {
             if (v == 'runtime_start' || v == 'runtime_stop') model.action(v);
             if (v == 'replay') startReplay();
+            if (v == 'code') setState(() => mode = 1);
+            if (v == 'blank') model.createBlankFrontend();
             if (v == 'export') model.action('export');
-            if (v == 'qualification') model.call('qualification');
             if (v == 'cancel') model.action('cancel');
           },
           itemBuilder: (_) => [
+            const PopupMenuItem(
+              value: 'blank',
+              child: Text('Começar manualmente'),
+            ),
+            if (model.id.isNotEmpty)
+              const PopupMenuItem(
+                value: 'code',
+                child: Text('Avançado: arquivos da página'),
+              ),
             if (model.build?['contract_status'] == 'validated')
               PopupMenuItem(
                 value: ['running', 'starting'].contains(model.runtimeStatus)
@@ -523,8 +762,8 @@ class _StudioState extends State<Studio> {
                 enabled: model.canEdit && !model.busy,
                 child: Text(
                   ['running', 'starting'].contains(model.runtimeStatus)
-                      ? 'Encerrar backend da prévia'
-                      : 'Iniciar backend da prévia',
+                      ? 'Pausar solução'
+                      : 'Conectar solução',
                   style: const TextStyle(fontSize: 12),
                 ),
               ),
@@ -553,13 +792,6 @@ class _StudioState extends State<Studio> {
                   style: TextStyle(fontSize: 12),
                 ),
               ),
-            const PopupMenuItem(
-              value: 'qualification',
-              child: Text(
-                'Qualificação SDR/CRM',
-                style: TextStyle(fontSize: 12),
-              ),
-            ),
           ],
         ),
       ],
@@ -607,113 +839,259 @@ class _StudioState extends State<Studio> {
         ),
       );
 
-  Widget conversation() => Container(
-    color: const Color(0xff111214),
-    child: Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(22, 25, 22, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  List<Map<String, dynamic>> get conversationLineage {
+    final messages = <Map<String, dynamic>>[];
+    var current = model.build;
+    final seen = <String>{};
+    while (current != null && seen.add(current['id'] ?? '')) {
+      messages.insert(0, current);
+      final parent = current['parent_id'];
+      current = parent == null || parent == ''
+          ? null
+          : model.projects.where((p) => p['id'] == parent).firstOrNull;
+      if (messages.length >= 12) break;
+    }
+    return messages;
+  }
+
+  Widget chatBubble(String text, {bool user = false}) => Align(
+    alignment: user ? Alignment.centerRight : Alignment.centerLeft,
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: user ? const Color(0xff23262b) : Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!user) ...[
+            Row(
               children: [
-                label(
-                  'UM TIME PARA A SUA IDEIA',
-                  size: 9,
-                  color: gold,
-                  spacing: 1.5,
-                ),
-                const SizedBox(height: 12),
-                label(
-                  newIdea || model.id.isEmpty
-                      ? 'O que vamos\ncriar hoje?'
-                      : 'Sua ideia,\nganhando forma.',
-                  size: 27,
-                  weight: FontWeight.w300,
-                ),
-                const SizedBox(height: 12),
-                label(
-                  newIdea || model.id.isEmpty
-                      ? 'Conte o que você precisa. Primeiro planejamos; depois construímos uma etapa por vez.'
-                      : 'Peça uma mudança aqui e acompanhe a solução ao lado.',
+                const Icon(Icons.auto_awesome, size: 15, color: gold),
+                const SizedBox(width: 8),
+                label('Genesis', size: 12, weight: FontWeight.w600),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
+          SelectableText(
+            text,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.65,
+              color: Color(0xffdce0e5),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget visualAgentHeading(
+    String title,
+    String subtitle,
+    IconData icon, {
+    bool active = false,
+  }) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: line)),
+    ),
+    child: Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: (active ? gold : muted).withValues(alpha: .08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 17, color: active ? gold : muted),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              label(title, size: 13, weight: FontWeight.w600),
+              label(subtitle, size: 10, color: muted),
+            ],
+          ),
+        ),
+        if (active)
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: agentColors[3],
+            ),
+          ),
+      ],
+    ),
+  );
+
+  Widget backendConversation({bool compact = false}) => Container(
+    key: const ValueKey('backend-conversation'),
+    color: const Color(0xff101113),
+    child: compact
+        ? Column(
+            children: [
+              const SizedBox(height: 18),
+              const Tooltip(
+                message: 'Agente de Back-end · Em breve',
+                child: Icon(
+                  Icons.account_tree_outlined,
+                  size: 20,
                   color: muted,
-                  size: 12,
                 ),
-                if (!newIdea && model.build != null) ...[
-                  const SizedBox(height: 24),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: gold.withValues(alpha: .06),
-                      border: Border.all(color: gold.withValues(alpha: .14)),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+              ),
+              const SizedBox(height: 18),
+              RotatedBox(
+                quarterTurns: 3,
+                child: label('Back-end · Em breve', size: 10, color: muted),
+              ),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              visualAgentHeading(
+                'Back-end',
+                'Estrutura e conexões',
+                Icons.account_tree_outlined,
+              ),
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        label('VOCÊ PEDIU', size: 8, color: gold, spacing: 1.4),
-                        const SizedBox(height: 8),
+                        label('EM BREVE', size: 9, color: muted, spacing: 1.5),
+                        const SizedBox(height: 12),
+                        label('Um espaço para a estrutura.', size: 19),
+                        const SizedBox(height: 12),
                         label(
-                          model.build!['goal'].toString().trim(),
+                          'A conversa com os agentes de Back-end vai ficar aqui.',
                           size: 12,
-                          lines: 5,
+                          color: muted,
+                        ),
+                        const SizedBox(height: 16),
+                        label(
+                          'Por enquanto, vamos dar forma à sua página com o time de Front-end.',
+                          size: 11,
+                          color: muted,
                         ),
                       ],
                     ),
                   ),
-                ],
-                if (!newIdea && model.steps.isNotEmpty) ...[
-                  const SizedBox(height: 22),
-                  constructionSteps(),
-                ],
-                const SizedBox(height: 26),
-                Row(
-                  children: [
-                    label('Seu time', size: 12, weight: FontWeight.w500),
-                    const Spacer(),
-                    label('deepH', size: 10, color: muted),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: label('Time de soluções', size: 10, color: muted),
+              ),
+            ],
+          ),
+  );
+
+  Widget frontendProgressDrawer() {
+    final completed = model.steps
+        .where((step) => ['completed', 'reused'].contains(step['status']))
+        .length;
+    final current = model.steps
+        .where((step) => step['status'] == 'running')
+        .firstOrNull;
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: line)),
+      ),
+      child: ExpansionTile(
+        key: ValueKey('frontend-progress-${model.id}'),
+        initiallyExpanded: model.build?['mode'] != 'frontend',
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+        dense: true,
+        shape: const Border(),
+        collapsedShape: const Border(),
+        iconColor: gold,
+        collapsedIconColor: muted,
+        title: label('Passo a passo', size: 11, weight: FontWeight.w500),
+        subtitle: label(
+          current?['title']?.toString() ??
+              '$completed de ${model.steps.length} etapas concluídas',
+          size: 10,
+          color: muted,
+          lines: 1,
+        ),
+        children: [
+          SizedBox(
+            height: math.min(260, MediaQuery.sizeOf(context).height * .3),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: frontendStepsPanel(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget conversation() => Container(
+    key: const ValueKey('frontend-conversation'),
+    color: const Color(0xff111214),
+    child: Column(
+      children: [
+        visualAgentHeading(
+          'Front-end',
+          'Design e páginas',
+          Icons.auto_awesome_outlined,
+          active: true,
+        ),
+        if (!newIdea && model.steps.isNotEmpty) frontendProgressDrawer(),
+        Expanded(
+          child: SingleChildScrollView(
+            reverse: true,
+            padding: const EdgeInsets.fromLTRB(16, 22, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (newIdea || model.id.isEmpty) ...[
+                  chatBubble(
+                    'O que você quer colocar no mundo?\n\nDescreva a página do seu jeito. Eu organizo as ideias, cuido do visual e construo com você. Depois, é só pedir o que quer mudar.',
+                  ),
+                ] else ...[
+                  for (final message in conversationLineage) ...[
+                    chatBubble(message['goal']?.toString() ?? '', user: true),
+                    if (message['id'] != model.id &&
+                        message['status'] == 'ready')
+                      chatBubble(
+                        'Essa versão ficou pronta. Continue me dizendo o que você quer ajustar.',
+                      ),
                   ],
-                ),
-                const SizedBox(height: 14),
-                teamRoster(),
-                const SizedBox(height: 22),
-                if (!newIdea && model.build != null) resultSummary(),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: line),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.hub_outlined, size: 18, color: gold),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            label('Construído com a Arkom', size: 11),
-                            label(
-                              'Contexto, catálogo e ferramentas',
-                              size: 10,
-                              color: muted,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Tooltip(
-                        message: 'O time consulta os contratos do ecossistema. As integrações operacionais ainda precisam ser conectadas.',
-                        child: const Icon(
-                          Icons.info_outline,
-                          size: 13,
-                          color: muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                  if (model.running)
+                    chatBubble(
+                      model.traces
+                              .where((e) => e['kind'] == 'agent.update')
+                              .lastOrNull?['summary']
+                              ?.toString() ??
+                          'Estou transformando sua ideia em uma página. Você pode acompanhar a criação ao lado.',
+                    ),
+                  if (model.build?['status'] == 'ready')
+                    chatBubble(
+                      'Sua página está pronta para experimentar. O que você quer ajustar agora? Pode pedir outra composição, mudar o estilo ou acrescentar algo.',
+                    ),
+                  if ([
+                    'failed',
+                    'interrupted',
+                    'cancelled',
+                  ].contains(model.build?['status']))
+                    chatBubble(
+                      'A criação parou neste ponto. O que já foi feito está preservado. Podemos continuar daqui.',
+                    ),
+                ],
               ],
             ),
           ),
@@ -723,7 +1101,127 @@ class _StudioState extends State<Studio> {
     ),
   );
 
-  Widget constructionSteps() => Column(
+  Widget frontendStepsPanel() => model.build?['mode'] == 'frontend'
+      ? agenticProgress()
+      : model.steps.isNotEmpty
+      ? constructionSteps()
+      : Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            label('SEU FRONTEND', size: 9, color: gold, spacing: 1.4),
+            const SizedBox(height: 16),
+            label('Liberdade para criar', size: 20),
+            const SizedBox(height: 12),
+            label(
+              'Selecione elementos na página ou abra o Código Svelte para mudar a estrutura.',
+              size: 12,
+              color: muted,
+            ),
+            const SizedBox(height: 20),
+            label('1. Edite seu rascunho', size: 12),
+            const SizedBox(height: 12),
+            label('2. Salve para compilar', size: 12),
+            const SizedBox(height: 12),
+            label('3. Confira no desktop e no celular', size: 12),
+            const SizedBox(height: 20),
+            label(
+              'Suas alterações ficam no histórico do projeto.',
+              size: 11,
+              color: muted,
+            ),
+          ],
+        );
+
+  Widget agenticProgress() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      label('CRIANDO COM VOCÊ', size: 9, color: gold, spacing: 1.6),
+      const SizedBox(height: 12),
+      label(
+        model.running
+            ? 'Sua ideia está ganhando forma.'
+            : 'Sua página, do seu jeito.',
+        size: 21,
+        weight: FontWeight.w300,
+      ),
+      const SizedBox(height: 10),
+      label('Você conversa. O time cuida da criação.', size: 12, color: muted),
+      const SizedBox(height: 10),
+      label(
+        'Luma · GIFs com CLIPS\nFluxo · scroll e animações',
+        size: 10,
+        color: muted,
+      ),
+      const SizedBox(height: 22),
+      for (final step in model.steps)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 17),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: step['status'] == 'running'
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.6,
+                          color: gold,
+                        ),
+                      )
+                    : Icon(
+                        ['completed', 'reused'].contains(step['status'])
+                            ? Icons.check_circle_outline
+                            : Icons.circle_outlined,
+                        size: 17,
+                        color: ['completed', 'reused'].contains(step['status'])
+                            ? agentColors[3]
+                            : muted,
+                      ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    label(step['title'], size: 12, weight: FontWeight.w500),
+                    const SizedBox(height: 4),
+                    label(
+                      {
+                            'pending': 'Na sequência',
+                            'running': 'Criando agora',
+                            'completed': 'Concluído',
+                            'reused': 'Preservado',
+                            'failed': 'Vamos ajustar este ponto',
+                            'cancelled': 'Interrompido',
+                            'interrupted': 'Pronto para continuar',
+                          }[step['status']] ??
+                          '',
+                      size: 10,
+                      color: muted,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      if (!model.running && model.canAdvance)
+        FilledButton(
+          onPressed: model.advanceStep,
+          child: const Text('Continuar criação'),
+        ),
+      const SizedBox(height: 14),
+      label(
+        'Peça mudanças na conversa a qualquer momento. As suas escolhas orientam o resultado.',
+        size: 11,
+        color: muted,
+      ),
+    ],
+  );
+
+  Widget constructionSteps({bool dismissOnSelect = false}) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       label('PASSO A PASSO', size: 9, color: gold, spacing: 1.4),
@@ -738,6 +1236,7 @@ class _StudioState extends State<Studio> {
             onTap: (s['trace_count'] ?? 0) == 0
                 ? null
                 : () => setState(() {
+                    if (dismissOnSelect) Navigator.of(context).pop();
                     historyStep = s['id'];
                     selectedEvent = null;
                     mode = 2;
@@ -758,7 +1257,7 @@ class _StudioState extends State<Studio> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
-                    s['status'] == 'completed'
+                    ['completed', 'reused'].contains(s['status'])
                         ? Icons.check_circle_outline
                         : s['status'] == 'running'
                         ? Icons.play_circle_outline
@@ -770,7 +1269,7 @@ class _StudioState extends State<Studio> {
                         ? Icons.pause_circle_outline
                         : Icons.radio_button_unchecked,
                     size: 17,
-                    color: s['status'] == 'completed'
+                    color: ['completed', 'reused'].contains(s['status'])
                         ? agentColors[3]
                         : s['status'] == 'pending'
                         ? muted
@@ -784,6 +1283,20 @@ class _StudioState extends State<Studio> {
                         label(s['title'], size: 11, weight: FontWeight.w500),
                         const SizedBox(height: 4),
                         label(s['acceptance'], size: 10, color: muted),
+                        if (s['id'] == 'ux' &&
+                            model.files.containsKey('design/navigation.json'))
+                          TextButton(
+                            key: const ValueKey('brief-navigation'),
+                            onPressed: () {
+                              if (dismissOnSelect) Navigator.of(context).pop();
+                              model.chooseFile('design/navigation.json');
+                              setState(() {
+                                mode = 1;
+                                mobileChat = false;
+                              });
+                            },
+                            child: const Text('Ler mapa de telas'),
+                          ),
                         if (['ux', 'designer'].contains(s['id']) &&
                             model.files.containsKey(
                               s['id'] == 'ux'
@@ -793,6 +1306,7 @@ class _StudioState extends State<Studio> {
                           TextButton(
                             key: ValueKey('brief-${s['id']}'),
                             onPressed: () {
+                              if (dismissOnSelect) Navigator.of(context).pop();
                               model.chooseFile(
                                 s['id'] == 'ux'
                                     ? 'design/ux.json'
@@ -815,6 +1329,7 @@ class _StudioState extends State<Studio> {
                                 'pending': 'Aguardando',
                                 'running': 'Em execução',
                                 'completed': 'Concluída',
+                                'reused': 'Reaproveitada',
                                 'failed': 'Precisa de correção',
                                 'cancelled': 'Interrompida',
                                 'interrupted': 'Aguardando retomada',
@@ -860,7 +1375,7 @@ class _StudioState extends State<Studio> {
 
   Widget teamRoster() {
     final indices = newIdea || model.build == null
-        ? [0, 4, 5, 1, 2, 3]
+        ? [0, 4, 5, 2, 3]
         : model.steps.isEmpty
         ? [0, 1, 2, 3]
         : model.steps
@@ -885,7 +1400,7 @@ class _StudioState extends State<Studio> {
     );
     final step = model.steps.where((s) => s['id'] == agentIds[i]).firstOrNull;
     final done = step != null
-        ? step['status'] == 'completed'
+        ? ['completed', 'reused'].contains(step['status'])
         : model.traces.any(
             (e) => e['agent'] == agentIds[i] && e['kind'] == 'agent.finished',
           );
@@ -1033,6 +1548,7 @@ class _StudioState extends State<Studio> {
             children: [
               CallbackShortcuts(
                 bindings: {
+                  const SingleActivator(LogicalKeyboardKey.enter): send,
                   const SingleActivator(LogicalKeyboardKey.enter, meta: true):
                       send,
                   const SingleActivator(
@@ -1054,7 +1570,7 @@ class _StudioState extends State<Studio> {
                   ),
                   decoration: InputDecoration(
                     hintText: newIdea || model.id.isEmpty
-                        ? 'Descreva sua ideia…'
+                        ? 'Descreva a página que você imagina…'
                         : 'O que você quer mudar?',
                     hintStyle: const TextStyle(color: muted, fontSize: 12),
                     counterText: '',
@@ -1075,18 +1591,24 @@ class _StudioState extends State<Studio> {
                           : model.running
                           ? 'Time trabalhando'
                           : newIdea || model.id.isEmpty
-                          ? 'Criar com o Genesis'
-                          : 'Melhorar esta solução',
+                          ? 'Criar minha página'
+                          : 'Pedir uma mudança',
                       size: 10,
                       color: muted,
                     ),
                   ),
                   Tooltip(
-                    message: newIdea || model.id.isEmpty
-                        ? 'Planejar minha ideia'
+                    message: model.running
+                        ? 'Parar criação'
+                        : newIdea || model.id.isEmpty
+                        ? 'Criar minha página'
                         : 'Enviar melhoria',
                     child: IconButton.filled(
-                      onPressed: canSend ? send : null,
+                      onPressed: model.running
+                          ? () => model.action('cancel')
+                          : canSend
+                          ? send
+                          : null,
                       style: IconButton.styleFrom(
                         backgroundColor: gold,
                         foregroundColor: ink,
@@ -1095,7 +1617,10 @@ class _StudioState extends State<Studio> {
                           borderRadius: BorderRadius.circular(9),
                         ),
                       ),
-                      icon: const Icon(Icons.arrow_upward, size: 18),
+                      icon: Icon(
+                        model.running ? Icons.stop_rounded : Icons.arrow_upward,
+                        size: 18,
+                      ),
                     ),
                   ),
                 ],
@@ -1105,7 +1630,7 @@ class _StudioState extends State<Studio> {
         ),
         const SizedBox(height: 9),
         label(
-          'Você descreve. Seu time constrói.',
+          'Converse com o Genesis. A página evolui com você.',
           size: 9,
           color: const Color(0xff71757e),
         ),
@@ -1159,19 +1684,40 @@ class _StudioState extends State<Studio> {
             Expanded(
               child: label(
                 mode == 0
-                    ? (model.runtimeStatus == 'running'
-                          ? 'Backend Go conectado'
-                          : model.runtimeStatus == 'starting'
-                          ? 'Preparando backend Go…'
-                          : 'Prévia local · integrações ainda não conectadas')
+                    ? frontendMode
+                          ? model.running
+                                ? 'Criando sua página ao vivo'
+                                : 'Sua página fica salva na Arkom'
+                          : (model.runtimeStatus == 'running'
+                                ? 'Solução conectada · dados na Arkom'
+                                : model.runtimeStatus == 'starting'
+                                ? 'Preparando sua solução…'
+                                : model.runtimeStatus == 'failed'
+                                ? 'Não foi possível conectar a solução'
+                                : model.build?['status'] == 'ready'
+                                ? 'Solução pausada'
+                                : 'Construção em andamento · prévia visual')
                     : 'Seu projeto e histórico ficam salvos na Arkom',
                 size: 9,
                 color: muted,
                 lines: 1,
               ),
             ),
-            if (mode == 0 && hasPreview)
-              label('INTERATIVA', size: 8, color: agentColors[3], spacing: 1),
+            if (mode == 0 &&
+                model.build?['mode'] != 'frontend' &&
+                model.build?['status'] == 'ready' &&
+                !['running', 'starting'].contains(model.runtimeStatus))
+              TextButton(
+                onPressed: model.canEdit && !model.busy
+                    ? () => model.action('runtime_start')
+                    : null,
+                child: const Text(
+                  'Conectar solução',
+                  style: TextStyle(fontSize: 10),
+                ),
+              ),
+            if (mode == 0 && hasPreview && model.runtimeStatus == 'running')
+              label('CONECTADA', size: 8, color: agentColors[3], spacing: 1),
           ],
         ),
       ),
@@ -1208,12 +1754,27 @@ class _StudioState extends State<Studio> {
               children: [
                 if (hasPreview)
                   SolutionPreview(
-                    key: ValueKey('${model.id}-$previewRevision'),
-                    files: Map.of(model.files),
+                    key: ValueKey(
+                      '${model.id}-${model.canEdit && model.files.containsKey('frontend/svelte.json') ? 'editor' : previewRevision}',
+                    ),
+                    files: Map.of(previewFiles),
+                    editable:
+                        model.canEdit &&
+                        model.files.containsKey('frontend/svelte.json'),
+                    running: model.running,
+                    sequence: model.build?['sequence'] ?? 0,
+                    agentic: true,
+                    actions: liveCanvasActions,
+                    activeAgent:
+                        model.steps
+                            .where((s) => s['status'] == 'running')
+                            .firstOrNull?['id'] ??
+                        '',
                   )
                 else
                   emptyCanvas(),
-                if (!newIdea) ActivityOnCanvas(activity: activity),
+                if (!newIdea && model.build?['mode'] != 'frontend')
+                  ActivityOnCanvas(activity: activity),
               ],
             ),
           ),
@@ -1222,29 +1783,46 @@ class _StudioState extends State<Studio> {
     },
   );
 
-  Widget emptyCanvas() => Center(
+  Widget emptyCanvas() =>
+      (newIdea || model.id.isEmpty || model.build?['mode'] == 'frontend')
+      ? FrontendPlanning(model: model)
+      : legacyEmptyCanvas();
+
+  Widget legacyEmptyCanvas() => Center(
     child: SingleChildScrollView(
       padding: const EdgeInsets.all(28),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              4,
-              (i) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: Gopher(index: i, size: 47),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width < 760 ? 190 : 360,
+            ),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              runSpacing: 8,
+              children: List.generate(
+                agentIds.length,
+                (i) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: Gopher(index: i, size: 47),
+                ),
               ),
             ),
           ),
           const SizedBox(height: 26),
-          label(
+          Text(
             model.running && !newIdea
                 ? 'Sua ideia está ganhando forma.'
+                : !newIdea && model.id.isNotEmpty
+                ? 'Sua interface ainda está em construção.'
                 : 'Um espaço para a sua próxima ideia.',
-            size: 22,
-            weight: FontWeight.w300,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w300,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 12),
           ConstrainedBox(
@@ -1252,6 +1830,8 @@ class _StudioState extends State<Studio> {
             child: Text(
               model.running && !newIdea
                   ? 'A interface aparece aqui assim que o time criar os primeiros arquivos.'
+                  : !newIdea && model.id.isNotEmpty
+                  ? 'Seu projeto está salvo. Confira a etapa atual na conversa para continuar a construção.'
                   : 'Comece com uma conversa. Acompanhe o time construir e experimente tudo por aqui.',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 12, height: 1.7, color: muted),

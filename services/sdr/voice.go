@@ -56,6 +56,7 @@ type voiceRequest struct {
 	Sequence                           int64
 	StreamUsed                         bool
 	ExistingPermission                 bool
+	Simulated                          bool `json:",omitempty"`
 }
 
 type voiceState struct {
@@ -68,12 +69,13 @@ type voiceService struct {
 	key         cipher.AEAD
 	http        *http.Client
 	verifyModel func(context.Context, string, string) error
+	simulation  bool
 }
 
 func newVoiceService(public string, key []byte) (*voiceService, error) {
 	u, err := url.Parse(public)
 	if err != nil || u.Scheme != "https" || u.Hostname() == "" || net.ParseIP(u.Hostname()) != nil ||
-		u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/sdr-next") {
+		u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/sdr-next" && public != hostedPlatformOrigin+hostedPlatformMount+"/voice-callback") {
 		return nil, errors.New("voice_https_domain_required")
 	}
 	if len(key) != 32 {
@@ -103,6 +105,10 @@ func (a *App) configureVoice() error {
 		return errors.New("voice_key_invalid")
 	}
 	a.voice, err = newVoiceService(strings.TrimRight(os.Getenv("SDR_VOICE_PUBLIC_URL"), "/"), key)
+	if err == nil {
+		a.voice.simulation = os.Getenv("ARKOM_LOCAL_DEMO") == "true" && platformRequiresLogin() &&
+			os.Getenv("ARKOM_VOICE_SIMULATION") == "true"
+	}
 	return err
 }
 
@@ -138,7 +144,7 @@ func (v *voiceService) twilio(c voiceConfig, k voiceKeys) voicecall.Twilio {
 
 func (a *App) voiceView(u User) map[string]any {
 	c := a.state.Voice.Configs[u.Org]
-	out := map[string]any{"available": a.voice != nil, "configured": c.ID != "", "enabled": c.Enabled, "can_configure": u.Role == "admin", "revision": c.Revision}
+	out := map[string]any{"available": a.voice != nil, "configured": c.ID != "", "enabled": c.Enabled, "can_configure": u.Role == "admin", "revision": c.Revision, "simulation_available": a.voice.simulation}
 	if c.ID != "" {
 		out["sender"] = c.Sender
 		if u.Role == "admin" {
@@ -215,7 +221,7 @@ func (a *App) voiceRoute(w http.ResponseWriter, r *http.Request, u User, path st
 }
 
 func voiceCallView(call *voiceRequest) map[string]any {
-	return map[string]any{"id": call.ID, "conversation_id": call.Conversation, "status": call.Status, "error_code": call.Error, "created_at": call.Created, "expires_at": call.Expires}
+	return map[string]any{"id": call.ID, "conversation_id": call.Conversation, "status": call.Status, "error_code": call.Error, "simulated": call.Simulated, "created_at": call.Created, "expires_at": call.Expires}
 }
 
 func (a *App) saveVoiceConfig(w http.ResponseWriter, r *http.Request, u User) {

@@ -44,11 +44,13 @@ type Event struct {
 	Output      string `json:"output,omitempty"`
 }
 type Engine struct {
-	StepsVersion int
-	Provider     Provider
-	Tester       Tester
-	References   map[string]string
-	Emit         func(Event) error
+	RevisionScope string
+	StepsVersion  int
+	GIFGenerator  GIFGenerator
+	Provider      Provider
+	Tester        Tester
+	References    map[string]string
+	Emit          func(Event) error
 }
 
 const Rules = `Você integra o time de CONSTRUÇÃO de código do Genesis/Arkom, coordenado pelo deepH.

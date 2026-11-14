@@ -1,10 +1,16 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
 import 'transport.dart' as transport;
 
 class StudioController extends ChangeNotifier {
+  final String? initialBuildId;
+  final bool startNew;
+
+  StudioController({this.initialBuildId, this.startNew = false});
+
   List<Map<String, dynamic>> projects = [];
   Map<String, dynamic>? build;
   final Map<String, String> files = {};
@@ -13,6 +19,7 @@ class StudioController extends ChangeNotifier {
   String runtimeStatus = 'stopped';
   String role = 'viewer', connection = 'waiting', error = '', selectedFile = '';
   bool busy = false, authenticated = false, _disposed = false;
+  bool initialBuildMissing = false;
   int _refresh = 0;
   List<Map<String, dynamic>> get steps => ((build?['steps'] ?? []) as List)
       .map((s) => Map<String, dynamic>.from(s))
@@ -44,6 +51,7 @@ class StudioController extends ChangeNotifier {
       case 'session':
         runtimeStatus = 'stopped';
         build = null;
+        initialBuildMissing = false;
         projects.clear();
         files.clear();
         traces.clear();
@@ -57,6 +65,8 @@ class StudioController extends ChangeNotifier {
         if (connection == 'expired') authenticated = false;
       case 'error':
         error = data['message'];
+      case 'frontend.saved':
+      case 'frontend.refresh':
       case 'snapshot':
       case 'update':
         build = Map<String, dynamic>.from(data['build']);
@@ -105,43 +115,85 @@ class StudioController extends ChangeNotifier {
       projects = (data['builds'] as List)
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
-      if (build == null && projects.isNotEmpty) {
+      if (build == null && initialBuildId != null) {
+        if (projects.any((project) => project['id'] == initialBuildId)) {
+          await select(initialBuildId!);
+        } else {
+          initialBuildMissing = true;
+        }
+      } else if (build == null && !startNew && projects.isNotEmpty) {
         await select(projects.first['id']);
       }
+      if (!_disposed && n == _refresh) notifyListeners();
+    } catch (e) {
+      if (n == _refresh) failure(e);
+    }
+  }
+
+  Future<void> select(String id) async {
+    final next = projects.firstWhere((p) => p['id'] == id);
+    try {
+      // The bridge can reject navigation while an editor draft is open.
+      // Keep the current view and its draft intact until it accepts the switch.
+      await call('select', {'id': id});
+      if (_disposed) return;
+      // The initial snapshot can arrive while the bridge accepts selection.
+      // Keep that snapshot instead of clearing the first live preview.
+      if (this.id != id) {
+        runtimeStatus = 'stopped';
+        build = next;
+        files.clear();
+        traces.clear();
+        selectedFile = '';
+        connection = 'connecting';
+      }
+      error = '';
       notifyListeners();
     } catch (e) {
       failure(e);
     }
   }
 
-  Future<void> select(String id) async {
-    runtimeStatus = 'stopped';
-    build = projects.firstWhere((p) => p['id'] == id);
-    files.clear();
-    traces.clear();
-    selectedFile = '';
-    connection = 'connecting';
-    error = '';
-    notifyListeners();
-    try {
-      await call('select', {'id': id});
-    } catch (e) {
-      failure(e);
-    }
-  }
-
-  Future<void> start(String goal, {bool continueProject = false}) async {
+  Future<void> start(
+    String goal, {
+    bool continueProject = false,
+    String revisionScope = '',
+  }) async {
     if (busy || !canEdit || anyRunning) return;
     busy = true;
     error = '';
     notifyListeners();
     try {
       final result = await call('start', {
+        'mode': 'frontend',
         'goal': goal,
         'parent_id': continueProject ? id : '',
+        if (continueProject && revisionScope.isNotEmpty)
+          'revision_scope': revisionScope,
       });
       projects.insert(0, result);
       await select(result['id']);
+    } catch (e) {
+      failure(e);
+    } finally {
+      busy = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  Future<void> createBlankFrontend() async {
+    if (busy || !canEdit) return;
+    busy = true;
+    error = '';
+    notifyListeners();
+    try {
+      final b = await call('frontend_blank', {
+        'name': 'Minha página',
+        'key':
+            'blank-${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1 << 32)}',
+      });
+      projects.insert(0, b);
+      await select(b['id']);
     } catch (e) {
       failure(e);
     } finally {

@@ -82,8 +82,8 @@ void main() {
       await tester.pumpWidget(GenesisApp(controller: c));
       await tester.pump();
       if (width == 390) {
-        await tester.tap(find.byTooltip('Conversar com o Genesis'));
-        await tester.pump();
+        await tester.tap(find.byTooltip('Passo a passo do frontend'));
+        await tester.pumpAndSettle();
       }
       await tester.ensureVisible(find.byKey(const ValueKey('brief-ux')));
       await tester.tap(find.byKey(const ValueKey('brief-ux')));

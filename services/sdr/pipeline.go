@@ -203,6 +203,9 @@ func (a *App) privateWorkers() http.Handler {
 		if a.calendarPrivate(w, r) {
 			return
 		}
+		if a.followupPrivate(w, r) {
+			return
+		}
 		if a.metricsFeed(w, r) {
 			return
 		}
@@ -620,6 +623,14 @@ func (a *App) pipelineStatus(u User, c *Conversation) map[string]any {
 	}
 	if a.mediaEnabled {
 		roles = append(roles, "media")
+	}
+	for _, role := range []string{"followup", "metrics"} {
+		if _, enabled := a.workerSecrets[role]; enabled {
+			roles = append(roles, role)
+		}
+	}
+	if a.voice != nil {
+		roles = append(roles, "voice")
 	}
 	for _, role := range roles {
 		h := a.workerHealth[role]

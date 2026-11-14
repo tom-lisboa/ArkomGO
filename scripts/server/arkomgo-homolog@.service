@@ -1,0 +1,26 @@
+[Unit]
+Description=ArkomGO homologation (%i)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=arkomgo-homolog
+Group=arkomgo-homolog
+WorkingDirectory=/var/lib/arkomgo-homolog
+ExecStart=/opt/arkomgo-homolog/current/run-homolog.sh %i
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=25
+UMask=0077
+MemoryHigh=160M
+MemoryMax=300M
+TasksMax=160
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/arkomgo-homolog
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

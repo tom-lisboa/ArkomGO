@@ -18,6 +18,11 @@ for area in ['apps','services','packages']:
    target=out/'importados'/name;target.parent.mkdir(exist_ok=True)
    target.write_text(body.strip()+'\n')
    entries.append({'source':rel,'diagram':target.relative_to(root).as_posix(),'block':i})
+# Preserve historical diagrams even when their old application sources are removed.
+indexed={entry['diagram'] for entry in entries}
+for p in sorted((out/'importados').glob('*.mmd')):
+ rel=p.relative_to(root).as_posix()
+ if rel not in indexed:entries.append({'source':rel,'diagram':rel,'block':1})
 for p in sorted(out.glob('*.mmd')):entries.insert(0,{'source':p.relative_to(root).as_posix(),'diagram':p.relative_to(root).as_posix(),'block':1})
 (out/'catalog.json').write_text(json.dumps(entries,ensure_ascii=False,indent=2)+'\n')
 lines=['# Diagramas Mermaid','',f'{len(entries)} diagramas indexados. As fontes anteriores são preservadas; blocos em Markdown também recebem uma cópia `.mmd` editável em `importados/`.','', 'Os diagramas herdados podem representar propostas ou versões anteriores. Consulte a origem e [o estado atual](../STATUS-E-ROADMAP.md) antes de tratá-los como descrição da demo.','', 'Para atualizar: `python3 scripts/catalog_mermaid.py`.','', '| Diagrama editável | Documento de origem |','| --- | --- |']

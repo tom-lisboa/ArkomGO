@@ -1,6 +1,6 @@
 # UX e design por etapas
 
-Novos projetos usam o plano versão 2: Planejar → Definir experiência → Definir design visual → Construir backend → Construir interface Svelte → Validar entrega. Cada avanço continua exigindo o checkpoint exato e uma ação explícita do cliente. O estúdio não simula progresso: estados, contagem e intervalos de traces vêm dos eventos persistidos.
+O plano versão 2 introduziu: Planejar → Definir experiência → Definir design visual → Construir backend → Construir interface Svelte → Validar entrega. Cada avanço continua exigindo o checkpoint exato e uma ação explícita do cliente. O estúdio não simula progresso: estados, contagem e intervalos de traces vêm dos eventos persistidos.
 
 Lia, agente `ux`, escreve somente `design/ux.json`: público, tarefa principal, jornada, telas, estados de carregamento/vazio/erro/sucesso, acessibilidade e critérios de comportamento. Cora, agente `designer`, lê essa entrega e escreve somente `design/ui.json`: direção visual, paleta, tipografia, espaçamento, componentes, responsividade e acessibilidade. Não executam testes Go, compilação ou alterações no código.
 
@@ -21,3 +21,5 @@ Projetos existentes com plano versão 1 continuam com quatro etapas; retomadas e
 Testes Go cobrem os escopos dos agentes, bloqueio de execução nas etapas de planejamento, especificações incompletas, ordem das seis etapas, checkpoints persistidos, retomada após reinício e preservação de revisões antigas. Testes Flutter verificam a abertura da especificação a partir da etapa em larguras de celular e desktop, além das regressões do estúdio.
 
 A próxima parte pode adicionar validação de comportamento da interface e revisão visual dos resultados gerados, mantendo entregas pequenas e evidências reais nos traces.
+
+Novos projetos agora usam a [versão 3, com navegação e revisão incremental](GENESIS-NAVIGATION.md). As revisões de projetos versão 2 preservam suas seis etapas e arquivos existentes.
