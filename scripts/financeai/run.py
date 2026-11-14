@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import shutil
 import signal
@@ -47,6 +48,30 @@ def run(args, cwd=state, extra=None, timeout=180):
     subprocess.run(args, cwd=cwd, env=child_env, check=True, timeout=timeout)
 
 
+def simulated_bank_calendar():
+    """Keep simulated statement dates aligned with the Maia business day."""
+    original = source / "internal/banking/transactions.go"
+    data = original.read_text()
+    anchor = ("now := time.Now().UTC()\n"
+              "\tdate := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, time.UTC)\n"
+              "\tcreated := date.Add(-24 * time.Hour)\n"
+              '\trows := []Transaction{{ID: "fixture-credit-')
+    if data.count(anchor) != 1:
+        raise RuntimeError("Calendário do extrato simulado incompatível com a Maia.")
+    patched = state / "maia-simulated-transactions.go"
+    patched.write_text(data.replace(anchor,
+        'zone, err := time.LoadLocation("America/Sao_Paulo")\n'
+        '\tif err != nil { return TransactionPage{}, err }\n'
+        '\tnow := time.Now().In(zone)\n'
+        '\tdate := time.Date(now.Year(), now.Month(), now.Day(), 3, 0, 0, 0, time.UTC)\n'
+        '\tcreated := date.Add(-24 * time.Hour)\n'
+        '\trows := []Transaction{{ID: "fixture-maia-credit-')
+        .replace('ID: "fixture-debit-"', 'ID: "fixture-maia-debit-"'))
+    overlay = state / "maia-statement-overlay.json"
+    overlay.write_text(json.dumps({"Replace": {str(original): str(patched)}}))
+    return ["-overlay", str(overlay)]
+
+
 def require_port(port):
     with socket.socket() as check:
         check.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -67,11 +92,29 @@ def build_web():
     app = front / "src/App.tsx"
     text = app.read_text()
     before = "function Workspace({session,name,modes,onExit}:{session:FinanceAISession;name:string;modes?:Modes;onExit:()=>void})"
-    if text.count(before) != 1 or text.count("new FinanceAI(API,session.getAccessToken)") != 1:
+    page = "useState<Page>('overview')"
+    if text.count(before) != 1 or text.count("new FinanceAI(API,session.getAccessToken)") != 1 or text.count(page) != 1:
         raise RuntimeError("Interface FinanceAI incompatível com o ponto de entrada Arkom.")
     text = "\n".join("const API = location.origin + '/api';" if line.startswith("const API=import.meta.env.") else line
                      for line in text.splitlines()) + "\n"
-    text = text.replace(before, "export function Workspace({session,name,modes,onExit,apiBase=API}:{session:FinanceAISession;name:string;modes?:Modes;onExit:()=>void;apiBase?:string})")
+    text = text.replace(before, "export function Workspace({session,name,modes,onExit,apiBase=API,titleId}:{session:FinanceAISession;name:string;modes?:Modes;onExit:()=>void;apiBase?:string;titleId?:string})")
+    text = text.replace(page, "useState<Page>(titleId?'reconciliation':'overview')")
+    # Focus the decision on the installment selected in Maia. The FinanceAI
+    # session still authorizes every request, including reconciliation reads.
+    text = text.replace("function go(p:Page){setPage(p);", "function go(p:Page){setFocus(undefined);setPage(p);")
+    text = text.replace("const [recs,setRecs]=useState<Reconciliation[]>([]);",
+                        "const [recs,setRecs]=useState<Reconciliation[]>([]);const [focus,setFocus]=useState(titleId);"
+                        "const displayedRecs=focus?recs.filter(r=>r.titleId===focus):recs;")
+    text = text.replace("{recs.length?<div className=\"recs-list\">{recs.map(",
+                        "{displayedRecs.length?<div className=\"recs-list\">{displayedRecs.map(")
+    # When several movements match, show the same explicit confirmation
+    # already supported by the FinanceAI API for an ambiguous candidate.
+    text = text.replace("{r.state==='suggested'&&<button",
+                        "{(r.state==='suggested'||r.state==='ambiguous')&&<button")
+    text = text.replace("{shortDate(r.bankDate)} · {money(r.amount,r.currency)}",
+                        "{shortDate(r.bankDate.slice(0,10))} · {money(r.amount,r.currency)}")
+    text = text.replace('<p>Crie títulos, sincronize o extrato e busque sugestões.</p>',
+                        '<p>{focus?\'Atualize o extrato e busque sugestões de pagamento para esta parcela.\':\'Crie títulos, sincronize o extrato e busque sugestões.\'}</p>')
     text = text.replace("new FinanceAI(API,session.getAccessToken)", "new FinanceAI(apiBase,session.getAccessToken)")
     text = text.replace("fetch(API+'/v1/audit", "fetch(apiBase+'/v1/audit")
     text = text.replace("fetch(API+'/v1/metrics", "fetch(apiBase+'/v1/metrics")
@@ -117,13 +160,24 @@ def call(path, body=None, *, authorized=None, origin=None, key=None):
         raise RuntimeError(f"FinanceAI recusou a operação {path} ({error.code}).") from None
 
 
+def owner_session(secret, company, org, install):
+    verifier, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+    entry = call("/internal/onboarding/handoffs", {
+        "organizationId": org, "installationId": install, "userReference": f"user_{company}_admin",
+        "challenge": challenge, "challengeMethod": "S256", "state": nonce,
+    }, authorized=secret)
+    return call("/v1/auth/exchange", {
+        "code": entry["code"], "installationId": install, "verifier": verifier, "state": nonce,
+    }, origin=ORIGINS[company])["accessToken"]
+
+
 def provision(secret):
     accounts = {}
     for company, origin in ORIGINS.items():
         name = company.title() + " · FinanceAI"
-        owner = f"user_{company}_admin"
         organization = call("/internal/onboarding/organizations", {
-            "customerReference": f"arkomgo-lab-{company}", "ownerReference": owner, "name": name,
+            "customerReference": f"arkomgo-lab-{company}", "ownerReference": f"user_{company}_admin", "name": name,
             "subjects": [{"name": f"{company.title()} · Empresa fictícia", "kind": "PJ"},
                          {"name": f"{company.title()} · Titular fictício", "kind": "PF"}],
         }, authorized=secret, key=f"arkomgo-finance-v1-{company}")
@@ -132,15 +186,7 @@ def provision(secret):
             "organizationId": org, "origin": origin,
         }, authorized=secret)
         install = installation["id"]
-        verifier, nonce = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
-        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
-        entry = call("/internal/onboarding/handoffs", {
-            "organizationId": org, "installationId": install, "userReference": owner,
-            "challenge": challenge, "challengeMethod": "S256", "state": nonce,
-        }, authorized=secret)
-        access = call("/v1/auth/exchange", {
-            "code": entry["code"], "installationId": install, "verifier": verifier, "state": nonce,
-        }, origin=origin)["accessToken"]
+        access = owner_session(secret, company, org, install)
         try:
             for role in ("operator", "viewer"):
                 call("/v1/members", {"reference": f"user_{company}_{role}", "role": role},
@@ -149,6 +195,91 @@ def provision(secret):
             call("/v1/auth/logout", {}, authorized=access, origin=origin)
         accounts[company] = {"organizationId": org, "installationId": install, "name": name}
     private_file(bindings, json.dumps(accounts))
+
+
+def wait_job(job, authorized, origin):
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        status = call("/v1/jobs/" + job["id"], authorized=authorized, origin=origin)["status"]
+        if status == "done":
+            return
+        if status == "failed":
+            break
+        time.sleep(0.4)
+    raise RuntimeError("O worker não preparou a conta simulada da Maia.")
+
+
+def prepare_maia(secret, pg_local):
+    """Bind only the PJ provisioned specifically for each synthetic Arkom company."""
+    accounts = json.loads(bindings.read_text())
+    result = {}
+    for company, origin in ORIGINS.items():
+        org = accounts[company]["organizationId"]
+        install = accounts[company]["installationId"]
+        if not all(re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value) for value in (org, install)):
+            raise RuntimeError("Instalação local da Maia inválida.")
+        access = owner_session(secret, company, org, install)
+        try:
+            def finance(path, body=None, key=None):
+                return call(path, body, authorized=access, origin=origin, key=key)
+
+            me = finance("/v1/me")
+            if (me["organizationId"], me["installationId"], me["bankingMode"]) != (org, install, "simulated"):
+                raise RuntimeError("A Maia exige uma instalação bancária simulada própria.")
+            [subject] = [s["id"] for s in finance("/v1/subjects")
+                         if s["kind"] == "PJ" and s["name"] == f"{company.title()} · Empresa fictícia"]
+            if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", subject):
+                raise RuntimeError("Titular simulado da Maia inválido.")
+            connections = [c for c in finance("/v1/banking/connections")
+                           if c["subjectId"] == subject and c["itemId"] == subject and c["mode"] == "simulated"]
+            if not connections:
+                wait_job(finance("/v1/banking/items", {"subjectId": subject, "itemId": subject},
+                                 key="arkom-maia-item-" + subject), access, origin)
+                connections = [c for c in finance("/v1/banking/connections")
+                               if c["subjectId"] == subject and c["itemId"] == subject and c["mode"] == "simulated"]
+            [connection] = connections
+
+            def bank_accounts():
+                return [a["id"] for a in finance("/v1/banking/accounts")
+                        if a["subjectId"] == subject and a["connectionId"] == connection["id"]
+                        and a["type"] == "BANK" and a["currency"] == "BRL"]
+
+            bank = bank_accounts()
+            if not bank:
+                wait_job(finance("/v1/banking/connections/" + connection["id"] + "/sync", {},
+                                 key="arkom-maia-snapshot-" + connection["id"]), access, origin)
+                bank = bank_accounts()
+            [account] = bank
+        finally:
+            call("/v1/auth/logout", {}, authorized=access, origin=origin)
+
+        bound = {"finance_org": org, "finance_subject": subject, "finance_account": account,
+                 "finance_url": f"http://127.0.0.1:{API_PORT}"}
+        for field, scopes in (("finance_token", ("banking.read", "finance.read")),
+                              ("title_token", ("finance.write",))):
+            key_path = state / f"maia-{company}-{field}.key"
+            if not key_path.exists():
+                private_file(key_path, "fc_lab_" + secrets.token_urlsafe(48))
+            token = key_path.read_text().strip()
+            digest = hashlib.sha256(token.encode()).hexdigest()
+            actor = "arkom-maia-" + field
+            sql_scopes = ",".join("'" + scope + "'" for scope in scopes)
+            values = f"'{digest}','{org}','{actor}',array[{sql_scopes}]"
+            statements = (
+                f"INSERT INTO fc_tokens(hash,organization_id,actor,scopes) VALUES({values}) ON CONFLICT(hash) DO NOTHING;\n"
+                f"SELECT 1 FROM fc_tokens WHERE (hash,organization_id,actor,scopes)=({values}) "
+                "AND token_kind='lab' AND active AND expires_at IS NULL;\n"
+            )
+            query = subprocess.run([str(pg / "psql"), *pg_local, "-d", db, "-XqAt", "-v", "ON_ERROR_STOP=1"],
+                                   env=env, input=statements, text=True, capture_output=True, timeout=8)
+            if query.returncode or query.stdout.strip() != "1":
+                raise RuntimeError("Credencial técnica FinanceAI fora do vínculo local.")
+            bound[field] = token
+        result[company] = bound
+    if any(result["alfa"][field] == result["beta"][field]
+           for field in ("finance_org", "finance_subject", "finance_account")):
+        raise RuntimeError("As empresas da Maia devem ter contas independentes.")
+    private_file(state / "maia.json", json.dumps(result))
 
 
 def stop(_signal, _frame):
@@ -172,7 +303,9 @@ try:
             raise RuntimeError("Credencial local FinanceAI inválida.")
         binaries = state / "bin"
         binaries.mkdir(exist_ok=True)
-        run(["go", "build", "-o", str(binaries) + "/", *("./cmd/" + name for name in programs)], cwd=source)
+        with_maia = "--maia" in sys.argv[4:]
+        overlay = simulated_bank_calendar() if with_maia else []
+        run(["go", "build", *overlay, "-o", str(binaries) + "/", *("./cmd/" + name for name in programs)], cwd=source)
         if not database_key.exists():
             private_file(database_key, secrets.token_urlsafe(48) + "\n")
         db_password = database_key.read_text().strip()
@@ -223,6 +356,12 @@ try:
             provision(secret)
         for name in programs[2:]:
             children.append(subprocess.Popen([str(binaries / name)], cwd=state, env=base))
+        if with_maia:
+            try:
+                prepare_maia(secret, pg_local)
+            except (OSError, KeyError, ValueError, RuntimeError, subprocess.SubprocessError):
+                private_file(state / "maia.json", "{}")
+                print("Integração com a Maia indisponível. Confira as contas PJ simuladas.", flush=True)
         thread = threading.Thread(target=web.serve_forever, daemon=True)
         thread.start()
         resources.callback(web.shutdown)

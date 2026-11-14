@@ -83,10 +83,12 @@ if crm and env.get('ARKOM_CRM_LOCAL_PG_DATA'):
  status=subprocess.run([str(pg_bin/'pg_ctl'),'-D',str(data),'status'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
  if status.returncode!=0:pg_command=[('postgres',[str(pg_bin/'postgres'),'-D',str(data),'-h','127.0.0.1','-p',str(url.port)],run)]
 commands=pg_command+([('clips',['bash',str(root/'services/core/pilots/clips/run-local.sh'),'--studio'],root/'services/core')] if clips else [])+commands
-if multi_root:
- commands.append(('multipropriedades',[sys.executable,str(root/'scripts/multipropriedades/run.py'),str(multi_root),str(root/'.local/bin/multi-api')],run))
+maia_finance=bool(multi_root and finance_root)
 if finance_root:
- commands.append(('financeai',[sys.executable,str(root/'scripts/financeai/run.py'),str(finance_root),str(run/'financeai'),env.get('ARKOM_LOCAL_PG_BIN') or '/opt/homebrew/opt/postgresql@17/bin'],run))
+ if maia_finance:(run/'financeai'/'maia.json').unlink(missing_ok=True)
+ commands.append(('financeai',[sys.executable,str(root/'scripts/financeai/run.py'),str(finance_root),str(run/'financeai'),env.get('ARKOM_LOCAL_PG_BIN') or '/opt/homebrew/opt/postgresql@17/bin']+(['--maia'] if maia_finance else []),run))
+if multi_root:
+ commands.append(('multipropriedades',[sys.executable,str(root/'scripts/multipropriedades/run.py'),str(multi_root),str(root/'.local/bin/multi-api')]+([str(run/'financeai'/'maia.json')] if maia_finance else []),run))
 processes=[];logs=[]
 def stop(signum,frame):raise KeyboardInterrupt
 signal.signal(signal.SIGTERM,stop)

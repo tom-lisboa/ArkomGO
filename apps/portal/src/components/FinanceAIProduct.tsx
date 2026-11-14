@@ -14,7 +14,7 @@ const handoffPath = '/v1/sdr/genesis-demo/ecosystem/financeai/session';
 type Handoff = {code:string; state:string; company:string; installationId:string; name:string};
 type Status = 'loading'|'open'|'unavailable'|'forbidden'|'origin';
 
-export default function FinanceAIProduct() {
+export default function FinanceAIProduct({backToMaia, titleId}: {backToMaia?: () => void; titleId?: string} = {}) {
  const router = useRouter();
  const frame = useRef<HTMLIFrameElement>(null);
  const [attempt, setAttempt] = useState(0);
@@ -46,7 +46,9 @@ export default function FinanceAIProduct() {
      const handoff = await request<Handoff>(handoffPath, session,
       {state, challenge:data.challenge}, undefined, controller.signal);
      if (!controller.signal.aborted && handoff.state === state) {
-      child.postMessage({...handoff, type:'arkom.finance.handoff'}, product);
+      child.postMessage({...handoff, type:'arkom.finance.handoff',
+        titleId,
+      }, product);
      }
     } catch (error) {
      if (!controller.signal.aborted) fail(error instanceof ApiError && error.status === 403 ? 'forbidden' : 'unavailable');
@@ -58,7 +60,8 @@ export default function FinanceAIProduct() {
     } else if (data.type === 'arkom.finance.failed') {
      fail('unavailable');
     } else if (data.type === 'arkom.finance.exited') {
-     router.push('/demo/team');
+     if (backToMaia) backToMaia();
+     else router.push('/demo/team');
     }
    }
   }
@@ -70,11 +73,12 @@ export default function FinanceAIProduct() {
    window.clearTimeout(timeout);
    controller.abort();
   };
- }, [attempt, router]);
+ }, [attempt, router, backToMaia, titleId]);
 
  return <main className={styles.workspace}>
   <header className={styles.bar}>
-   <Link href="/demo/team"><ArrowLeft size={17}/> Seu time</Link>
+   {backToMaia ? <button onClick={backToMaia}><ArrowLeft size={17}/> Voltar à Maia</button>
+    : <Link href="/demo/team"><ArrowLeft size={17}/> Seu time</Link>}
    <h1><Wallet size={18}/> FinanceAI</h1>
    <span>Homologação</span>
   </header>

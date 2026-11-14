@@ -16,7 +16,7 @@
   gap: 12px;
 }
 
-.bar a, .bar h1 {
+.bar a, .bar button, .bar h1 {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -24,10 +24,12 @@
   font-size: 14px;
 }
 
-.bar a {
+.bar a, .bar button {
   width: fit-content;
   color: #dcc18e;
 }
+
+.bar button { border: 0; background: transparent; padding: 0; cursor: pointer; }
 
 .bar h1 { font-weight: 600; }
 .bar h1 svg { color: #dcc18e; }

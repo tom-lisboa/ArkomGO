@@ -221,6 +221,30 @@ local preserva essa separação ao encaminhar as chamadas do navegador. O
 FinanceAI valida o token, a origem e as permissões de administrador,
 operador ou consulta. Os tokens ficam em memória. As atribuições de contas e instalações são feitas no servidor da ArkomGO.
 
-As rotas de baixa e estorno entre Maia e FinanceAI foram homologadas
-separadamente no Multipropriedades. Esse fluxo e o Remix do FinanceAI ainda
-precisam ser habilitados na ArkomGO.
+### Baixa e estorno com a Maia
+
+Com `ARKOM_MULTI_HOMOLOG_ROOT` e `ARKOM_FINANCEAI_ROOT` configurados,
+abra **Maia → Financeiro → Contas a receber**. No menu de uma parcela
+de contrato, selecione **Conciliar com FinanceAI** e envie a parcela.
+A Maia cria o título a receber usando o valor e o vencimento da parcela.
+O botão **Abrir FinanceAI** mostra a conciliação do título selecionado.
+Após conferir o extrato e confirmar ou reverter o vínculo no FinanceAI,
+volte à Maia e aplique a baixa ou o estorno.
+O fluxo exige papel de gestão. A baixa integral usa a data do extrato e
+respeita a janela de pagamento sem encargos do contrato. Comissão já paga
+exige acerto antes da conclusão do estorno na Maia.
+
+O FinanceAI é a fonte da evidência bancária simulada. A Maia aplica os
+comandos transacionais que registram a parcela, o recibo, a comissão e
+a auditoria. Cada empresa tem titular PJ, conta e credenciais próprias.
+O lançamento de homologação usa os dois bancos locais e monta a ponte
+em tempo de build sobre o código da Maia. As chaves ficam nos arquivos
+privados do ambiente local. O Remix do FinanceAI permanece indisponível.
+
+### Contratos da Maia
+
+A venda gera o registro do contrato com cotas e parcelas. A aba
+**Entrega ao cotista** permite conferir e imprimir o resumo comercial.
+O código também tem geração de minuta Villagio em PDF para um
+empreendimento configurado com o DOCX privado. A ArkomGO local
+executa sem esse modelo e sem assinatura.

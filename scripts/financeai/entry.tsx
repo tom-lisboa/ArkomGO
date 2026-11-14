@@ -26,7 +26,10 @@ async function connect() {
       const session = new FinanceAISession(apiBase, data.installationId);
       await session.exchangeArkomHandoff(data.code, state, verifier);
       const modes = {bankingMode:'simulated', aiMode:'simulated', fiscalMode:'simulated', portalConnected:true};
+      const titleId = typeof data.titleId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(data.titleId)
+        ? data.titleId : undefined;
       root.render(<Workspace session={session} name={data.name} modes={modes} apiBase={apiBase}
+        titleId={titleId}
         onExit={() => {
           root.unmount();
           window.parent.postMessage({type:'arkom.finance.exited', state}, portal);

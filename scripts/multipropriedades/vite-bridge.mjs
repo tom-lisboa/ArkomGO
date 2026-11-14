@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 const portal = "http://127.0.0.1:3007";
 const product = "http://127.0.0.1:8180";
 const script = `
@@ -28,11 +30,47 @@ if (window.parent !== window) {
 }
 `;
 
-function arkomMultiBridge(publishableKey) {
+function addFinanceDialog(source) {
+  const patches = [
+    ['import { useMemo, useState } from "react";', 'import { useEffect, useMemo, useState } from "react";'],
+    ['  const [avulso, setAvulso] = useState(false);',
+     '  const [financeParcel, setFinanceParcel] = useState<ParcelaSituacao | null>(null);\n  const [avulso, setAvulso] = useState(false);'],
+    ['                        onPagar={() => setPagar(p)}',
+     '                        onFinanceAI={ehAdmin && p.id && p.contrato_id ? () => setFinanceParcel(p) : undefined}\n                        onPagar={() => setPagar(p)}'],
+    ['      <RegistrarPagamentoDialog parcela={pagar}',
+     '      {financeParcel && <FinanceAIParcela key={financeParcel.id} parcela={financeParcel} onClose={() => setFinanceParcel(null)} />}\n      <RegistrarPagamentoDialog parcela={pagar}'],
+    ['  onPagar,\n', '  onPagar,\n  onFinanceAI,\n'],
+    ['  onPagar: () => void;', '  onPagar: () => void;\n  onFinanceAI?: () => void;'],
+    ['      <DropdownMenuContent align="end">', `      <DropdownMenuContent align="end">
+        {onFinanceAI && (
+          <DropdownMenuItem onSelect={onFinanceAI}>
+            <WalletCards aria-hidden="true" className="h-4 w-4" />
+            Conciliar com FinanceAI
+          </DropdownMenuItem>
+        )}`],
+  ];
+  for (const [anchor, replacement] of patches) {
+    if (source.split(anchor).length !== 2) throw Error("Tela de parcelas da Maia incompatível.");
+    source = source.replace(anchor, replacement);
+  }
+  return source + "\n" + readFileSync(new URL("finance-dialog.tsx", import.meta.url), "utf8");
+}
+
+function arkomMultiBridge(publishableKey, financeEnabled) {
   const enterPath = "/__arkom/entrar";
   return {
     name: "arkom-multipropriedades-demo",
     enforce: "pre",
+    load: {
+      order: "pre",
+      handler(id) {
+        // TanStack loads this route again with ?tsr-split=component.
+        const file = id.split("?")[0];
+        if (financeEnabled && file.endsWith("/src/routes/_authenticated/financeiro/receber.tsx")) {
+          return addFinanceDialog(readFileSync(file, "utf8"));
+        }
+      },
+    },
     transform(source, id) {
       const file = id.split("?")[0];
       if (file.endsWith("/src/homolog/env.ts")) {
@@ -83,14 +121,13 @@ function arkomMultiBridge(publishableKey) {
     },
   };
 }
-
-export function withArkomMultiBridge(config) {
+export function withArkomMultiBridge(config, financeEnabled = false) {
   const guard = config.plugins.find((plugin) => plugin.name === "homologacao-local-isolada");
   const publishableKey = config.define?.__MULTI_HOMOLOG_KEY__;
   if (!/^"sb_publishable_[A-Za-z0-9_-]+"$/.test(publishableKey)) {
     throw Error("Chave publicável local ausente.");
   }
-  const bridge = arkomMultiBridge(publishableKey);
+  const bridge = arkomMultiBridge(publishableKey, financeEnabled);
   // Run after the homologation CSP middleware, before TanStack's SSR handler.
   const index = config.plugins.indexOf(guard);
   if (index < 0) throw Error("Configuração segura de homologação ausente.");
