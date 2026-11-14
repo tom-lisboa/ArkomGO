@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""Restrict the Genesis service to its disposable, offline build containers."""
+from pathlib import Path
+import pwd
+import re
+import stat
+import subprocess
+import sys
+
+DOCKER = "/usr/bin/docker"
+ROOT = Path("/var/lib/arkomgo-homolog/sandboxes")
+TOOLCHAIN = Path("/opt/arkomgo-homolog/current/genesis-frontend")
+PREFIXES = {
+    "build": r"arkom-build-(arkom-(?:construction|preview)-[0-9]+)",
+    "svelte": r"arkom-svelte-arkom-frontend-[0-9]+",
+}
+
+
+def container_kind(name):
+    for kind, pattern in PREFIXES.items():
+        if re.fullmatch(pattern, name):
+            return kind
+    raise ValueError("invalid build container name")
+
+
+def scratch(mount, name):
+    path = ROOT / name.removeprefix("arkom-build-")
+    if mount != str(path) + ":/workspace:ro":
+        raise ValueError("invalid build mount")
+    info = path.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != pwd.getpwnam("arkomgo-homolog").pw_uid:
+        raise ValueError("invalid build directory")
+    return mount
+
+
+def command(args):
+    if args == ["info", "--format", "{{.ServerVersion}}"]:
+        return [DOCKER, *args]
+    if len(args) == 3 and args[:2] == ["rm", "-f"]:
+        container_kind(args[2])
+        return [DOCKER, *args]
+    if args[:4] != ["run", "-i", "--rm", "--name"] or len(args) < 19:
+        raise ValueError("invalid sandbox invocation")
+    name = args[4]
+    kind = container_kind(name)
+    base = [DOCKER, "run", "-i", "--rm", "--name", name, "--network=none", "--read-only",
+            "--cap-drop=ALL", "--security-opt=no-new-privileges", "--user=65532:65532", "--cpus=1"]
+    mount = args[args.index("-v") + 1]
+    if kind == "svelte":
+        if mount != str(TOOLCHAIN.resolve()) + ":/toolchain:ro":
+            raise ValueError("invalid frontend toolchain")
+        return base + ["--pids-limit=64", "--memory=320m", "--tmpfs", "/tmp:rw,noexec,size=32m",
+                       "-v", mount, "-w", "/tmp", "-e", "HOME=/tmp", "-e", "NODE_ENV=production",
+                       "node:24-bookworm-slim", "node", "--max-old-space-size=256", "/toolchain/compiler.mjs"]
+    operations = [
+        ["test", "-v", "-count=1", "-timeout=25s", "./..."],
+        ["run", "./cmd/arkom-runtime"],
+    ]
+    operation = args[args.index("golang:1.26") + 2:]
+    if operation not in operations:
+        raise ValueError("invalid Go sandbox operation")
+    return base + ["--pids-limit=128", "--memory=400m", "--tmpfs", "/tmp:rw,exec,size=256m",
+                   "-v", scratch(mount, name), "-w", "/workspace",
+                   "-e", "GOCACHE=/tmp/cache", "-e", "GOTMPDIR=/tmp", "-e", "HOME=/tmp",
+                   "-e", "GOPROXY=off", "-e", "GOSUMDB=off", "-e", "GOWORK=off",
+                   "-e", "GOTOOLCHAIN=local", "-e", "CGO_ENABLED=0", "-e", "GOMAXPROCS=2",
+                   "golang:1.26", "go", *operation]
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(subprocess.call(command(sys.argv[1:]), env={"PATH": "/usr/bin:/bin"}))
+    except (ValueError, IndexError, OSError):
+        sys.exit("Genesis sandbox rejected the Docker request")

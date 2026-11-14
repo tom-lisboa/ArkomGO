@@ -11,10 +11,12 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -25,6 +27,19 @@ import (
 )
 
 const address = "127.0.0.1:18082"
+
+func studioAddress() (string, error) {
+	override := os.Getenv("ARKOM_LOCAL_CLIPS_LISTEN")
+	if override == "" {
+		return address, nil
+	}
+	host, port, err := net.SplitHostPort(override)
+	number, parseErr := strconv.ParseUint(port, 10, 16)
+	if err != nil || host != "127.0.0.1" || parseErr != nil || number == 0 {
+		return "", errors.New("CLIPS studio requires a loopback address")
+	}
+	return override, nil
+}
 
 var validKey = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$`)
 
@@ -61,20 +76,28 @@ func main() {
 }
 
 func serve(ctx context.Context, socket string, video *videoWorker, homolog bool, studio string) error {
-	if !filepath.IsAbs(socket) {
-		return errors.New("use run-local.sh to start the pilot with a private PostgreSQL socket")
+	dsn := "postgres://clips_pilot@localhost:55474/clips_pilot?sslmode=disable"
+	if isolated := os.Getenv("ARKOM_LOCAL_CLIPS_DATABASE_URL"); studio != "" && isolated != "" && socket == "" {
+		u, err := url.Parse(isolated)
+		if err != nil || u.Scheme != "postgres" || u.Hostname() != "127.0.0.1" || u.Port() == "" ||
+			u.Path != "/clips_pilot" || u.User == nil || u.User.Username() != "clips_pilot" ||
+			u.Fragment != "" || u.RawQuery != "sslmode=disable" {
+			return errors.New("invalid isolated CLIPS database URL")
+		}
+		dsn = isolated
+	} else {
+		info, err := os.Stat(socket)
+		if !filepath.IsAbs(socket) || err != nil || !info.IsDir() || info.Mode().Perm() != 0700 {
+			return errors.New("the PostgreSQL socket directory must be private (0700)")
+		}
 	}
-	info, err := os.Stat(socket)
-	if err != nil || !info.IsDir() || info.Mode().Perm() != 0700 {
-		return errors.New("the PostgreSQL socket directory must be private (0700)")
-	}
-
-	// The only supported database connection is the local pilot's Unix socket.
-	cfg, err := pgxpool.ParseConfig("postgres://clips_pilot@localhost:55474/clips_pilot?sslmode=disable")
+	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		return err
+		return errors.New("invalid CLIPS database configuration")
 	}
-	cfg.ConnConfig.Host = socket
+	if socket != "" {
+		cfg.ConnConfig.Host = socket
+	}
 	cfg.ConnConfig.Fallbacks = nil
 	cfg.MaxConns = 6
 
@@ -103,7 +126,14 @@ func serve(ctx context.Context, socket string, video *videoWorker, homolog bool,
 	if _, err := db.Exec(startup, ddl); err != nil {
 		return fmt.Errorf("prepare local schema: %w", err)
 	}
-	listener, err := net.Listen("tcp", address)
+	listen := address
+	if studio != "" {
+		listen, err = studioAddress()
+		if err != nil {
+			return err
+		}
+	}
+	listener, err := net.Listen("tcp", listen)
 	if err != nil {
 		return fmt.Errorf("start local API: %w", err)
 	}
@@ -123,7 +153,7 @@ func serve(ctx context.Context, socket string, video *videoWorker, homolog bool,
 	}()
 
 	server := &http.Server{
-		Handler:           q.routes(homolog),
+		Handler:           q.routesAt(homolog, listen),
 		ReadHeaderTimeout: 3 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      35 * time.Second,
@@ -131,7 +161,7 @@ func serve(ctx context.Context, socket string, video *videoWorker, homolog bool,
 	}
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(listener) }()
-	log.Printf("CLIPS pilot listening on http://%s", address)
+	log.Printf("CLIPS pilot listening on http://%s", listen)
 	select {
 	case err := <-done:
 		return err
@@ -144,6 +174,10 @@ func serve(ctx context.Context, socket string, video *videoWorker, homolog bool,
 }
 
 func (q queue) routes(homolog bool) http.Handler {
+	return q.routesAt(homolog, address)
+}
+
+func (q queue) routesAt(homolog bool, listen string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -180,7 +214,7 @@ func (q queue) routes(homolog bool) http.Handler {
 		mux.HandleFunc("GET /jobs/{id}/video", q.getVideo)
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Host != address && r.Host != "localhost:18082" {
+		if r.Host != listen && r.Host != strings.Replace(listen, "127.0.0.1", "localhost", 1) {
 			writeError(w, http.StatusForbidden, "local_host_required")
 			return
 		}

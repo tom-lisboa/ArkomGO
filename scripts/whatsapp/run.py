@@ -30,7 +30,7 @@ def wait_until_ready(url, children, token=None, timeout=40):
     raise RuntimeError("O serviço de WhatsApp não respondeu no prazo.")
 
 
-def prepare_engine(source, state, env):
+def prepare_engine(source, state, env, patch=None):
     tracked = subprocess.check_output(
         ["git", "ls-files", "-z", "go.mod", "go.sum", "cmd", "internal", "migrations"],
         cwd=source,
@@ -49,7 +49,7 @@ def prepare_engine(source, state, env):
         target = staging / item
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(original, target)
-    patch = Path(__file__).with_name("loopback.patch")
+    patch = patch or Path(__file__).with_name("loopback.patch")
     patch_env = {**env, "GIT_CEILING_DIRECTORIES": str(staging.parent)}
     subprocess.run(["git", "apply", str(patch)], cwd=staging, env=patch_env, check=True)
     for name in ("sdr-whatsapp-engine", "wa-gateway-service"):

@@ -48,7 +48,7 @@ func configureWA() (WAEngine, error) {
 	// Keep the Docker address in production and permit the dedicated loopback bridge in the local demo.
 	expectedHost := "sdr-wa-bridge:8080"
 	if os.Getenv("ARKOM_LOCAL_DEMO") == "true" && os.Getenv("SDR_CRM_DEV_ENABLED") == "true" {
-		expectedHost = "127.0.0.1:18083"
+		expectedHost = localLoopbackAddress("ARKOM_LOCAL_WHATSAPP_BRIDGE", "127.0.0.1:18083")
 	}
 	if err != nil || u.Scheme != "http" || u.Host != expectedHost || u.Path != "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return nil, errors.New("invalid private WhatsApp engine address")

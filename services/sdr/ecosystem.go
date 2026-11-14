@@ -238,7 +238,13 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 	digest := hmac.New(sha256.New, []byte(secret))
 	digest.Write([]byte(u.Org))
 	owner := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(digest.Sum(nil))[:26]
-	target := "http://127.0.0.1:18082/studio/jobs" + suffix
+	clips := localLoopbackAddress("ARKOM_LOCAL_CLIPS_LISTEN", "127.0.0.1:18082")
+	if clips == "invalid-local-listen-address" {
+		fail(w, 503, "clips_unavailable")
+		return true
+	}
+	clipsBase := "http://" + clips
+	target := clipsBase + "/studio/jobs" + suffix
 	method := r.Method
 	limit := int64(8 << 20)
 	var gifPath string
@@ -256,7 +262,7 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 			}
 		}
 		limit = 8192
-		target = "http://127.0.0.1:18082" + gifPath
+		target = clipsBase + gifPath
 	}
 	upstream, err := http.NewRequestWithContext(r.Context(), method, target, http.MaxBytesReader(w, r.Body, limit))
 	if err != nil {

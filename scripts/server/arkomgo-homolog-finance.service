@@ -1,0 +1,25 @@
+[Unit]
+Description=ArkomGO FinanceAI homologation
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+User=arkomgo-homolog
+Group=arkomgo-homolog
+WorkingDirectory=/var/lib/arkomgo-homolog/finance
+ExecStart=/usr/bin/python3 /opt/arkomgo-homolog/finance/scripts/run-finance.py
+Restart=on-failure
+RestartSec=7
+TimeoutStopSec=25
+MemoryHigh=170M
+MemoryMax=255M
+TasksMax=200
+UMask=0077
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/arkomgo-homolog/finance
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

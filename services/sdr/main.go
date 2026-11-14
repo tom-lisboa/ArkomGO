@@ -967,7 +967,7 @@ func main() {
 	}
 	listenAddress := "0.0.0.0:8080"
 	if os.Getenv("SDR_CRM_DEV_ENABLED") == "true" {
-		listenAddress = "127.0.0.1:8080"
+		listenAddress = localLoopbackAddress("ARKOM_LOCAL_API_LISTEN", "127.0.0.1:8080")
 	}
 	listener, err := net.Listen("tcp4", listenAddress)
 	if err != nil {

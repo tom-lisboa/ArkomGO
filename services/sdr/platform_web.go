@@ -35,8 +35,13 @@ func platformWebEntrypoint() bool {
 			log.Fatal("compile a plataforma Flutter e o agente BIA antes de iniciar")
 		}
 	}
-	target, _ := url.Parse("http://127.0.0.1:8080")
-	listener, err := net.Listen("tcp4", "127.0.0.1:3007")
+	api := localLoopbackAddress("ARKOM_LOCAL_API_LISTEN", "127.0.0.1:8080")
+	address := localLoopbackAddress("ARKOM_LOCAL_WEB_LISTEN", "127.0.0.1:3007")
+	if api == "invalid-local-listen-address" {
+		log.Fatal("endereço da API precisa ser loopback")
+	}
+	target, _ := url.Parse("http://" + api)
+	listener, err := net.Listen("tcp4", address)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -44,7 +49,7 @@ func platformWebEntrypoint() bool {
 		Handler: platformWebHandler(flutter, bia, target), ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 40 * time.Second, IdleTimeout: 60 * time.Second,
 	}
-	log.Print("Arkom Flutter pronta em http://127.0.0.1:3007/demo")
+	log.Printf("Arkom Flutter pronta em http://%s/demo", address)
 	log.Fatal(server.Serve(listener))
 	return true
 }
