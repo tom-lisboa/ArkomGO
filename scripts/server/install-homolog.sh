@@ -3,7 +3,10 @@ set -euo pipefail
 umask 077
 [[ "$(id -u)" == 0 && $# == 1 ]]
 bundle="$(realpath "$1")"
-for artifact in bin/bia bin/deeph bin/docker bin/clips bin/crm bin/sdr-whatsapp-engine     bin/wa-gateway-service flutter/index.html bia-web/index.html     genesis-frontend/node_modules/svelte/package.json run-homolog.sh sandbox-docker     arkomgo-homolog@.service; do
+for artifact in bin/bia bin/deeph bin/docker bin/clips bin/crm bin/sdr-whatsapp-engine \
+    bin/wa-gateway-service flutter/index.html bia-web/index.html \
+    genesis-frontend/node_modules/svelte/package.json run-homolog.sh sandbox-docker \
+    arkomgo-homolog@.service; do
     [[ -s "$bundle/$artifact" ]] || { echo "Artefato ausente: $artifact" >&2; exit 1; }
 done
 compgen -G "$bundle/whatsapp/migrations/*.sql" >/dev/null

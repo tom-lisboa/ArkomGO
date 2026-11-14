@@ -16,6 +16,7 @@ Este repositório reúne o **estado de desenvolvimento de 13/11/2026** do portal
 - [Primeira etapa agêntica: regra SDR/CRM em Go](docs/GENESIS-ETAPA-1.md)
 - [Estrutura e responsabilidades](docs/ARQUITETURA.md)
 - [Como preparar e executar a demo](docs/EXECUTAR.md)
+- [Homologação da ArkomGO no servidor](docs/HOMOLOGACAO-SERVIDOR.md)
 - [Catálogo completo de diagramas Mermaid](docs/mermaid/README.md)
 - [O que funciona e próximas etapas](docs/STATUS-E-ROADMAP.md)
 - [Verificações desta publicação](docs/VALIDACAO.md)

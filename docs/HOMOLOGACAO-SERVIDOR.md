@@ -68,3 +68,8 @@ provisionados para Alfa e Beta. A origem do portal nesses artefatos é
 
 A versão hospedada usa a sessão de laboratório. A liberação para clientes
 requer autenticação comercial, provisionamento por empresa e domínio HTTPS.
+
+O primeiro build Go em um servidor pequeno pode precisar preparar o cache
+da biblioteca padrão. Execute `sudo bash scripts/server/warm-go-cache.sh`
+para gerar esse cache sem usar código de clientes. Cada construção recebe
+uma cópia privada do cache base.

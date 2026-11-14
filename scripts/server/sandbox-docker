@@ -10,6 +10,7 @@ import sys
 DOCKER = "/usr/bin/docker"
 ROOT = Path("/var/lib/arkomgo-homolog/sandboxes")
 TOOLCHAIN = Path("/opt/arkomgo-homolog/current/genesis-frontend")
+GO_STD_CACHE = Path("/opt/arkomgo-homolog/go-std-cache")
 PREFIXES = {
     "build": r"arkom-build-(arkom-(?:construction|preview)-[0-9]+)",
     "svelte": r"arkom-svelte-arkom-frontend-[0-9]+",
@@ -59,12 +60,16 @@ def command(args):
     operation = args[args.index("golang:1.26") + 2:]
     if operation not in operations:
         raise ValueError("invalid Go sandbox operation")
-    return base + ["--pids-limit=128", "--memory=400m", "--tmpfs", "/tmp:rw,exec,size=256m",
+    runner = ["go", *operation]
+    if (GO_STD_CACHE / ".common-ready").is_file():
+        base += ["-v", str(GO_STD_CACHE) + ":/std-cache:ro"]
+        runner = ["/bin/sh", "-ec", 'mkdir "$GOCACHE"; cp -R /std-cache/. "$GOCACHE/"; exec go "$@"', "go", *operation]
+    return base + ["--pids-limit=128", "--memory=400m", "--tmpfs", "/tmp:rw,exec,size=320m",
                    "-v", scratch(mount, name), "-w", "/workspace",
                    "-e", "GOCACHE=/tmp/cache", "-e", "GOTMPDIR=/tmp", "-e", "HOME=/tmp",
                    "-e", "GOPROXY=off", "-e", "GOSUMDB=off", "-e", "GOWORK=off",
                    "-e", "GOTOOLCHAIN=local", "-e", "CGO_ENABLED=0", "-e", "GOMAXPROCS=2",
-                   "golang:1.26", "go", *operation]
+                   "golang:1.26", *runner]
 
 
 if __name__ == "__main__":
