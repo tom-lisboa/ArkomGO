@@ -3,6 +3,7 @@ const {execFileSync} = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const {chromium, expect} = require('@playwright/test');
+const {signInLocal} = require('./sign-in-local.cjs');
 
 const origin = 'http://127.0.0.1:3007';
 const api = origin + '/api/demo/backend';
@@ -12,11 +13,7 @@ async function verify() {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage({acceptDownloads: true});
-    const login = page.waitForResponse(response => response.url() === api + '/__test/ui/local-enter');
-    await page.goto(origin + '/demo/sdr');
-    const entry = await login;
-    assert.equal(entry.status(), 200, 'login da demo');
-    const session = await entry.json();
+    const session = await signInLocal(page, origin, 'sdr');
     assert.equal(session.identity.organization_id, 'org_demo_alfa');
     const headers = {Authorization: 'Bearer ' + session.access_token};
     const frame = page.frameLocator('iframe[data-arkom-agent="sdr"]');

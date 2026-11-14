@@ -42,9 +42,9 @@ const enqueueLifecycle=work=>{const result=lifecycle.then(work);lifecycle=result
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const base='/api/demo/backend/v1/sdr/genesis-demo/construction';
 const clipsGIFBase='/api/demo/backend/v1/sdr/genesis-demo/ecosystem/clips/gifs';
-const emit=(type,data={})=>{const raw=JSON.stringify({type,...data});callback?.(raw);if(['session','view','agent','platform_error'].includes(type))platformCallback?.(raw);};
+const emit=(type,data={})=>{const raw=JSON.stringify({type,...data});callback?.(raw);if(['session','signed_out','view','agent','platform_error'].includes(type))platformCallback?.(raw);};
 const errors={revision_reuse_unavailable:'Esta revisão não pode reaproveitar as etapas com segurança. Selecione revisão completa.',invalid_revision_scope:'Escolha um escopo de revisão válido.',revision_parent_required:'Selecione a aplicação que deseja revisar.',frontend_compiler_unavailable:'O compilador Svelte precisa ser instalado pelo administrador. Execute scripts/build-demo.py e reinicie a demo.',frontend_compilation_failed:'A compilação Svelte falhou. Confira os traces e retome a etapa.',preview_records_limit:'A coleção atingiu o limite de 20 registros desta etapa.',preview_records_invalid:'O registro enviado pela aplicação é inválido ou ultrapassa o limite.',preview_data_unavailable:'Não foi possível salvar o dado. Reinicie a prévia e tente novamente.',preview_data_conflict:'O dado mudou durante a operação. Reinicie a prévia antes de tentar novamente.',preview_data_invalid:'O dado enviado pela aplicação é inválido ou ultrapassa o limite.',runtime_session_changed:'A prévia foi encerrada ou reiniciada. Tente novamente na sessão atual.',step_checkpoint_changed:'Esta etapa recebeu novos eventos. Atualize o projeto antes de continuar.',step_not_available:'Esta etapa não está disponível para iniciar.',construction_unavailable:'O serviço está encerrando. Tente novamente em instantes.',runtime_entrypoint_missing:'Continue o projeto para adaptar o backend ao contrato NewHandler.',runtime_contract_invalid:'Conclua a construção com um contrato válido antes de iniciar.',runtime_capabilities_unavailable:'Esta aplicação depende de integrações que ainda não estão disponíveis na prévia.',runtime_busy:'Já existe uma prévia em execução para esta empresa. Encerre-a antes de iniciar outra.',runtime_not_running:'Inicie o backend da prévia.',runtime_request_failed:'O backend não respondeu. Reinicie a prévia.',unauthorized:'Sua sessão terminou. Entre novamente.',construction_busy:'Outro projeto está em construção. Aguarde ou interrompa o projeto ativo.',construction_limit:'O limite de projetos deste laboratório foi atingido.',forbidden:'Seu perfil permite apenas acompanhar.',isolated_runner_unavailable:'O executor de testes precisa estar disponível para construir.',invalid_goal:'Descreva sua ideia com pelo menos 15 caracteres.'};
-async function request(url,body,signal,key){if(!session)throw Error('Aguardando sua sessão Arkom.');const r=await fetch(url,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+session.access_token,...(key?{'Idempotency-Key':key}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),credentials:'omit',redirect:'error',cache:'no-store',signal:signal||AbortSignal.timeout(20000)});if(!r.ok){const data=await r.json().catch(()=>({}));const error=Error(errors[data.error]||'Não foi possível concluir a operação ('+r.status+').');error.status=r.status;error.code=data.error;throw error;}return r;}
+async function request(url,body,signal,key){if(!session)throw Error('Aguardando sua sessão Arkom.');const identity=session;const r=await fetch(url,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+session.access_token,...(key?{'Idempotency-Key':key}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),credentials:'omit',redirect:'error',cache:'no-store',signal:signal||AbortSignal.timeout(20000)});if(!r.ok){const data=await r.json().catch(()=>({}));const error=Error(errors[data.error]||'Não foi possível concluir a operação ('+r.status+').');error.status=r.status;error.code=data.error;if(r.status===401&&session===identity&&global.parent===global)clearSession(errors.unauthorized);throw error;}return r;}
 function stop(){clearTimeout(runtimeTimer);selection++;controller?.abort();clearTimeout(retry);controller=null;selectedBuild=null;runtimePending=null;runtimePaused=false;autoAttempted=false;requests=Promise.resolve();runtimeState({status:'stopped'});}
 function ensureRuntime(id,generation,identity){
  if(!current(id,generation,identity))return Promise.reject(Error('A prévia foi encerrada.'));
@@ -93,7 +93,7 @@ async function stream(id,generation){
  try{const r=await request(base+'/'+encodeURIComponent(id)+'/events?after='+cursor,undefined,controller.signal);if(generation!==selection)return;
  if(!r.headers.get('content-type')?.includes('text/event-stream'))throw Error('O servidor não abriu o fluxo de eventos.');
  emit('connection',{status:'live'});
- const decoder=new TextDecoder();const parser=new SSEParser(frame=>{if(generation!==selection)return;if(frame.event==='session.expired'){ended=true;emit('error',{message:errors.unauthorized});emit('connection',{status:'expired'});return;}if(frame.event==='end'){ended=true;emit('connection',{status:'complete'});return;}if(frame.event==='snapshot'||frame.event==='update'){const data=JSON.parse(frame.data);cursor=data.build.sequence;buildReceived(data.build);emit(frame.event,data);}});
+ const decoder=new TextDecoder();const parser=new SSEParser(frame=>{if(generation!==selection)return;if(frame.event==='session.expired'){ended=true;if(global.parent===global)clearSession(errors.unauthorized);emit('error',{message:errors.unauthorized});emit('connection',{status:'expired'});return;}if(frame.event==='end'){ended=true;emit('connection',{status:'complete'});return;}if(frame.event==='snapshot'||frame.event==='update'){const data=JSON.parse(frame.data);cursor=data.build.sequence;buildReceived(data.build);emit(frame.event,data);}});
  const reader=r.body.getReader();while(true){const {done,value}=await reader.read();if(done)break;parser.feed(decoder.decode(value,{stream:true}));}parser.feed(decoder.decode());
  }catch(e){if(generation!==selection||disposed)return;if([401,403,404].includes(e.status)){ended=true;emit('error',{message:e.message});emit('connection',{status:e.status===401?'expired':'unavailable'});}else{emit('connection',{status:'reconnecting'});}}
  if(!ended&&generation===selection&&!disposed){emit('connection',{status:'reconnecting'});retry=setTimeout(()=>stream(id,generation),1800);}
@@ -105,14 +105,14 @@ async function pollRuntime(id,generation){
 }
 function allowedView(view){
  return typeof view==='string'&&(
-  ['home','map','tools','team','sdr','crm','agenda','clips','multipropriedades','financeai','genesis','genesis/new','business'].includes(view)||
+  ['login','home','map','tools','team','sdr','crm','agenda','clips','multipropriedades','financeai','genesis','genesis/new','business'].includes(view)||
   /^systems\/[a-z][a-z0-9_]{0,40}$/.test(view)||/^(?:tools|genesis)\/build_[a-f0-9]{48}$/.test(view)
  );
 }
 function setSession(next){
  if(!next?.access_token||!next?.identity||session?.access_token===next.access_token)return;
  releaseToolRuntime();stop();agents?.reset();platformFile=null;clearClipsMedia();ownedRuntime=null;selected='';cursor=0;
- session=next;disposed=false;clearTimeout(handshake);emit('session',{identity:session.identity});
+ session=next;disposed=false;clearTimeout(handshake);emit('session',{identity:session.identity,companyName:session.company_name});
 }
 function viewFromLocation(){
  const query=new URL(global.location.href||global.location.origin+(global.location.pathname||'')+(global.location.search||'')).searchParams.get('view');
@@ -126,17 +126,49 @@ function navigate(view,extra={}){
  global.history.pushState({},'',view==='team'?'/demo':'/demo/'+view);
  emit('view',{view,...extra});
 }
+const authBase='/api/demo/backend/v1/platform/auth/';
+function clearSession(message=''){
+ releaseToolRuntime();stop();agents?.reset();platformFile=null;clearClipsMedia();ownedRuntime=null;selected='';cursor=0;
+ session=null;emit('signed_out',{message});
+}
+function authRequest(route,body=undefined,identity=null){
+ return fetch(authBase+route,{
+  method:body===undefined?'GET':'POST',credentials:'same-origin',redirect:'error',cache:'no-store',
+  signal:AbortSignal.timeout(20000),body:body===undefined?undefined:JSON.stringify(body),
+  headers:{...(body===undefined?{}:{'Content-Type':'application/json'}),...(identity?{Authorization:'Bearer '+identity.access_token}:{})},
+ });
+}
 async function ensureSession(){
- if(session)return session;
- if(sessionPending)return sessionPending;
+ if(session||sessionPending)return sessionPending;
  sessionPending=(async()=>{
   try{
-   const r=await fetch('/api/demo/backend/__test/ui/local-enter',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',credentials:'omit',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(20000)});
-   if(!r.ok)throw Error(r.status===429?'Muitas entradas neste ambiente local. Aguarde antes de tentar novamente.':'Não foi possível abrir sua conta local. Confira o serviço da Arkom.');
-   const next=await r.json();if(!next?.access_token||!next.identity)throw Error('Sessão inválida.');setSession(next);return next;
-  }catch(error){emit('platform_error',{message:error.message});throw error;}
+   const r=await authRequest('session');
+   if(r.status===401){emit('signed_out');return;}
+   if(!r.ok)throw Error('Não foi possível conectar à Arkom. Tente novamente.');
+   if(viewFromLocation()==='login')navigate('team');
+   setSession(await r.json());
+  }catch(error){emit('signed_out',{message:error.message});}
   finally{sessionPending=null;}
- })();return sessionPending;
+ })();
+ return sessionPending;
+}
+async function login(data){
+ const r=await authRequest('login',{email:data.email,password:data.password});
+ if(r.status===401)throw Error('E-mail ou senha incorretos.');
+ if(r.status===429)throw Error('Muitas tentativas. Aguarde alguns minutos e tente novamente.');
+ if(!r.ok)throw Error('Não foi possível entrar agora. Tente novamente.');
+ const next=await r.json();
+ if(!next?.access_token||!next?.identity)throw Error('Não foi possível abrir sua conta.');
+ if(viewFromLocation()==='login')navigate('team');
+ setSession(next);
+}
+async function logout(){
+ const identity=session;
+ if(!identity)return;
+ releaseToolRuntime();
+ const r=await authRequest('logout',{},identity);
+ if(!r.ok)throw Error('Não foi possível sair agora. Tente novamente.');
+ if(session===identity){clearSession();navigate('login');}
 }
 const agents=global.createArkomAgents?.({getSession:()=>session,request,emit,navigate});
 function receive(event){
@@ -177,7 +209,7 @@ global.genesisBridge={
  });},
  connectPlatform(cb){
   platformCallback=cb;disposed=false;
-  if(session)platformCallback(JSON.stringify({type:'session',identity:session.identity}));
+  if(session)platformCallback(JSON.stringify({type:'session',identity:session.identity,companyName:session.company_name}));
   else if(global.parent===global)void ensureSession().catch(()=>{});
   else global.parent.postMessage({type:'arkom.genesis.ready'},global.location.origin);
  },
@@ -208,6 +240,8 @@ global.genesisBridge={
  }
  if(action==='navigate'){navigate(data.view);return '{}';}
  if(action==='platform_retry'){await ensureSession();return '{}';}
+ if(action==='platform_login'&&global.parent===global){await login(data);return '{}';}
+ if(action==='platform_logout'&&global.parent===global){await logout();return '{}';}
  if(action.startsWith('agent_')){if(!agents)throw Error('Agentes indisponíveis.');return agents.invoke(action,data);}
  if(action==='clips_pick'){
   const identity=session;

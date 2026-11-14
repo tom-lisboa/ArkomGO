@@ -1,5 +1,6 @@
 // Uses only the two explicit local demo tenants. Never connects Google or WhatsApp.
 const {chromium,expect}=require('@playwright/test');
+const {signInLocal}=require('./sign-in-local.cjs');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'../../../..'),base='http://127.0.0.1:3007';
 const prefix='/api/demo/backend/v1/sdr/calendar';
@@ -26,12 +27,7 @@ const fixtureName='Lia · Teste local ArkomGO';
  try{
   context=await browser.newContext({viewport:{width:1440,height:1000},timezoneId:'America/Cuiaba'});
   page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  const entered=page.waitForResponse(r=>r.url().endsWith('/__test/ui/local-enter'));
-  await page.goto(base+'/demo');const response=await entered;
-  if(!response.ok())throw Error('Local demo entry: HTTP '+response.status());
-  identity=await response.json();assert.equal(identity.identity.organization_id,'org_demo_alfa');
-  await page.waitForSelector('flutter-view',{state:'attached'});
-  await page.evaluate(()=>document.querySelector('flt-semantics-placeholder')?.click());
+  identity=await signInLocal(page,base);assert.equal(identity.identity.organization_id,'org_demo_alfa');
   await page.getByRole('button',{name:'Lia',exact:true}).click();
   const frame=page.frameLocator('iframe[data-arkom-agent="agenda"]');
   await expect(frame.getByRole('heading',{name:'Sua agenda, organizada.'})).toBeVisible();
@@ -89,14 +85,8 @@ const fixtureName='Lia · Teste local ArkomGO';
   await bia.getByRole('button',{name:'Agendas',exact:true}).click();
   await expect(bia.getByLabel(fixtureName,{exact:true})).toBeVisible();
   // The Beta session is created with its own private local access code, never reused from Alfa.
-  const codes=JSON.parse(fs.readFileSync(path.join(root,'.local/runtime/lab-data/credentials.json'),'utf8'));
-  const betaContext=await browser.newContext({viewport:{width:1280,height:900}}),betaPage=await betaContext.newPage();let beta;
-  await betaPage.route('**/api/demo/backend/__test/ui/local-enter',async route=>{
-   const reply=await route.fetch({url:base+'/api/demo/backend/__test/ui/login',method:'POST',postData:JSON.stringify({company:'beta',role:'admin',access_code:codes['beta.admin']}),headers:{'Content-Type':'application/json'}});
-   if(reply.ok())beta=await reply.json();await route.fulfill({response:reply});
-  });
-  await betaPage.goto(base+'/demo/agenda');await betaPage.waitForSelector('flutter-view',{state:'attached'});
-  await betaPage.evaluate(()=>document.querySelector('flt-semantics-placeholder')?.click());
+  const betaContext=await browser.newContext({viewport:{width:1280,height:900}}),betaPage=await betaContext.newPage();
+  const beta=await signInLocal(betaPage,base,'agenda','beta');
   const betaFrame=betaPage.frameLocator('iframe[data-arkom-agent="agenda"]');
   await expect(betaFrame.getByRole('heading',{name:'Sua agenda, organizada.'})).toBeVisible();
   assert.equal(beta.identity.organization_id,'org_demo_beta');

@@ -61,6 +61,11 @@ func platformWebHandler(flutter, bia string, target *url.URL) http.Handler {
 			r.Out.URL.Path = strings.TrimPrefix(r.In.URL.Path, "/api/demo/backend")
 			r.Out.URL.RawPath = ""
 			r.Out.Header = make(http.Header)
+			if strings.HasPrefix(r.Out.URL.Path, "/v1/platform/auth/") {
+				if cookie, err := r.In.Cookie(platformSessionCookie); err == nil {
+					r.Out.AddCookie(cookie)
+				}
+			}
 			for _, name := range []string{"Content-Type", "Authorization", "Idempotency-Key", "Last-Event-ID"} {
 				if value := r.In.Header.Get(name); value != "" {
 					r.Out.Header.Set(name, value)
@@ -100,6 +105,10 @@ func platformWebHandler(flutter, bia string, target *url.URL) http.Handler {
 			path := strings.TrimPrefix(r.URL.Path, "/api/demo/backend/")
 			parts := strings.Split(path, "/")
 			if len(parts) < 2 || !platformProxyPrefix(parts[0]+"/"+parts[1]) {
+				http.NotFound(w, r)
+				return
+			}
+			if platformRequiresLogin() && (path == "__test/ui/local-enter" || path == "__test/ui/login" || path == "v1/sdr/auth/login") {
 				http.NotFound(w, r)
 				return
 			}
@@ -170,7 +179,7 @@ func platformSameOrigin(r *http.Request) bool {
 
 func platformViewAllowed(view string) bool {
 	switch view {
-	case "", "home", "map", "tools", "team", "sdr", "crm", "agenda", "clips", "multipropriedades", "financeai", "genesis", "genesis/new", "business":
+	case "", "login", "home", "map", "tools", "team", "sdr", "crm", "agenda", "clips", "multipropriedades", "financeai", "genesis", "genesis/new", "business":
 		return true
 	}
 	return platformProjectRoute.MatchString(view) || platformSolutionRoute.MatchString(view)

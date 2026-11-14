@@ -1,5 +1,6 @@
 /* Local smoke: no new messages, customers, invoices, builds or charges are created. */
 const {chromium,expect}=require('@playwright/test');
+const {signInLocal}=require('./sign-in-local.cjs');
 const path=require('node:path');
 const fs=require('node:fs');
 (async()=>{
@@ -16,14 +17,9 @@ const fs=require('node:fs');
   page.on('pageerror',e=>errors.push(e.message));
   page.on('response',r=>{if(r.status()===404&&r.url().includes('/agents/bia/'))missing.push(r.url())});
   page.on('request',r=>{if(r.isNavigationRequest()&&r.frame()===page.mainFrame())documents.push(r.url())});
-  const entering=page.waitForResponse(r=>r.url().endsWith('/__test/ui/local-enter'));
-  await page.goto('http://127.0.0.1:3007/demo');
-  const entrance=await entering;
-  if(!entrance.ok())throw Error(`Local demo entry: HTTP ${entrance.status()}${entrance.headers()['retry-after'] ? ` (retry after ${entrance.headers()['retry-after']} s)` : ''}`);
-  await page.waitForSelector('flutter-view',{state:'attached'});
-  await page.evaluate(()=>document.querySelector('flt-semantics-placeholder')?.click());
+  await signInLocal(page,'http://127.0.0.1:3007');
   await expect(page.getByRole('button',{name:'Início',exact:true})).toBeVisible();
-  await expect(page.getByText('Alfa · Demonstração',{exact:true})).toBeVisible();
+  await expect(page.getByText(/Alfa Automação Comercial/)).toBeVisible();
   await page.evaluate(()=>document.querySelector('flutter-view').dataset.smoke='same-engine');
   await page.screenshot({path:path.join(output,'platform-home.png')});
   await page.getByRole('button',{name:/^Arkom · Visão geral/}).click();

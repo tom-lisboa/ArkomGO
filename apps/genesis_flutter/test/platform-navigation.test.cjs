@@ -16,7 +16,7 @@ function harness({standalone=true,handle}={}){
   history:{pushState(_state,_unused,path){navigated.push(path);const url=new URL(path,location.origin);Object.assign(location,{href:url.href,pathname:url.pathname,search:url.search})}},
   fetch:async(url,options)=>{
    requests.push({url,options});
-   const result=handle?await handle(url,options):url.endsWith('/local-enter')?{access_token:'test-alfa',identity:{organization_id:'org_demo_alfa',role:'admin'}}:{builds:[]};
+   const result=handle?await handle(url,options):url.endsWith('/auth/session')?{access_token:'test-alfa',identity:{organization_id:'org_demo_alfa',role:'admin'}}:{builds:[]};
    return {ok:true,status:200,json:async()=>result};
   },
  };
@@ -40,7 +40,7 @@ test('Flutter owns history and shares one in-memory session with Genesis across 
  assert.deepEqual(h.navigated,['/demo','/demo/home']);
  h.global.genesisBridge.disconnect();await h.invoke('platform',{path:'/v1/sdr/genesis-demo/ecosystem'});
  assert.equal(h.requests.at(-1).options.headers.Authorization,'Bearer test-alfa');
- h.studio(e=>studio.push(e));assert.equal(h.requests.filter(e=>e.url.endsWith('/local-enter')).length,1);
+ h.studio(e=>studio.push(e));assert.equal(h.requests.filter(e=>e.url.endsWith('/auth/session')).length,1);
  Object.assign(h.global.location,{pathname:'/demo',href:h.global.location.origin+'/demo'});h.pop();assert.equal(platform.at(-1).view,'team');
  await assert.rejects(()=>h.invoke('navigate',{view:'https://attacker.example'}));
  assert.ok(!JSON.stringify(h.navigated).includes('test-alfa'));
@@ -78,7 +78,7 @@ test('switching identity destroys agent surfaces and never gives an old frame th
 });
 
 test('Maia opens its Finance title and returns to the same preserved Maia surface',async()=>{
- const h=harness({handle:async(url,options)=>url.endsWith('/local-enter')?{access_token:'test-alfa',identity:{role:'admin'}}:url.includes('financeai')?{code:'single-use',state:JSON.parse(options.body).state}:{access_token:'maia-only',refresh_token:'private'}});
+ const h=harness({handle:async(url,options)=>url.endsWith('/auth/session')?{access_token:'test-alfa',identity:{role:'admin'}}:url.includes('financeai')?{code:'single-use',state:JSON.parse(options.body).state}:{access_token:'maia-only',refresh_token:'private'}});
  const events=[];h.platform(e=>events.push(e));await tick();
  await h.invoke('agent_open',{id:'multipropriedades',lease:'1'});const maia=h.frames[0],multi='http://127.0.0.1:8180';
  await h.message(maia.contentWindow,multi,{type:'arkom.multi.ready',requestId:'maia-nonce'});

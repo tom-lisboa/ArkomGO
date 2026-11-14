@@ -36,7 +36,8 @@ func (a *App) crmHTTP(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 	route, ok := a.crmRoutes[u.Org]
-	if !ok || r.Method != "POST" {
+	local := homologCRMEnabled(u.Org) && !ok
+	if (!ok && !local) || r.Method != "POST" {
 		a.mu.Unlock()
 		fail(w, 404, "crm_unavailable")
 		return true
@@ -65,6 +66,10 @@ func (a *App) crmHTTP(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 	a.mu.Unlock()
+	if local {
+		a.homologCRMHTTP(w, r, u, operation)
+		return true
+	}
 
 	var body json.RawMessage
 	if !decode(w, r, &body) {

@@ -110,7 +110,7 @@ export default function CRMConsole({session,onConversation}:{session:Session;onC
   const form=new FormData(event.currentTarget);
   void run(async()=>{
    const result=await request<{leadId:string;conversationId:string}>('/v1/sdr/crm/contacts.create',session,{name:form.get('name'),email:form.get('email')});
-   setContact({id:result.leadId,name:String(form.get('name')??''),email:String(form.get('email')??'')});setContactSearch(current=>({...current}));setConversationId(result.conversationId);setMessage('Contato cadastrado no Clickmax e vinculado à Bia.');
+   setContact({id:result.leadId,name:String(form.get('name')??''),email:String(form.get('email')??'')});setContactSearch(current=>({...current}));setConversationId(result.conversationId);setMessage('Contato cadastrado e vinculado à Bia.');
   });
  }
  function createPipeline(event:FormEvent<HTMLFormElement>){
@@ -195,7 +195,7 @@ export default function CRMConsole({session,onConversation}:{session:Session;onC
   });
  }
  return <main className="lab-audit demo-crm">
-  <div className="lab-section-head"><div><p className="eyebrow">Sua empresa</p><h1 className="text-h2">CRM Arkom</h1></div>
+  <div className="lab-section-head"><div><p className="eyebrow">Sua empresa</p><h1 className="text-h2">CRM Arkom</h1>{session.identity.organization_id==='org_demo_beta'&&<p>Base de homologação da Beta</p>}</div>
    <Button variant="outline" disabled={busy} onClick={()=>void run(async()=>{
     await listPipelines();
     if(pipelineId){

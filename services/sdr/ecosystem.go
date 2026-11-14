@@ -120,7 +120,7 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 			return true
 		}
 		u = resolved
-		crm := a.crmRoutes[u.Org].Origin != ""
+		crm := a.crmRoutes[u.Org].Origin != "" || homologCRMEnabled(u.Org)
 		clips := os.Getenv("SDR_CLIPS_BRIDGE_KEY") != ""
 		a.mu.Lock()
 		health, present := a.workerHealth["calendar"]
@@ -153,6 +153,10 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 				configured = os.Getenv("OPENAI_API_KEY") != ""
 			case "crm":
 				configured = crm
+				item["provider"] = "clickmax"
+				if homologCRMEnabled(u.Org) && a.crmRoutes[u.Org].Origin == "" {
+					item["provider"] = "arkom_homolog"
+				}
 			case "clips":
 				configured = clips
 			case "financeai":
@@ -280,7 +284,8 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 		scope := "write"
 		if u.Role == "viewer" {
 			scope = "read"
-		} else if u.Role == "admin" && u.Environment == "isolated-test" && u.Org == "org_demo_alfa" && u.ID == "user_alfa_admin" {
+		} else if u.Role == "admin" && u.Environment == "isolated-test" && (u.Org == "org_demo_alfa" && u.ID == "user_alfa_admin" ||
+			homologCRMEnabled(u.Org) && u.ID == "user_beta_admin") {
 			scope = "demo"
 		}
 		mac.Reset()

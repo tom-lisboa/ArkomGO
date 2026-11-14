@@ -72,7 +72,8 @@ func (a *App) configureCRM() error {
 // queueQualifiedCRM runs in the transaction that stores validated conversation facts.
 func (a *App) queueQualifiedCRM(conversation *Conversation) {
 	route, ok := a.crmRoutes[conversation.Org]
-	if !ok || conversation.OptedOut {
+	local := !ok && homologCRMEnabled(conversation.Org)
+	if (!ok && !local) || conversation.OptedOut {
 		return
 	}
 	lead := a.state.CRMContacts[conversation.Org][conversation.Contact]
@@ -92,6 +93,11 @@ func (a *App) queueQualifiedCRM(conversation *Conversation) {
 		}
 	}
 	if policy.Spec.Validate() != nil || len(policy.Spec.Missing(validFacts)) > 0 {
+		return
+	}
+
+	if local {
+		a.recordHomologOpportunity(conversation, lead, policy.Spec.Title)
 		return
 	}
 

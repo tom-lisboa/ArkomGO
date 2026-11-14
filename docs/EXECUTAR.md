@@ -27,7 +27,7 @@ Os seis agentes de construção do Genesis usam `GENESIS_OPENAI_MODEL=gpt-6.1-so
 python3 scripts/demo.py
 ```
 
-Abra http://127.0.0.1:3007/demo . Use Ctrl+C para encerrar os processos iniciados pelo launcher. Logs, credenciais geradas, SQLite e relatórios ficam sob `.local/runtime`, ignorada pelo Git.
+Abra http://127.0.0.1:3007/demo e entre com `alfa@arkom.test` ou `beta@arkom.test`. As senhas iniciais ficam nas entradas `alfa.admin` e `beta.admin` de `.local/runtime/lab-data/credentials.json`. Use Ctrl+C para encerrar os processos iniciados pelo launcher. Logs, credenciais geradas, SQLite e relatórios ficam sob `.local/runtime`, ignorada pelo Git.
 
 Sem configuração CRM, é possível iniciar Genesis e SDR. As telas que dependem do CRM mostrarão indisponibilidade até que ele seja configurado. O Genesis somente chama o provedor quando você solicita um plano. Mensagens enviadas para o atendimento com IA também podem gerar consumo da API.
 
@@ -61,7 +61,7 @@ Os testes CRM que exigem PostgreSQL só exercitam esse caminho quando `ARKOM_CRM
 
 ## Limites operacionais
 
-Esta é uma demo local, não um pacote pronto para produção. O login Alfa simplificado depende de flags explícitas e loopback. Um produto público exige sessão comercial, provisionamento por empresa, gestão de credenciais, domínio, limites, auditoria e operação contínua. Publicar este repositório no GitHub não publica a aplicação na internet.
+Esta é uma demo local, não um pacote pronto para produção. O portal pede e-mail e senha para as contas Alfa e Beta. Em desenvolvimento, os testes de API conservam suas rotas de laboratório. A homologação no servidor exige login e desativa a entrada automática. Um produto público exige sessão comercial, provisionamento por empresa, gestão de credenciais, domínio, limites, auditoria e operação contínua. Publicar este repositório no GitHub não publica a aplicação na internet.
 
 ## Estúdio de construção
 

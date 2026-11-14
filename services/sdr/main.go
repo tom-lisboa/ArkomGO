@@ -84,6 +84,7 @@ type Task struct {
 	RunID        string
 }
 type State struct {
+	HomologCRMs     map[string]*homologCRM       `json:",omitempty"`
 	CRMContacts     map[string]map[string]string `json:",omitempty"`
 	CRMOutbox       map[string]crmEvent          `json:",omitempty"`
 	Voice           voiceState
@@ -337,12 +338,15 @@ func (a *App) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := strings.Trim(r.URL.Path, "/")
+	if a.platformAuth(w, r, path) {
+		return
+	}
 	if r.Method == "GET" && path == "v1/platform/openapi.json" {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_, _ = w.Write(platformOpenAPI)
 		return
 	}
-	if r.Method == "POST" && path == "__test/ui/local-enter" && os.Getenv("SDR_GENESIS_DEMO") == "true" && os.Getenv("SDR_CRM_DEV_ENABLED") == "true" {
+	if r.Method == "POST" && path == "__test/ui/local-enter" && !platformRequiresLogin() && os.Getenv("SDR_GENESIS_DEMO") == "true" && os.Getenv("SDR_CRM_DEV_ENABLED") == "true" {
 		host, _, _ := net.SplitHostPort(r.RemoteAddr)
 		if host != "127.0.0.1" {
 			fail(w, 403, "forbidden")
@@ -360,11 +364,19 @@ func (a *App) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "POST" && path == "__test/ui/login" {
+		if platformRequiresLogin() {
+			fail(w, 404, "not_found")
+			return
+		}
 		a.demoLogin(w, r)
 		return
 	}
 	parts := strings.Split(path, "/")
 	if r.Method == "POST" && path == "v1/sdr/auth/login" {
+		if platformRequiresLogin() {
+			fail(w, 404, "not_found")
+			return
+		}
 		var b struct {
 			Username string `json:"username"`
 			Password string `json:"password"`

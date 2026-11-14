@@ -18,6 +18,15 @@ A equipe usa a mesma porta local 13007 para a ArkomGO. As outras portas do
 túnel permitem abrir a Maia, o FinanceAI e a autenticação da Maia dentro do
 portal. O túnel padrão não encaminha bancos de dados.
 
+Entre com `alfa@arkom.test` ou `beta@arkom.test`. Consulte a senha de
+cada conta pelo terminal com acesso administrativo ao servidor. A sessão
+dura uma hora. Use **Sair da conta** para alternar de empresa.
+
+```sh
+bash scripts/server/read-homolog-login.sh usuario@servidor ~/.ssh/arkom_dev alfa
+bash scripts/server/read-homolog-login.sh usuario@servidor ~/.ssh/arkom_dev beta
+```
+
 ## Serviços
 
 - `arkomgo-homolog@*.service` supervisiona o portal, a API, a BIA, a Lia,
@@ -30,9 +39,10 @@ portal. O túnel padrão não encaminha bancos de dados.
 - O Genesis usa a Responses API e o deepH. O executor Docker limita os
   comandos a testes Go, compilação Svelte e execução da prévia, com rede
   desabilitada dentro dos contêineres de construção.
-- O CRM usa somente a instalação Alfa no workspace DEV do Clickmax. O
-  WhatsApp entrega o QR para configuração de um número e autorização de
-  contatos no painel.
+- O CRM da Alfa usa o workspace DEV do Clickmax. O CRM da Beta usa uma
+  base de homologação própria, com o funil Matrículas e integração com a
+  BIA da Beta. Cada empresa recebe seu QR do WhatsApp para configurar um
+  número e autorizar contatos no painel.
 
 Para conferir os processos e a versão ativa no servidor:
 
@@ -66,8 +76,10 @@ FinanceAI usam também seus próprios artefatos compilados e vínculos
 provisionados para Alfa e Beta. A origem do portal nesses artefatos é
 `http://127.0.0.1:13007`.
 
-A versão hospedada usa a sessão de laboratório. A liberação para clientes
-requer autenticação comercial, provisionamento por empresa e domínio HTTPS.
+A versão hospedada usa contas de homologação com login obrigatório. A
+liberação para clientes requer autenticação comercial, provisionamento por
+empresa e publicação HTTPS da plataforma e dos agentes. O domínio
+`sdk.arkom.ai` atende a documentação e os serviços SDK existentes.
 
 O primeiro build Go em um servidor pequeno pode precisar preparar o cache
 da biblioteca padrão. Execute `sudo bash scripts/server/warm-go-cache.sh`

@@ -11,6 +11,7 @@ export PATH="$release/bin:/usr/bin:/bin"
 export TMPDIR="$state/tmp"
 export SDR_CRM_DEV_ENABLED=true
 export ARKOM_LOCAL_DEMO=true
+export ARKOM_PLATFORM_REQUIRE_LOGIN=true
 export ARKOM_LOCAL_API_LISTEN=127.0.0.1:13080
 export ARKOM_LOCAL_WEB_LISTEN=127.0.0.1:13007
 export SDR_LOCAL_WORKER_LISTEN=127.0.0.1:13081
@@ -22,6 +23,7 @@ case "${1:-}" in
         # Docker runs generated code as an unprivileged UID, under the private scratch parent.
         umask 022
         export OPENAI_API_KEY="$(<"$secrets/pilot-openai")"
+        export ARKOM_CRM_BETA_HOMOLOG=true
         export SDR_GENESIS_DEMO=true SDR_PIPELINE_ENABLED=true SDR_CALENDAR_ENABLED=true
         export SDR_MEDIA_ENABLED=true SDR_CUSTOMER_DATA_ENABLED=true
         export TMPDIR="$state/sandboxes"
