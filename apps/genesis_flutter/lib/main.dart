@@ -5,12 +5,25 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import 'code_workspace.dart';
+import 'genesis_tools.dart';
 import 'live_activity.dart';
 import 'solution_preview.dart';
 import 'studio_controller.dart';
 import 'visuals.dart';
+import 'platform.dart';
 
-void main() => runApp(const GenesisApp());
+void main() => runApp(
+  ArkomPlatform(
+    initialView:
+        Uri.base.queryParameters['view'] ??
+        (Uri.base.path == '/demo' || Uri.base.path == '/demo/'
+            ? 'team'
+            : Uri.base.path.startsWith('/demo/')
+            ? Uri.base.path.substring(6)
+            : 'team'),
+    navigationOnly: Uri.base.queryParameters['navigation'] == 'only',
+  ),
+);
 
 class GenesisApp extends StatelessWidget {
   final StudioController? controller;
@@ -46,7 +59,18 @@ class GenesisApp extends StatelessWidget {
 
 class Studio extends StatefulWidget {
   final StudioController? controller;
-  const Studio({super.key, this.controller});
+  final String? initialBuildId;
+  final bool startNew, toolMode;
+  final VoidCallback? onBack, onOpenNavigation;
+  const Studio({
+    super.key,
+    this.controller,
+    this.initialBuildId,
+    this.startNew = false,
+    this.toolMode = false,
+    this.onBack,
+    this.onOpenNavigation,
+  });
   @override
   State<Studio> createState() => _StudioState();
 }
@@ -93,7 +117,14 @@ class _StudioState extends State<Studio> {
   @override
   void initState() {
     super.initState();
-    model = widget.controller ?? StudioController();
+    model =
+        widget.controller ??
+        StudioController(
+          initialBuildId: widget.initialBuildId,
+          startNew: widget.startNew,
+        );
+    newIdea = widget.startNew;
+    mobileChat = widget.startNew;
     lastBuild = model.id;
     lastStatus = model.build?['status'] ?? '';
     lastSequence = model.build?['sequence'] ?? 0;
@@ -111,6 +142,7 @@ class _StudioState extends State<Studio> {
       stopReplay();
     final switched = lastBuild != model.id;
     if (switched) {
+      interfaceRevision = false;
       previewDebounce?.cancel();
       lastBuild = model.id;
       lastSequence = 0;
@@ -157,12 +189,18 @@ class _StudioState extends State<Studio> {
     super.dispose();
   }
 
+  bool interfaceRevision = false;
+
   Future<void> send() async {
     if (!canSend) return;
     final old = model.id;
     await model.start(
       goal.text.trim(),
       continueProject: !newIdea && model.id.isNotEmpty,
+      revisionScope:
+          !newIdea && model.build?['status'] == 'ready' && interfaceRevision
+          ? 'interface'
+          : '',
     );
     if (mounted && old != model.id) {
       setState(() {
@@ -189,6 +227,9 @@ class _StudioState extends State<Studio> {
                 'frontend.build.failed',
                 'design.validated',
                 'design.rejected',
+                'navigation.validated',
+                'navigation.rejected',
+                'navigation.built',
                 'agent.finished',
               ].contains(e['kind']),
         )
@@ -264,59 +305,163 @@ class _StudioState extends State<Studio> {
   );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: LayoutBuilder(
-      builder: (context, c) {
-        final narrow = c.maxWidth < 760;
-        return Column(
-          children: [
-            header(narrow),
-            if (model.error.isNotEmpty)
-              Container(
-                width: double.infinity,
-                color: const Color(0xff30201e),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 9,
+  Widget build(BuildContext context) {
+    if (widget.toolMode) return toolWorkspace();
+    return Scaffold(
+      body: LayoutBuilder(
+        builder: (context, c) {
+          final narrow = c.maxWidth < 760;
+          return Column(
+            children: [
+              header(narrow),
+              if (model.error.isNotEmpty || model.initialBuildMissing)
+                Container(
+                  width: double.infinity,
+                  color: const Color(0xff30201e),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 9,
+                  ),
+                  child: label(
+                    model.initialBuildMissing
+                        ? 'Este projeto não está disponível nesta conta.'
+                        : model.error,
+                    color: const Color(0xfff0b0a0),
+                    size: 11,
+                    lines: 3,
+                  ),
                 ),
-                child: label(
-                  model.error,
-                  color: const Color(0xfff0b0a0),
-                  size: 11,
-                  lines: 3,
+              Expanded(
+                child: Row(
+                  children: [
+                    if (!narrow && showChat)
+                      SizedBox(
+                        width: c.maxWidth < 1050 ? 280 : 316,
+                        child: conversation(),
+                      ),
+                    if (!narrow && showChat)
+                      const VerticalDivider(width: 1, color: line),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          toolbar(narrow),
+                          Expanded(
+                            child: IndexedStack(
+                              index: narrow && mobileChat ? 1 : 0,
+                              children: [
+                                workspace(),
+                                if (narrow) conversation(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            Expanded(
-              child: Row(
-                children: [
-                  if (!narrow && showChat)
-                    SizedBox(
-                      width: c.maxWidth < 1050 ? 280 : 316,
-                      child: conversation(),
-                    ),
-                  if (!narrow && showChat)
-                    const VerticalDivider(width: 1, color: line),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        toolbar(narrow),
-                        Expanded(
-                          child: IndexedStack(
-                            index: narrow && mobileChat ? 1 : 0,
-                            children: [workspace(), if (narrow) conversation()],
-                          ),
-                        ),
-                      ],
-                    ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget toolWorkspace() {
+    final build = model.build;
+    final available = build != null && hasGenesisTool(build);
+    final missing = model.initialBuildMissing || (build != null && !available);
+    final needsConnection =
+        available && build['runtime_compatible'] == true && model.canEdit;
+    return Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            height: 62,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: const BoxDecoration(
+              color: panel,
+              border: Border(bottom: BorderSide(color: line)),
+            ),
+            child: Row(
+              children: [
+                if (widget.onOpenNavigation != null)
+                  iconAction(
+                    'Mostrar menu Arkom',
+                    Icons.menu,
+                    widget.onOpenNavigation,
                   ),
-                ],
+                iconAction(
+                  'Voltar para Ferramentas',
+                  Icons.arrow_back,
+                  widget.onBack,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: label(
+                    available ? genesisToolName(build) : 'Ferramentas',
+                    size: 15,
+                    lines: 1,
+                    weight: FontWeight.w500,
+                  ),
+                ),
+                if (needsConnection &&
+                    ['failed', 'stopped'].contains(model.runtimeStatus))
+                  iconAction(
+                    'Conectar ferramenta',
+                    Icons.link,
+                    () => model.action('runtime_start'),
+                  ),
+                if (available)
+                  iconAction(
+                    'Atualizar ferramenta',
+                    Icons.refresh,
+                    () => setState(() => previewRevision++),
+                  ),
+                if (available && model.canEdit)
+                  iconAction(
+                    'Editar no Genesis',
+                    Icons.edit_outlined,
+                    () =>
+                        model.call('navigate', {'view': 'genesis/${model.id}'}),
+                  ),
+              ],
+            ),
+          ),
+          if (!missing && model.error.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: label(
+                model.error,
+                color: const Color(0xfff0b0a0),
+                size: 12,
               ),
             ),
-          ],
-        );
-      },
-    ),
-  );
+          Expanded(
+            child: missing
+                ? Center(
+                    child: label(
+                      'Esta ferramenta não está disponível nesta conta.',
+                      color: muted,
+                      size: 14,
+                    ),
+                  )
+                : !hasPreview || !available
+                ? model.error.isNotEmpty
+                      ? const SizedBox.shrink()
+                      : const Center(
+                          child: CircularProgressIndicator(color: gold),
+                        )
+                : SolutionPreview(
+                    key: ValueKey('${model.id}-$previewRevision'),
+                    files: Map.of(model.files),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget header(bool narrow) => Container(
     height: 62,
@@ -327,6 +472,16 @@ class _StudioState extends State<Studio> {
     ),
     child: Row(
       children: [
+        if (widget.onOpenNavigation != null)
+          iconAction('Mostrar menu Arkom', Icons.menu, widget.onOpenNavigation),
+        if (widget.onBack != null) ...[
+          iconAction(
+            'Voltar para Ferramentas',
+            Icons.arrow_back,
+            widget.onBack,
+          ),
+          const SizedBox(width: 5),
+        ],
         Container(
           width: 30,
           height: 30,
@@ -511,7 +666,6 @@ class _StudioState extends State<Studio> {
             if (v == 'runtime_start' || v == 'runtime_stop') model.action(v);
             if (v == 'replay') startReplay();
             if (v == 'export') model.action('export');
-            if (v == 'qualification') model.call('qualification');
             if (v == 'cancel') model.action('cancel');
           },
           itemBuilder: (_) => [
@@ -523,8 +677,8 @@ class _StudioState extends State<Studio> {
                 enabled: model.canEdit && !model.busy,
                 child: Text(
                   ['running', 'starting'].contains(model.runtimeStatus)
-                      ? 'Encerrar backend da prévia'
-                      : 'Iniciar backend da prévia',
+                      ? 'Pausar solução'
+                      : 'Conectar solução',
                   style: const TextStyle(fontSize: 12),
                 ),
               ),
@@ -553,13 +707,6 @@ class _StudioState extends State<Studio> {
                   style: TextStyle(fontSize: 12),
                 ),
               ),
-            const PopupMenuItem(
-              value: 'qualification',
-              child: Text(
-                'Qualificação SDR/CRM',
-                style: TextStyle(fontSize: 12),
-              ),
-            ),
           ],
         ),
       ],
@@ -758,7 +905,7 @@ class _StudioState extends State<Studio> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
-                    s['status'] == 'completed'
+                    ['completed', 'reused'].contains(s['status'])
                         ? Icons.check_circle_outline
                         : s['status'] == 'running'
                         ? Icons.play_circle_outline
@@ -770,7 +917,7 @@ class _StudioState extends State<Studio> {
                         ? Icons.pause_circle_outline
                         : Icons.radio_button_unchecked,
                     size: 17,
-                    color: s['status'] == 'completed'
+                    color: ['completed', 'reused'].contains(s['status'])
                         ? agentColors[3]
                         : s['status'] == 'pending'
                         ? muted
@@ -784,6 +931,19 @@ class _StudioState extends State<Studio> {
                         label(s['title'], size: 11, weight: FontWeight.w500),
                         const SizedBox(height: 4),
                         label(s['acceptance'], size: 10, color: muted),
+                        if (s['id'] == 'ux' &&
+                            model.files.containsKey('design/navigation.json'))
+                          TextButton(
+                            key: const ValueKey('brief-navigation'),
+                            onPressed: () {
+                              model.chooseFile('design/navigation.json');
+                              setState(() {
+                                mode = 1;
+                                mobileChat = false;
+                              });
+                            },
+                            child: const Text('Ler mapa de telas'),
+                          ),
                         if (['ux', 'designer'].contains(s['id']) &&
                             model.files.containsKey(
                               s['id'] == 'ux'
@@ -815,6 +975,7 @@ class _StudioState extends State<Studio> {
                                 'pending': 'Aguardando',
                                 'running': 'Em execução',
                                 'completed': 'Concluída',
+                                'reused': 'Reaproveitada',
                                 'failed': 'Precisa de correção',
                                 'cancelled': 'Interrompida',
                                 'interrupted': 'Aguardando retomada',
@@ -885,7 +1046,7 @@ class _StudioState extends State<Studio> {
     );
     final step = model.steps.where((s) => s['id'] == agentIds[i]).firstOrNull;
     final done = step != null
-        ? step['status'] == 'completed'
+        ? ['completed', 'reused'].contains(step['status'])
         : model.traces.any(
             (e) => e['agent'] == agentIds[i] && e['kind'] == 'agent.finished',
           );
@@ -1018,6 +1179,30 @@ class _StudioState extends State<Studio> {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (!newIdea &&
+            model.build?['status'] == 'ready' &&
+            model.steps.isNotEmpty)
+          Material(
+            color: Colors.transparent,
+            child: CheckboxListTile(
+              key: const ValueKey('interface-revision'),
+              value: interfaceRevision,
+              onChanged: model.busy
+                  ? null
+                  : (value) =>
+                        setState(() => interfaceRevision = value ?? false),
+              title: const Text(
+                'Alterar somente a interface',
+                style: TextStyle(fontSize: 12),
+              ),
+              subtitle: const Text(
+                'Reaproveita plano, rotas e backend. Mantém a revisão final.',
+                style: TextStyle(fontSize: 10),
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
         Container(
           padding: const EdgeInsets.fromLTRB(14, 4, 10, 9),
           decoration: BoxDecoration(
@@ -1160,18 +1345,34 @@ class _StudioState extends State<Studio> {
               child: label(
                 mode == 0
                     ? (model.runtimeStatus == 'running'
-                          ? 'Backend Go conectado'
+                          ? 'Solução conectada · dados na Arkom'
                           : model.runtimeStatus == 'starting'
-                          ? 'Preparando backend Go…'
-                          : 'Prévia local · integrações ainda não conectadas')
+                          ? 'Preparando sua solução…'
+                          : model.runtimeStatus == 'failed'
+                          ? 'Não foi possível conectar a solução'
+                          : model.build?['status'] == 'ready'
+                          ? 'Solução pausada'
+                          : 'Construção em andamento · prévia visual')
                     : 'Seu projeto e histórico ficam salvos na Arkom',
                 size: 9,
                 color: muted,
                 lines: 1,
               ),
             ),
-            if (mode == 0 && hasPreview)
-              label('INTERATIVA', size: 8, color: agentColors[3], spacing: 1),
+            if (mode == 0 &&
+                model.build?['status'] == 'ready' &&
+                !['running', 'starting'].contains(model.runtimeStatus))
+              TextButton(
+                onPressed: model.canEdit && !model.busy
+                    ? () => model.action('runtime_start')
+                    : null,
+                child: const Text(
+                  'Conectar solução',
+                  style: TextStyle(fontSize: 10),
+                ),
+              ),
+            if (mode == 0 && hasPreview && model.runtimeStatus == 'running')
+              label('CONECTADA', size: 8, color: agentColors[3], spacing: 1),
           ],
         ),
       ),
@@ -1228,23 +1429,35 @@ class _StudioState extends State<Studio> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              4,
-              (i) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: Gopher(index: i, size: 47),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width < 760 ? 190 : 360,
+            ),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              runSpacing: 8,
+              children: List.generate(
+                agentIds.length,
+                (i) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: Gopher(index: i, size: 47),
+                ),
               ),
             ),
           ),
           const SizedBox(height: 26),
-          label(
+          Text(
             model.running && !newIdea
                 ? 'Sua ideia está ganhando forma.'
+                : !newIdea && model.id.isNotEmpty
+                ? 'Sua interface ainda está em construção.'
                 : 'Um espaço para a sua próxima ideia.',
-            size: 22,
-            weight: FontWeight.w300,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w300,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 12),
           ConstrainedBox(
@@ -1252,6 +1465,8 @@ class _StudioState extends State<Studio> {
             child: Text(
               model.running && !newIdea
                   ? 'A interface aparece aqui assim que o time criar os primeiros arquivos.'
+                  : !newIdea && model.id.isNotEmpty
+                  ? 'Seu projeto está salvo. Confira a etapa atual na conversa para continuar a construção.'
                   : 'Comece com uma conversa. Acompanhe o time construir e experimente tudo por aqui.',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 12, height: 1.7, color: muted),

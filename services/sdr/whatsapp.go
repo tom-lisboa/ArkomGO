@@ -45,8 +45,12 @@ func configureWA() (WAEngine, error) {
 		return nil, nil
 	}
 	u, err := url.Parse(base)
-	// Only our dedicated private service is permitted; never accepts a client-supplied URL.
-	if err != nil || u.Scheme != "http" || u.Host != "sdr-wa-bridge:8080" || u.Path != "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+	// Keep the Docker address in production and permit the dedicated loopback bridge in the local demo.
+	expectedHost := "sdr-wa-bridge:8080"
+	if os.Getenv("ARKOM_LOCAL_DEMO") == "true" && os.Getenv("SDR_CRM_DEV_ENABLED") == "true" {
+		expectedHost = "127.0.0.1:18083"
+	}
+	if err != nil || u.Scheme != "http" || u.Host != expectedHost || u.Path != "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return nil, errors.New("invalid private WhatsApp engine address")
 	}
 	raw, err := os.ReadFile(path)

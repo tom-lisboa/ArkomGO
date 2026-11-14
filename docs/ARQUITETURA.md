@@ -8,7 +8,7 @@ Os nomes Git, banco de dados, SDK e workspace não precisam fazer parte da jorna
 
 ## Camadas implementadas
 
-**Portal.** `apps/portal` vem do arkom-dash, preservando Shell, logo, fontes e tokens visuais. As rotas `/demo/*` integram o frontend SDR através de `src/components/demo-runtime`. Essa cópia é dívida temporária: a evolução prevista é um pacote compartilhado de componentes. O proxy `/api/demo/backend/*` encaminha chamadas para a API local e não entrega chaves de provedores ao navegador.
+**Plataforma Flutter e servidor Go.** `apps/genesis_flutter` implementa a navegação, o Início com squads, ferramentas, negócio, CRM, Luma e Genesis. `services/sdr/platform_web.go` serve os arquivos compilados na porta 3007 e encaminha `/api/demo/backend/*` para a API local em 8080, preservando Bearer, idempotência e SSE. O servidor web recebe somente caminhos dos builds e configuração local, sem credenciais de provedores. Os frontends próprios dos agentes são uma exceção: BIA em `apps/agents/bia` (Vite), Maia e FinanceAI nos checkouts existentes. `web/agents.js` verifica origem, janela e nonce antes de entregar a sessão; a troca de empresa destrói as superfícies anteriores. A plataforma não utiliza Next.js.
 
 **SDR e workers.** `services/sdr` autentica sessões, mantém o contexto publicado, histórico e estado do piloto em SQLite. Os workers de contexto e execução usam os contratos de `pkg/sdrsdk`, com credenciais próprias e listener separado. Fluxos de negócio e controles de aprovação já existem no motor de plataforma. Sua existência não significa que o plano Genesis já seja executável.
 
@@ -22,7 +22,7 @@ Os nomes Git, banco de dados, SDK e workspace não precisam fazer parte da jorna
 
 ## Direção do frontend: Flutter
 
-Decisão de produto em 11/11/2026: concentrar a etapa atual no backend Go e no deepH; migrar integralmente o frontend da plataforma para Flutter quando começar a etapa de interface. O primeiro recorte foi antecipado: o estúdio Genesis em `/demo/genesis` agora é Flutter Web, dentro do shell Next.js da Arkom. O restante do portal e o fluxo legado de qualificação continuam em React. O SDK Flutter 3.50.0 está instalado em `.local/flutter` nesta estação.
+Decisão de produto em 13/11/2026: toda a plataforma usa Flutter e o backend continua em Go com deepH. O antigo hospedeiro Next foi excluído. O SDK Flutter 3.50.0 está instalado em `.local/flutter` nesta estação. O Início (`/demo`) mostra os squads; clicar na logo Arkom abre a visão geral (`/demo/home`). A navegação usa o histórico do navegador sem recriar o motor Flutter. As telas dos agentes são mantidas durante a troca de abas e descartadas na mudança de sessão.
 
 A integração deve permanecer por API autenticada: identidade da empresa, permissões, arquivos, estados, traces, cancelamento e exportação pertencem ao backend. O estúdio Flutter já consome esses contratos e acompanha eventos persistidos por SSE; os demais clientes Flutter deverão consumir os mesmos contratos sem acessar credenciais de serviços ou bancos. A identidade visual Arkom e os Gophers continuam como requisitos de produto, independentes do framework.
 

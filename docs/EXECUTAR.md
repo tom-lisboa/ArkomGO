@@ -21,6 +21,8 @@ python3 scripts/build-demo.py
 
 Preencha `OPENAI_API_KEY` no `.env`, sem publicá-lo. O modelo deve ser válido para sua conta. O script de build gera somente binários locais e instala dependências do portal e do compilador Svelte; não inicia chamadas de IA.
 
+Os seis agentes de construção do Genesis usam `GENESIS_OPENAI_MODEL=gpt-6.1-sol` e `GENESIS_REASONING_EFFORT=high` por padrão, pela Responses API. Essas variáveis são independentes de `SDR_OPENAI_MODEL`, usado pelo atendimento e pelo fluxo legado de qualificação. É possível ajustar o esforço para `low`, `medium`, `high`, `xhigh` ou `max`, desde que suportado pelo modelo escolhido. Reinicie a demo após alterar o `.env`. A construção permite até 32 mil tokens de saída por chamada (incluindo raciocínio), com timeout de cinco minutos; o limite global da etapa continua em vinte minutos. São limites máximos, não consumo fixo. Não há troca automática para um modelo mais barato em caso de erro.
+
 ```sh
 python3 scripts/demo.py
 ```
@@ -44,10 +46,9 @@ A base `services/core` registra diretório, identidade e barramento em refatora�
 ## Verificar
 
 ```sh
-cd apps/portal
-npx tsc --noEmit
-node --test scripts/test-demo-session.cjs scripts/test-demo-proxy.cjs
-cd ../..
+(cd apps/agents/bia && npm ci --ignore-scripts && npm run build)
+(cd apps/genesis_flutter && flutter analyze && flutter test)
+node --test apps/genesis_flutter/test/*.test.cjs
 (cd services/sdr && go test ./...)
 (cd services/crm && go test ./...)
 (cd packages/deeph && go test ./...)
@@ -70,10 +71,39 @@ Arquivos e traces ficam no SQLite da demo. O download entrega um ZIP de fontes; 
 
 ### Genesis em Flutter Web
 
-Instale Flutter 3.50.0 e disponibilize `flutter` no PATH, ou informe `FLUTTER_BIN`. O script `build-demo.py` agora também compila o Genesis. Para reconstruir somente essa tela, execute `python3 scripts/build-genesis-flutter.py`. O launcher exige os assets gerados antes de iniciar. Fontes e CanvasKit são servidos pelo portal; não é necessário iniciar outro servidor Flutter.
+Instale Flutter 3.50.0 e disponibilize `flutter` no PATH, ou informe `FLUTTER_BIN`. O script `build-demo.py` agora também compila o Genesis. Para reconstruir somente essa tela, execute `python3 scripts/build-genesis-flutter.py`. O launcher exige os assets gerados antes de iniciar. Fontes e CanvasKit são servidos pelo servidor Go; não é necessário iniciar outro servidor Flutter.
 
 O estúdio usa sessão em memória e stream autenticado SSE por projeto. Mais detalhes e comandos de teste em [apps/genesis_flutter](../apps/genesis_flutter/README.md).
 
 ### Frontends gerados em Svelte
 
 Novos projetos usam Svelte 5. A etapa de interface compila os componentes e devolve erros/avisos nos traces. Revisões e retomadas de projetos antigos em HTML preservam o formato anterior. Veja [a base Svelte e seus limites](GENESIS-SVELTE.md) e [o fluxo de UX e design](GENESIS-UX-DESIGN.md).
+
+Navegação por telas e revisões somente de interface: [GENESIS-NAVIGATION.md](GENESIS-NAVIGATION.md).
+
+## Plataforma Flutter e CLIPS
+
+A navegação local usa Flutter. O catálogo, os módulos disponíveis, o CLIPS e a inicialização opcional do PostgreSQL do CRM estão documentados em [ECOSISTEMA-LOCAL-FLUTTER.md](ECOSISTEMA-LOCAL-FLUTTER.md). O comando padrão `python3 scripts/demo.py` agora inicia os serviços locais configurados; não é necessário editar o launcher para desativar o CRM quando o banco DEV existente é gerenciado pela configuração.
+
+### Servidor da plataforma
+
+`demo.py` inicia `.local/bin/bia -web` em loopback na porta 3007. Ele serve `apps/genesis_flutter/build/web` e o agente `apps/agents/bia/dist`, sem Node/Next em execução na plataforma. Recompile com `scripts/build-demo.py` após mudanças no código; o build Flutter é de produção e não tem hot reload. O launcher não expõe os diretórios de fontes, `.env` ou dados privados.
+
+Teste de navegação no navegador (demo em execução): `npm run test:local --prefix apps/agents/bia`. Não cria mensagens, cobranças, clientes ou construções. O login local conserva os limites de acesso do laboratório; entradas repetidas em pouco tempo podem responder 429 e informar `Retry-After`.
+
+### Lia e agenda nativa
+
+A demo inicia a agenda própria e seu worker Go por padrão. `ARKOM_CALENDAR_LOCAL_ENABLED=false` desativa essa capacidade. O acesso é pelo agente Lia em Início ou pela aba Agendas da BIA. Agendas, regras, pedidos e reservas pertencem à empresa autenticada. A conexão Google permanece bloqueada nesta etapa local. Teste completo com dados fictícios: `npm run test:agenda:local --prefix apps/agents/bia`.
+
+
+### WhatsApp, mídia e exportação da BIA
+
+No `.env` local, aponte `ARKOM_WHATSAPP_ENGINE_ROOT` para o checkout privado do motor WhatsApp. `scripts/demo.py` compila uma cópia de trabalho com o ajuste de loopback em `.local/runtime/whatsapp` e inicia o bridge, o gateway Whatsmeow e um PostgreSQL dedicado. O checkout original permanece disponível para seu fluxo de desenvolvimento.
+
+Ative `ARKOM_MEDIA_LOCAL_ENABLED=true` para iniciar o worker de mídia. Disponibilize `ffmpeg` e `ffprobe` no PATH ou informe a pasta dos binários em `ARKOM_MEDIA_BIN`. O worker usa a chave OpenAI já configurada para transcrição e leitura de mídias recebidas. A preparação dos anexos para envio acontece localmente.
+
+Em **BIA SDR → WhatsApp**, gere o QR para parear um número de teste e autorize os contatos no próprio painel. A permissão de mídia é controlada pelo administrador da empresa. Em **Conversas**, assuma uma conversa para preparar um anexo antes de enviá-lo.
+
+**Meus dados** fica disponível para administradores e exporta o que a BIA conserva para a empresa autenticada. O ZIP expira em 24 horas. As métricas de uso dependem do serviço de métricas, desativado nesta demo. Para desativar a exportação no laboratório, use `ARKOM_CUSTOMER_DATA_LOCAL_ENABLED=false`.
+
+A conferência `npm run test:workers:local --prefix apps/agents/bia` gera um QR, prepara uma imagem em uma conversa fictícia, baixa o ZIP e verifica as permissões de Alfa e Beta. O roteiro exige os workers ligados e os codecs disponíveis.

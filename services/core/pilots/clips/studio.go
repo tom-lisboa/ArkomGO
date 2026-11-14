@@ -30,6 +30,40 @@ var studioSchema string
 const studioLimit = 48 << 20
 
 func (q queue) mountStudio(mux *http.ServeMux) {
+	mux.HandleFunc("GET /studio/jobs", func(w http.ResponseWriter, r *http.Request) {
+		owner := studioSession(r)
+		if owner == "" {
+			writeError(w, 401, "sessao_necessaria")
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		rows, err := q.db.Query(ctx, `SELECT j.id,j.fixture,j.status,j.attempts,j.result,j.error_code,j.created_at,j.updated_at,
+			s.title,s.start_seconds,s.duration_seconds
+			FROM jobs j JOIN studio_inputs s ON s.job_id=j.id
+			WHERE s.owner=$1 ORDER BY j.created_at DESC LIMIT 50`, owner)
+		if err != nil {
+			writeError(w, 503, "banco_indisponivel")
+			return
+		}
+		defer rows.Close()
+		items := []studioProject{}
+		for rows.Next() {
+			var item studioProject
+			err := rows.Scan(&item.ID, &item.Fixture, &item.Status, &item.Attempts, &item.Result,
+				&item.ErrorCode, &item.CreatedAt, &item.UpdatedAt, &item.Title, &item.Start, &item.Duration)
+			if err != nil {
+				writeError(w, 503, "banco_indisponivel")
+				return
+			}
+			items = append(items, item)
+		}
+		if rows.Err() != nil {
+			writeError(w, 503, "banco_indisponivel")
+			return
+		}
+		writeJSON(w, 200, map[string]any{"jobs": items})
+	})
 	mux.HandleFunc("POST /studio/session", func(w http.ResponseWriter, r *http.Request) {
 		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		if err != nil || mediaType != "application/json" {
@@ -57,6 +91,33 @@ func (q queue) mountStudio(mux *http.ServeMux) {
 			q.serveVideo(w, r, filename)
 		}
 	})
+}
+
+type studioProject struct {
+	job
+	Title    string  `json:"title"`
+	Start    float64 `json:"start_seconds"`
+	Duration float64 `json:"duration_seconds"`
+}
+
+func (q queue) studioDelete(w http.ResponseWriter, r *http.Request) {
+	if !q.studioOwns(w, r) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	result, err := q.db.Exec(ctx, `DELETE FROM jobs j USING studio_inputs s
+		WHERE j.id=s.job_id AND j.id=$1 AND s.owner=$2 AND j.status IN ('succeeded','failed')`,
+		r.PathValue("id"), studioSession(r))
+	if err != nil {
+		writeError(w, 503, "banco_indisponivel")
+		return
+	}
+	if result.RowsAffected() != 1 {
+		writeError(w, 409, "projeto_em_processamento")
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"deleted": true})
 }
 
 func studioSession(r *http.Request) string {
@@ -132,11 +193,16 @@ func (q queue) studioSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.MultipartForm.RemoveAll()
 	appTitle := ""
+	title := strings.TrimSpace(r.FormValue("title"))
+	if !utf8.ValidString(title) || utf8.RuneCountInString(title) > 200 {
+		writeError(w, 400, "invalid_title")
+		return
+	}
 	profile, appRequest := r.Context().Value(customerProfileKey{}).(customerIdentity)
 	appRequest = appRequest && r.URL.Path == "/app/projects"
 	if appRequest {
-		appTitle = strings.TrimSpace(r.FormValue("title"))
-		if !utf8.ValidString(appTitle) || utf8.RuneCountInString(appTitle) < 1 || utf8.RuneCountInString(appTitle) > 200 {
+		appTitle = title
+		if appTitle == "" {
 			writeError(w, 400, "invalid_title")
 			return
 		}
@@ -169,7 +235,7 @@ func (q queue) studioSubmit(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(digest, "%g:%g:%d:%d:", start, duration, len(source), len(captions))
 	digest.Write(source)
 	digest.Write(captions)
-	digest.Write([]byte(appTitle))
+	digest.Write([]byte(title))
 	fingerprint := fmt.Sprintf("%x", digest.Sum(nil))
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
@@ -185,9 +251,9 @@ func (q queue) studioSubmit(w http.ResponseWriter, r *http.Request) {
 			INSERT INTO jobs(id,idempotency_key,fixture) VALUES($1,$2,'entrevista-demo')
 			ON CONFLICT(idempotency_key) DO NOTHING RETURNING id
 		)
-		INSERT INTO studio_inputs(job_id,owner,fingerprint,source,captions,start_seconds,duration_seconds)
-		SELECT id,$3,$4,$5,$6,$7,$8 FROM new_job RETURNING job_id`,
-		rand.Text(), session+":"+key, session, fingerprint, source, captions, start, duration).Scan(&id)
+		INSERT INTO studio_inputs(job_id,owner,fingerprint,source,captions,start_seconds,duration_seconds,title)
+		SELECT id,$3,$4,$5,$6,$7,$8,COALESCE(NULLIF($9,''),'Corte vertical') FROM new_job RETURNING job_id`,
+		rand.Text(), session+":"+key, session, fingerprint, source, captions, start, duration, title).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		var prior string
 		err = tx.QueryRow(ctx, `SELECT s.job_id,s.fingerprint FROM studio_inputs s JOIN jobs j ON j.id=s.job_id

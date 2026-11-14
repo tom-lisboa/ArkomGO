@@ -122,6 +122,26 @@ func permit(t *testing.T, a *App, e realEnvelope, claim string) int {
 	a.privateWorkers().ServeHTTP(w, r)
 	return w.Code
 }
+func TestTransportWaitsForNewCompanyProvisioning(t *testing.T) {
+	a, _, engine, _, _, _, _ := realSetup(t)
+	ctx := context.Background()
+	if err := a.TransportTick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, sent := engine.policies["org_demo_beta"]; sent {
+		t.Fatal("unprovisioned company policy reached gateway")
+	}
+	if _, err := a.db.Exec("INSERT INTO whatsapp_channels(organization_id,provisioning) VALUES('org_demo_beta','ready')"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.TransportTick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, sent := engine.policies["org_demo_beta"]; !sent {
+		t.Fatal("initial policy was not synchronized after provisioning")
+	}
+}
+
 func TestRealTransportContextSendAndProviderConfirmation(t *testing.T) {
 	a, _, f, cq, eq, now, _ := realSetup(t)
 	id, mid := realReply(t, a, f, cq, eq, now)

@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sdr-next-pilot/pkg/sdrsdk"
 	"time"
 )
 
@@ -37,7 +36,7 @@ func (b *ConstructionBuild) nextStepID() string {
 	steps := construction.StepsForVersion(b.StepsVersion)
 	next := 0
 	for _, e := range b.Traces {
-		if next < len(steps) && e.Kind == "step.completed" && e.StepID == steps[next].ID {
+		if next < len(steps) && (e.Kind == "step.completed" || e.Kind == "step.reused") && e.StepID == steps[next].ID {
 			next++
 		}
 	}
@@ -74,6 +73,8 @@ func (b *ConstructionBuild) steps() []constructionStepView {
 			switch e.Kind {
 			case "step.started":
 				v.Status = "running"
+			case "step.reused":
+				v.Status = "reused"
 			case "step.completed":
 				v.Status = "completed"
 			case "step.failed":
@@ -102,16 +103,16 @@ func (a *App) prepareConstruction(stepID string) (construction.Provider, constru
 	if !construction.PlanningStep(stepID) && !(construction.Sandbox{}).Available() {
 		return nil, nil, errors.New("isolated_runner_unavailable")
 	}
-	planner, err := sdrsdk.NewOpenAI(os.Getenv("OPENAI_API_KEY"), os.Getenv("SDR_OPENAI_MODEL"))
+	provider, err := newConstructionProvider(os.Getenv("OPENAI_API_KEY"), os.Getenv("GENESIS_OPENAI_MODEL"), os.Getenv("GENESIS_REASONING_EFFORT"))
 	if err != nil {
 		return nil, nil, errors.New("genesis_unavailable")
 	}
-	return constructionProvider{planner}, construction.Sandbox{}, nil
+	return provider, construction.Sandbox{}, nil
 }
 
 // Called under a.mu after the start transaction commits.
 func (a *App) launchConstruction(b *ConstructionBuild, provider construction.Provider, tester construction.Tester) {
-	version := b.StepsVersion
+	version, revisionScope := b.StepsVersion, b.RevisionScope
 	id, executionID, stepID, goal := b.ID, b.ExecutionID, b.nextStepID(), b.Goal
 	files := map[string]string{}
 	for k, v := range b.Files {
@@ -136,7 +137,7 @@ func (a *App) launchConstruction(b *ConstructionBuild, provider construction.Pro
 			data, _ := constructionReferences.ReadFile("demo/construction/reference/" + name)
 			refs["reference/"+name] = string(data)
 		}
-		engine := construction.Engine{StepsVersion: version, Provider: provider, Tester: tester, References: refs, Emit: func(e construction.Event) error { return a.constructionRunTrace(id, executionID, e) }}
+		engine := construction.Engine{RevisionScope: revisionScope, StepsVersion: version, Provider: provider, Tester: tester, References: refs, Emit: func(e construction.Event) error { return a.constructionRunTrace(id, executionID, e) }}
 		_, err := engine.RunStep(ctx, goal, files, stepID)
 		a.finishConstructionStep(id, executionID, stepID, err, ctx.Err())
 	}()

@@ -4,7 +4,6 @@
 .local/
 **/node_modules/
 **/node_modules
-**/.next/
 **/dist/
 **/build/
 **/.cache/
@@ -26,4 +25,3 @@
 .DS_Store
 **/.dart_tool/
 **/.flutter-plugins-dependencies
-apps/portal/public/genesis-flutter/

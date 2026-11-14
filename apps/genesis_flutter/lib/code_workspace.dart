@@ -148,6 +148,7 @@ class CodeWorkspace extends StatelessWidget {
                             [
                               'design/ux.json',
                               'design/ui.json',
+                              'design/navigation.json',
                             ].contains(selected)
                             ? DesignBrief(source: model.files[selected] ?? '')
                             : SelectableText(

@@ -865,6 +865,9 @@ func (a *App) Drain() error {
 	})
 }
 func main() {
+	if platformWebEntrypoint() {
+		return
+	}
 	if workerEntrypoint() {
 		return
 	}

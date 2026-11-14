@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -85,8 +86,19 @@ func serve(ctx context.Context, socket string, video *videoWorker, homolog bool,
 	}
 	defer db.Close()
 	ddl := schema
+	q := queue{db: db, video: video, studio: studio, uploads: make(chan struct{}, 2)}
 	if studio != "" {
 		ddl += studioSchema
+		if len(os.Getenv("SDR_CLIPS_BRIDGE_KEY")) >= 32 {
+			q.gifs, err = loadGIFConfig(false)
+			if err != nil {
+				return err
+			}
+			if q.gifs != nil {
+				q.gifs.platformKey = strings.TrimSpace(os.Getenv("CLIPS_LOCAL_GIF_PLATFORM_KEY"))
+				ddl += identitySchema + gifSchema
+			}
+		}
 	}
 	if _, err := db.Exec(startup, ddl); err != nil {
 		return fmt.Errorf("prepare local schema: %w", err)
@@ -97,11 +109,13 @@ func serve(ctx context.Context, socket string, video *videoWorker, homolog bool,
 	}
 	defer listener.Close()
 
-	q := queue{db: db, video: video, studio: studio, uploads: make(chan struct{}, 2)}
 	workerCtx, stopWorkers := context.WithCancel(ctx)
 	var workers sync.WaitGroup
 	for range 2 {
 		workers.Go(func() { runWorker(workerCtx, q) })
+	}
+	if q.gifs != nil {
+		workers.Go(func() { q.runGIFWorker(workerCtx) })
 	}
 	defer func() {
 		stopWorkers()
@@ -154,6 +168,12 @@ func (q queue) routes(homolog bool) http.Handler {
 		q.mountHomolog(mux)
 	} else if q.studio != "" {
 		q.mountStudio(mux)
+		mux.HandleFunc("POST /studio/jobs/{id}/delete", q.studioDelete)
+		if q.gifs != nil {
+			gifs := q.localGIFRoutes()
+			mux.Handle("/app/gifs", gifs)
+			mux.Handle("/app/gifs/", gifs)
+		}
 	} else {
 		mux.HandleFunc("POST /jobs", q.createJob)
 		mux.HandleFunc("GET /jobs/{id}", q.getJob)

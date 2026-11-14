@@ -3,6 +3,7 @@ package construction
 import (
 	"context"
 	"errors"
+	"strings"
 )
 
 // Step describes a bounded, host-controlled delivery. Evidence is emitted as events.
@@ -22,19 +23,26 @@ func Steps() []Step {
 		{"reviewer", "Validar entrega", "Contrato final válido e testes Go aprovados.", "Revise a entrega delimitada em DESIGN.md. Corrija erros, execute test e valide o contrato. Não implemente itens deixados para depois. Se houver lacuna não resolvida, use blocked. Não alegue teste visual.", 8},
 	}
 }
-func SupportsSteps(version int) bool { return version == 1 || version == 2 }
+func SupportsSteps(version int) bool { return version == 1 || version == 2 || version == 3 }
 func StepsForVersion(version int) []Step {
 	legacy := Steps()
 	if version == 1 || version == 0 {
 		return legacy
 	}
-	if version != 2 {
+	if version != 2 && version != 3 {
 		return nil
 	}
-	return append([]Step{legacy[0],
+	steps := append([]Step{legacy[0],
 		{"ux", "Definir experiência", "Jornada, telas, estados e critérios de UX documentados; estrutura validada.", "Na primeira rodada, leia reference/catalog.json, reference/platform-contracts.go, reference/design.md, DESIGN.md e application.json; aguarde os resultados antes de escrever. Escreva somente design/ux.json com a experiência desta entrega. Seja específico sobre tarefa, navegação, estados e critérios de comportamento. Não escreva código nem altere o escopo. Conclua ready após salvar a especificação.", 6},
 		{"designer", "Definir design visual", "Identidade, componentes e responsividade documentados; estrutura validada.", "Na primeira rodada, leia reference/catalog.json, reference/platform-contracts.go, reference/design.md, DESIGN.md, application.json e design/ux.json; aguarde os resultados antes de escrever. Escreva somente design/ui.json com identidade apropriada ao produto, tokens, componentes e decisões responsivas. Não escreva código, não altere a UX nem declare inspeção visual. Conclua ready após salvar.", 6},
 	}, legacy[1:]...)
+	if version == 3 {
+		steps[1].instruction = strings.Replace(steps[1].instruction, "Escreva somente design/ux.json", "Escreva design/ux.json e design/navigation.json", 1)
+		steps[0].instruction += " Planeje as telas e os fluxos completos solicitados; não reduza um produto com múltiplas rotas a uma única tela. A UX detalhará o mapa de navegação."
+		steps[1].instruction += " Leia também reference/navigation.md. Nesta versão, escreva também design/navigation.json com as rotas e páginas planejadas; cada tela deve corresponder à jornada da UX."
+		steps[1].Acceptance += " Mapa de rotas validado."
+	}
+	return steps
 }
 func StepIndexForVersion(version int, id string) int {
 	for i, s := range StepsForVersion(version) {

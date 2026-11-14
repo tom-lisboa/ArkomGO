@@ -1,0 +1,253 @@
+# Arkom local em Flutter
+
+A plataforma local é Flutter: navegação, Início com squads, ferramentas, negócio, catálogo, detalhes, CRM, Luma e Genesis. O Go serve o build na porta 3007 e encaminha as chamadas autenticadas para a API em 8080. O Next e seu portal foram excluídos. Somente os frontends próprios dos agentes permanecem em React/Vite: BIA, Lia, Maia e FinanceAI.
+
+`/demo` abre os squads como **Início**. A logo Arkom abre a visão geral anterior em `/demo/home`. Trocar de aba não recarrega o Flutter. As superfícies dos agentes são mantidas em memória para preservar o trabalho e são destruídas quando a sessão muda.
+
+## Disponibilidade
+
+| Solução | Serviço | Experiência desta entrega |
+| --- | --- | --- |
+| BIA SDR | `services/sdr` | Cliente React existente: WhatsApp, negócio, conversas, automações, execuções, CRM, agendas, dados, auditoria e álbuns |
+| Lia | `services/sdr/internal/calendarworker` | Agente de agenda, horários, reservas, remarcações, cancelamentos e aprovações; usa o mesmo motor da aba Agendas da BIA |
+| CRM Arkom | `services/crm` + Clickmax DEV | Funis, contatos, oportunidades, cadastro e movimentação |
+| CLIPS | `services/core/pilots/clips` | Biblioteca e estúdio Flutter para cortes verticais e geração de GIFs por descrição |
+| Arkom Multipropriedades | API Go e homologação local no checkout próprio | Operação original incorporada à plataforma |
+| Genesis | `packages/deeph` + `services/sdr` | Estúdio existente, etapas, código, prévia e traces SSE |
+| FinanceAI | FinanceAI Core, PostgreSQL e workers | Agente do squad Financeiro com interface React original e dados simulados |
+| Demais entradas | Backend ainda não integrado neste repositório | Bloqueadas; sem redirecionamento para uma aplicação externa |
+
+O contrato do catálogo é `services/sdr/demo/ecosystem/catalog.json`. O servidor
+acrescenta `implemented`, `configured` e a razão de indisponibilidade. Configuração
+não comprova saúde de um serviço: a tela de cada módulo também trata falhas reais.
+As rotas de aplicações não implementadas não estão expostas no portal local.
+O contexto compartilhado tem visualização em Flutter; a edição completa e as
+configurações avançadas dos produtos continuam exigindo migrações específicas.
+O SDR preserva essas telas no cliente existente, com as capacidades efetivamente
+habilitadas no backend. Consulte [SDR e Lovable](SDR-PRODUTO-E-LOVABLE.md).
+
+```mermaid
+flowchart LR
+  P[Servidor Go local] --> F[Plataforma Flutter]
+  F -->|Mesmo domínio e Bearer| N[Proxy Go]
+  F --> L[Agente BIA em React/Vite]
+  L -->|Mesma sessão e domínio| N
+  N --> A[API Go autenticada]
+  A --> S[SDR e contexto por empresa]
+  A --> C[CRMGO]
+  C --> D[Clickmax DEV]
+  A --> H[Genesis e deepH]
+  H --> R[Backend Go isolado da solução]
+  A --> V[Ponte CLIPS por organização]
+  V --> W[API e workers CLIPS]
+  W --> B[(PostgreSQL local CLIPS)]
+```
+
+## Sessão e isolamento
+
+A sessão Arkom permanece em memória no hospedeiro. A ponte só aceita mensagens
+da janela pai e da mesma origem. Cada endpoint valida a organização e o papel.
+A aplicação gerada pelo Genesis continua em um iframe de origem opaca, sem token.
+Ao concluir uma construção compatível, o estúdio prepara seu backend Go
+automaticamente. Chamadas aguardam a preparação e são serializadas. Uma resposta
+incerta de escrita não é reenviada automaticamente.
+
+O CLIPS recebe um identificador opaco derivado de HMAC da organização, com segredo
+privado gerado pelo launcher. O navegador não fornece esse identificador nem
+recebe o cookie interno. A lista, a consulta, a prévia, o download e a exclusão
+verificam a propriedade no serviço Go. O perfil de consulta pode assistir e
+baixar. A exclusão fica disponível após o término do processamento.
+
+O estúdio Flutter usa a marca oficial do CLIPS e leva a identidade dos Álbuns
+à biblioteca e ao editor. Os projetos novos e anteriores ficam no PostgreSQL
+local. O portal aceita MP4 e M4V de até 7 MiB e exporta trechos manuais de até
+30 segundos em 720 × 1280 com o worker Go e FFmpeg. Importação por link,
+transcrição e seleção de cortes por IA ficam indisponíveis neste ambiente.
+
+**Gerar GIFs** usa a fila Go do CLIPS e o mesmo banco local. A ponte deriva e
+assina uma identidade a partir da empresa e da conta autenticada. Cada conta
+tem histórico, chave cifrada, saldo e downloads próprios. A conta de teste
+Alfa recebe três créditos por 30 dias, provisionados uma vez, usando a chave
+OpenAI já configurada no launcher. As demais contas podem cadastrar a própria
+chave. Repetir a mesma solicitação preserva o pedido e o saldo já debitado.
+
+## Executar
+
+```sh
+python3 scripts/build-demo.py
+python3 scripts/demo.py
+```
+
+Use Node 24 no PATH. O build Flutter também pode ser atualizado isoladamente com
+`python3 scripts/build-genesis-flutter.py`. A configuração privada fica em `.env`.
+
+Para o CLIPS, configure `ARKOM_CLIPS_LOCAL_ENABLED=true` e
+`ARKOM_CLIPS_FFMPEG` com o caminho absoluto de um FFmpeg local. O modo studio do
+launcher existente prepara seu PostgreSQL próprio, a API e dois workers. Requer
+PostgreSQL 17; `CLIPS_PILOT_PG_BIN` pode indicar outra instalação compatível.
+
+O CRM depende de suas rotas DEV já provisionadas. Se o cluster local precisa ser
+iniciado junto, configure `ARKOM_CRM_LOCAL_PG_DATA` com seu diretório existente e
+`ARKOM_LOCAL_PG_BIN` com os binários PostgreSQL. A porta e o usuário vêm de
+`ARKOM_CRM_DATABASE_URL`, com host `127.0.0.1`. Um servidor já iniciado é preservado;
+o launcher encerra apenas os processos que ele próprio criou. Essa opção não
+copia nem provisiona o banco da operação.
+
+## Verificação
+
+- Flutter: análise estática, layouts desktop/celular, catálogo bloqueado e imagens de referência.
+- JS: sessão, mensagens, conexão da prévia, fila de pedidos e recusa de frames antigos.
+- Proxy: origem, rotas, SSE e preservação binária de upload.
+- Go: catálogo autenticado, identidade por organização, permissões e rotas CLIPS.
+- Integração local: CRM DEV consultado, vídeo sintético enviado pelo portal,
+  MP4 realmente gerado e download recusado para outra empresa.
+- Jornada no Chromium: Seu time → agente → espaço de trabalho e Ferramentas →
+  aplicação → edição no Genesis.
+- Avaliações: alteração da própria nota, média, persistência após reabrir o banco,
+  isolamento por empresa e recusa de escrita para consulta, anônimos e bloqueados.
+
+A migração visual é incremental: o início e o mapa reproduzem a organização e o
+estilo da referência com dados locais. A paridade de todos os módulos e conteúdos
+da plataforma antiga ainda não foi concluída. Essa entrega é local; não publica
+os serviços nem os dados na plataforma online.
+
+## Seu time e Ferramentas
+
+Em **Seu time**, o squad Vendas reúne a BIA SDR e o CRM. Conteúdo reúne a Luma, agente de cortes e GIFs.
+Operações reúne a Maia, agente de multipropriedades. BIA, Luma e Maia usam
+avatares Gopher e abrem seus espaços de trabalho. A disponibilidade vem do catálogo autenticado.
+Os squads organizam o acesso aos módulos existentes.
+
+**Ferramentas** consulta as construções da empresa da sessão. Apresenta a última
+versão pronta com interface de cada aplicação do Genesis. Uma revisão em curso
+ou com falha mantém acessível a última versão concluída. A aplicação abre na
+prévia isolada vinculada ao seu backend Go quando compatível. **Editar no
+Genesis** abre a mesma versão no estúdio, conforme o papel da conta.
+
+Os links de detalhes `/demo/systems/{id}` continuam válidos. **Voltar para Seu
+time** retorna aos squads. O endereço antigo `/demo/systems` leva a Ferramentas.
+O Remix continua pendente para os módulos locais.
+
+As capas e os vídeos privados da plataforma antiga não estão nesta cópia. Esta
+entrega usa ilustrações vetoriais nativas em Flutter nos espaços das capas e
+indica quando não há tutorial em vídeo. O guia textual descreve o fluxo existente;
+suas contagens correspondem aos passos e recursos cadastrados, sem copiar números
+de vídeos ou avaliações da plataforma antiga.
+
+A avaliação é armazenada no snapshot SQLite: uma nota de 1 a 5 por pessoa e
+sistema, atualizável e isolada por organização. O resumo mostra apenas este
+espaço, com estado vazio antes do primeiro voto. O perfil de consulta não altera
+notas. Os votos não são incluídos no contexto de construção dos agentes.
+
+## Multipropriedades
+
+Configure `ARKOM_MULTI_HOMOLOG_ROOT` no `.env` privado com o caminho do checkout
+do Multipropriedades. Instale as dependências nesse checkout, mantenha Docker
+local ativo e execute `python3 scripts/demo.py` na ArkomGO. A rota é
+`/demo/systems/multipropriedades` → **Acessar sistema** → `/demo/multipropriedades`.
+Abra a plataforma em `http://127.0.0.1:3007`.
+
+A demo inicia a homologação existente, o frontend React original em 8180 e
+a API Go em 8190. Supabase Auth e PostgreSQL são locais, em 55321 e 55322. Quando o checkout inclui
+o worker Go de captação, a demo também inicia o processamento da fila de triagem
+com a conta dedicada da homologação.
+O catálogo mostra o sistema disponível quando os serviços respondem e existe
+um vínculo para a conta da sessão. O ambiente local verifica quatro vínculos
+fictícios. Alfa tem administrador, vendedor e consulta. Beta tem administrador.
+As demais contas ficam bloqueadas até terem um vínculo.
+
+O Go valida a sessão Arkom, troca a identidade por uma sessão do Auth local e
+confere acesso e papel com a API original do produto. O iframe recebe somente
+a sessão do produto. O frontend original mantém seus controles de acesso e
+o banco aplica as regras por organização. As credenciais ficam no checkout
+privado. O lançador entrega ao produto somente as variáveis do ambiente local.
+
+```mermaid
+flowchart LR
+  F[Catálogo Flutter] --> P[Portal Arkom]
+  P -->|Sessão Arkom| G[API Arkom Go]
+  G -->|Conta vinculada| A[Auth local do Multipropriedades]
+  G -->|Valida empresa e papel| M[API Go do Multipropriedades]
+  P -->|Sessão do produto| R[Interface original]
+  R --> M
+  R --> D[Supabase local com RLS]
+  M --> D
+```
+
+A interface interna do produto continua em React. O checkout externo e seus
+dados permanecem no ambiente local. Remix e provisionamento comercial ainda não
+estão configurados nesta integração. Conectores externos de cobrança e assinatura
+ficam fora da homologação. Ao parar a demo, a stack Docker e o volume
+do produto são preservados. Para parar também os containers, execute
+`npm run homolog:stop` no checkout do Multipropriedades.
+
+## FinanceAI
+
+Em **Início → Financeiro**, o agente FinanceAI abre sua interface React original
+em `/demo/financeai`. O frontend é compilado a partir do checkout configurado no
+`.env` privado em `ARKOM_FINANCEAI_ROOT`. Instale as dependências em
+`frontend/` nesse checkout e execute `python3 scripts/demo.py` na ArkomGO.
+O lançador usa PostgreSQL 17, Go e Node 22 ou superior.
+
+O FinanceAI roda com banco próprio, API Go e seis workers locais. O console
+fica em loopback na porta 8194, a API na 8195 e o banco na 55494. O estado
+persiste em `.local/runtime/financeai`. Banco, fiscal e IA operam em simulação.
+O checkout original e seus dados operacionais ficam separados.
+
+```mermaid
+sequenceDiagram
+    participant B as Interface FinanceAI
+    participant P as Portal ArkomGO
+    participant A as API Go da Arkom
+    participant F as API Go do FinanceAI
+    B->>P: Desafio PKCE e estado
+    P->>A: Sessão Arkom e desafio
+    A->>F: Emite entrada para a empresa e o membro vinculados
+    A-->>B: Código de uso único via portal
+    B->>F: Troca código pelo token do FinanceAI
+    B->>F: Operações com sessão própria
+```
+
+Alfa e Beta recebem instalações com origens internas distintas. O gateway
+local preserva essa separação ao encaminhar as chamadas do navegador. O
+FinanceAI valida o token, a origem e as permissões de administrador,
+operador ou consulta. Os tokens ficam em memória. As atribuições de contas e instalações são feitas no servidor da ArkomGO.
+
+### Baixa e estorno com a Maia
+
+Com `ARKOM_MULTI_HOMOLOG_ROOT` e `ARKOM_FINANCEAI_ROOT` configurados,
+abra **Maia → Financeiro → Contas a receber**. No menu de uma parcela
+de contrato, selecione **Conciliar com FinanceAI** e envie a parcela.
+A Maia cria o título a receber usando o valor e o vencimento da parcela.
+O botão **Abrir FinanceAI** mostra a conciliação do título selecionado.
+Após conferir o extrato e confirmar ou reverter o vínculo no FinanceAI,
+volte à Maia e aplique a baixa ou o estorno.
+O fluxo exige papel de gestão. A baixa integral usa a data do extrato e
+respeita a janela de pagamento sem encargos do contrato. Comissão já paga
+exige acerto antes da conclusão do estorno na Maia.
+
+O FinanceAI é a fonte da evidência bancária simulada. A Maia aplica os
+comandos transacionais que registram a parcela, o recibo, a comissão e
+a auditoria. Cada empresa tem titular PJ, conta e credenciais próprias.
+O lançamento de homologação usa os dois bancos locais e monta a ponte
+em tempo de build sobre o código da Maia. As chaves ficam nos arquivos
+privados do ambiente local. O Remix do FinanceAI permanece indisponível.
+
+### Contratos da Maia
+
+A venda gera o registro do contrato com cotas e parcelas. A aba
+**Entrega ao cotista** permite conferir e imprimir o resumo comercial.
+O código também tem geração de minuta Villagio em PDF para um
+empreendimento configurado com o DOCX privado. A ArkomGO local
+executa sem esse modelo e sem assinatura.
+
+
+## Lia · Agenda
+
+A Lia aparece no squad Vendas e no menu, logo abaixo de Início. A plataforma Flutter abre a superfície própria do agente em `/demo/agenda`. Ela reaproveita o console e os contratos de agenda existentes, compartilhando a sessão e os dados da mesma empresa com a aba **Agendas** da BIA. Não há outro cadastro de cliente nem cópia das agendas.
+
+O launcher inicia o worker Go `-worker=calendar` com credencial própria e sem chave OpenAI, na rede de loopback. A disponibilidade no catálogo exige um sinal recente desse worker. `ARKOM_CALENDAR_LOCAL_ENABLED=false` desativa o serviço; por padrão ele está ativo no laboratório. O launcher usa somente agendas nativas e não carrega configuração Google de outro ambiente. A conexão Google fica bloqueada na interface.
+
+Cada agenda começa sem permissão de atuação da BIA. O administrador libera consulta, reserva, remarcação e cancelamento individualmente. A aprovação começa habilitada; somente o resultado concluído pelo worker confirma uma reserva. Remarcar mantém a reserva anterior até a alteração ser confirmada.
+
+Verificação: `(cd services/sdr && go test ./...)`, `node --test apps/genesis_flutter/test/*.test.cjs` e `npm run test:agenda:local --prefix apps/agents/bia` com a demo iniciada. O último roteiro usa somente Alfa e Beta fictícias, cria/reutiliza a agenda de teste, aprova reserva/remarcação/cancelamento e verifica a separação dos dados. Ao final cancela reservas restantes e desabilita a agenda de teste; o histórico auditável é conservado.

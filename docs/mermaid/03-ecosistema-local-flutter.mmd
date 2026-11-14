@@ -1,0 +1,14 @@
+flowchart LR
+  P[Portal local] -->|Sessão em memória| F[Interface Flutter]
+  F -->|Mesmo domínio e Bearer| N[Proxy Next]
+  P --> L[Cliente SDR existente para Lovable em React]
+  L -->|Mesma sessão e domínio| N
+  N --> A[API Go autenticada]
+  A --> S[SDR e contexto por empresa]
+  A --> C[CRMGO]
+  C --> D[Clickmax DEV]
+  A --> H[Genesis e deepH]
+  H --> R[Backend Go isolado da solução]
+  A --> V[Ponte CLIPS por organização]
+  V --> W[API e workers CLIPS]
+  W --> B[(PostgreSQL local CLIPS)]

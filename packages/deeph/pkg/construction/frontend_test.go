@@ -44,7 +44,8 @@ func (f *frontendTester) CompileFrontend(_ context.Context, files map[string]str
 	if f.fail || files["frontend/src/App.svelte"] == "broken" {
 		return FrontendResult{Errors: []map[string]any{{"file": "frontend/src/App.svelte", "message": "parse failed", "line": 2}}}, errors.New("frontend_compilation_failed")
 	}
-	return FrontendResult{OK: true, Javascript: `document.getElementById('app').textContent='Svelte';`, CSS: "body{margin:0}", Warnings: []map[string]any{{"code": "a11y_warning", "message": "Check label"}}}, nil
+	plan, _ := ValidateNavigation(files, true)
+	return FrontendResult{OK: true, Navigation: plan, Javascript: `document.getElementById('app').textContent='Svelte';`, CSS: "body{margin:0}", Warnings: []map[string]any{{"code": "a11y_warning", "message": "Check label"}}}, nil
 }
 func frontendProvider() fakeProvider {
 	return fakeProvider{func(r Request) Turn {
@@ -192,6 +193,12 @@ func TestFrontendSandboxIntegration(t *testing.T) {
 	result, err := (Sandbox{}).CompileFrontend(context.Background(), files)
 	if err != nil || !result.OK || !strings.Contains(result.Javascript, "Compilado em isolamento") {
 		t.Fatal(err, result.Errors)
+	}
+	routed := navigationFixture(t)
+	routed["frontend/src/App.svelte"] = `<script>import Router from '@arkom/Router.svelte';</script><Router />`
+	navResult, navErr := (Sandbox{}).CompileFrontend(context.Background(), routed)
+	if navErr != nil || navResult.Navigation == nil || len(navResult.Navigation.Routes) != 3 {
+		t.Fatal("isolated routing compilation failed", navErr, navResult.Errors)
 	}
 	for _, source := range []string{`<script>import secret from '/etc/passwd';</script>{secret}`, `<script>import fs from 'node:fs';</script>{fs}`, `<script>import x from 'https://example.com/a.js';</script>{x}`, `<script>let =;</script>`} {
 		files["frontend/src/App.svelte"] = source
