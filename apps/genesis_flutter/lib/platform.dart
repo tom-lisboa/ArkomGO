@@ -5,12 +5,13 @@ import 'dart:math' as math;
 import 'package:material_ui/material_ui.dart';
 
 import 'clips_workspace.dart';
+import 'genesis_tools.dart';
 import 'main.dart' show Studio;
 import 'platform_workspaces.dart';
-import 'solution_catalog.dart';
 import 'solution_detail.dart';
 import 'transport.dart' as transport;
 import 'visuals.dart';
+import 'workspace_team.dart';
 
 typedef PlatformCall = Future<dynamic> Function(
   String path, [
@@ -32,29 +33,42 @@ class ArkomPlatform extends StatefulWidget {
 }
 
 class _ArkomPlatformState extends State<ArkomPlatform> {
-  String view = '', error = '', filter = 'Todos', query = '', role = 'viewer';
-  bool connected = false;
+  String view = '', error = '', toolsError = '', role = 'viewer';
+  bool connected = false, loadingTools = true, teamExpanded = true;
   List<Map<String, dynamic>> solutions = [];
-  int projectCount = 0, loadVersion = 0;
+  List<Map<String, dynamic>> tools = [];
+  int loadVersion = 0;
   int sessionVersion = 0;
   String company = 'Alfa';
-  String get section => view.startsWith('systems/') ? 'systems' : view;
+  bool get toolPreview => view.startsWith('tools/');
+  bool get studio =>
+      view == 'genesis' || view.startsWith('genesis/') || toolPreview;
+  String get section => view.startsWith('systems/')
+      ? 'team'
+      : toolPreview
+      ? 'tools'
+      : view.startsWith('genesis/')
+      ? 'genesis'
+      : view;
+  Map<String, dynamic>? solution(String id) =>
+      solutions.where((s) => s['id'] == id).firstOrNull;
+  bool available(String id) => workspaceMemberAvailable(solution(id));
   static const navigation = [
     ('home', 'Início', Icons.home_outlined),
-    ('map', 'Mapa', Icons.map_outlined),
-    ('systems', 'Sistemas', Icons.grid_view_outlined),
+    ('tools', 'Ferramentas', Icons.grid_view_outlined),
+    ('business', 'Seu negócio', Icons.storefront_outlined),
     ('genesis', 'Genesis', Icons.auto_awesome_outlined),
-    ('business', 'Minha empresa', Icons.business_outlined),
+    ('map', 'Mapa', Icons.map_outlined),
   ];
   @override
   void initState() {
     super.initState();
-    view = widget.initialView;
+    view = widget.initialView == 'systems' ? 'tools' : widget.initialView;
     if (widget.api != null) {
       connected = true;
       role = 'admin';
       unawaited(load());
-    } else if (view != 'genesis') {
+    } else if (!studio) {
       transport.connect((raw) {
         if (!mounted) return;
         final e = jsonDecode(raw);
@@ -69,7 +83,9 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
                 ? 'Beta'
                 : 'Minha empresa';
             solutions = [];
-            projectCount = 0;
+            tools = [];
+            error = toolsError = '';
+            loadingTools = true;
           });
           unawaited(load());
         }
@@ -88,24 +104,49 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
 
   Future<void> load() async {
     final version = ++loadVersion;
+    if (view == 'tools') {
+      setState(() {
+        loadingTools = true;
+        toolsError = '';
+      });
+    }
+    await Future.wait([
+      loadSquads(version),
+      if (view == 'tools' || view == 'home') loadTools(version),
+    ]);
+  }
+
+  Future<void> loadSquads(int version) async {
     try {
       final data = await api('/v1/sdr/genesis-demo/ecosystem');
-      final projects = await api('/v1/sdr/genesis-demo/construction');
-      if (mounted && version == loadVersion)
-        setState(() {
-          solutions = List<Map<String, dynamic>>.from(
-            (data['solutions'] as List).map(
-              (v) => Map<String, dynamic>.from(v),
-            ),
-          );
-          projectCount = (projects['builds'] as List).length;
-          error = '';
-        });
-    } catch (e) {
-      if (mounted)
-        setState(
-          () => error = 'Não foi possível carregar os sistemas. Confira se os serviços locais estão em execução.',
-        );
+      if (!mounted || version != loadVersion) return;
+      setState(() {
+        solutions = List<Map<String, dynamic>>.from(data['solutions']);
+        error = '';
+      });
+    } catch (_) {
+      if (!mounted || version != loadVersion) return;
+      setState(
+        () => error = 'Não foi possível atualizar os acessos do seu time.',
+      );
+    }
+  }
+
+  Future<void> loadTools(int version) async {
+    try {
+      final data = await api('/v1/sdr/genesis-demo/construction');
+      if (!mounted || version != loadVersion) return;
+      setState(() {
+        tools = genesisTools(List<Map<String, dynamic>>.from(data['builds']));
+        toolsError = '';
+        loadingTools = false;
+      });
+    } catch (_) {
+      if (!mounted || version != loadVersion) return;
+      setState(() {
+        toolsError = 'Não foi possível carregar suas ferramentas do Genesis.';
+        loadingTools = false;
+      });
     }
   }
 
@@ -119,7 +160,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
 
   @override
   void dispose() {
-    if (view != 'genesis' && widget.api == null) transport.disconnect();
+    if (!studio && widget.api == null) transport.disconnect();
     super.dispose();
   }
 
@@ -132,140 +173,187 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
     value,
     style: TextStyle(fontSize: size, color: color, fontWeight: weight),
   );
-  Widget sidebar(bool small) => Container(
-    width: small ? 92 : 244,
-    margin: const EdgeInsets.all(14),
-    padding: EdgeInsets.symmetric(horizontal: small ? 6 : 14, vertical: 22),
-    decoration: BoxDecoration(
-      color: const Color(0xff101112),
-      borderRadius: BorderRadius.circular(23),
-      border: Border.all(color: line),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.only(left: small ? 6 : 12, bottom: 28),
-          child: ArkomWordmark(compact: small),
-        ),
-        if (!small)
-          Padding(
-            padding: const EdgeInsets.only(left: 12, bottom: 12),
-            child: text('ESPAÇO DE TRABALHO', size: 10, color: muted),
-          ),
-        ...navigation.map(
-          (n) => Padding(
-            padding: const EdgeInsets.only(bottom: 5),
-            child: Tooltip(
-              message: n.$2,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(24),
-                  onTap: () => go(n.$1),
-                  child: Container(
-                    height: 43,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: section == n.$1
-                          ? const Color(0xff222220)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: section == n.$1
-                            ? const Color(0xff6e6047)
-                            : Colors.transparent,
+  Widget navItem(
+    String route,
+    String title,
+    Widget icon,
+    bool small, {
+    bool enabled = true,
+  }) {
+    final active = section == route || (view == 'systems/$route');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Tooltip(
+        message: enabled ? title : '$title · Indisponível',
+        child: Semantics(
+          selected: active,
+          child: Material(
+            color: active ? const Color(0xff26231c) : Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(
+                color: active ? const Color(0xff665538) : Colors.transparent,
+              ),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: enabled ? () => go(route) : null,
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: small ? 0 : 12,
+                  vertical: 5,
+                ),
+                child: SizedBox(
+                  height: 35,
+                  child: Row(
+                    mainAxisAlignment: small
+                        ? MainAxisAlignment.center
+                        : MainAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: small ? 35 : 30,
+                        child: Center(child: icon),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          n.$3,
-                          size: 18,
-                          color: section == n.$1
-                              ? const Color(0xffefeee8)
-                              : muted,
-                        ),
-                        if (!small) ...[
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: text(
-                              n.$2,
-                              size: 13,
-                              color: section == n.$1
-                                  ? const Color(0xffefeee8)
+                      if (!small) ...[
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Text(
+                            title,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: active
+                                  ? const Color(0xfff1e7d0)
+                                  : enabled
+                                  ? const Color(0xffc2c5c6)
                                   : muted,
                             ),
                           ),
-                        ],
+                        ),
+                        if (!enabled)
+                          const Icon(
+                            Icons.lock_outline,
+                            size: 13,
+                            color: muted,
+                          ),
                       ],
-                    ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
         ),
-        if (!small) ...[
-          const SizedBox(height: 12),
-          ...['Gestor IA', 'Mentorias', 'Universidade IA'].map(
-            (n) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.lock_outline,
-                    size: 15,
-                    color: Color(0xff52545a),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: text(n, size: 12, color: const Color(0xff62656a)),
-                  ),
-                ],
-              ),
-            ),
+      ),
+    );
+  }
+
+  Widget sidebar(bool small) => Container(
+    width: small ? 65 : 222,
+    margin: EdgeInsets.all(small ? 6 : 14),
+    padding: EdgeInsets.fromLTRB(small ? 5 : 11, 20, small ? 5 : 11, 13),
+    decoration: BoxDecoration(
+      color: const Color(0xff101112),
+      borderRadius: BorderRadius.circular(small ? 16 : 21),
+      border: Border.all(color: line),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(left: small ? 0 : 12, bottom: 19),
+          child: Align(
+            alignment: small ? Alignment.center : Alignment.centerLeft,
+            child: ArkomWordmark(compact: small),
           ),
-        ],
-        const Spacer(),
-        if (!small) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              border: Border.all(color: line),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: text('IDIOMA   EN / PT', size: 10, color: muted),
-          ),
-          const SizedBox(height: 20),
-          Row(
+        ),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.zero,
             children: [
-              const CircleAvatar(
-                radius: 15,
-                backgroundColor: Color(0xff282927),
-                child: Text('AL', style: TextStyle(fontSize: 10, color: gold)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              for (final n in navigation)
+                navItem(
+                  n.$1,
+                  n.$2,
+                  Icon(n.$3, size: 19, color: section == n.$1 ? gold : muted),
+                  small,
+                ),
+              const SizedBox(height: 9),
+              const Divider(color: line, height: 1),
+              const SizedBox(height: 8),
+              if (small)
+                navItem(
+                  'team',
+                  'Seu time',
+                  const Icon(Icons.groups_outlined, color: gold, size: 22),
+                  true,
+                )
+              else
+                Row(
                   children: [
-                    text(
-                      company == 'Minha empresa'
-                          ? company
-                          : '$company Demonstração',
-                      size: 11,
+                    Expanded(
+                      child: navItem(
+                        'team',
+                        'Seu time',
+                        const Icon(
+                          Icons.groups_outlined,
+                          color: gold,
+                          size: 22,
+                        ),
+                        false,
+                      ),
                     ),
-                    text('Ambiente local', size: 10, color: muted),
+                    IconButton(
+                      tooltip: teamExpanded
+                          ? 'Recolher agentes'
+                          : 'Mostrar agentes',
+                      icon: Icon(
+                        teamExpanded ? Icons.expand_less : Icons.expand_more,
+                        color: muted,
+                        size: 16,
+                      ),
+                      onPressed: () =>
+                          setState(() => teamExpanded = !teamExpanded),
+                    ),
                   ],
                 ),
-              ),
+              if (teamExpanded || small)
+                for (final squad in workspaceSquads)
+                  for (final member in squad.members.where(
+                    (member) => member.gopher != null,
+                  ))
+                    navItem(
+                      member.id,
+                      member.name,
+                      TeamAvatar(member: member, color: squad.color, size: 28),
+                      small,
+                      enabled: available(member.id),
+                    ),
             ],
           ),
-          const SizedBox(height: 20),
-          text('Modo escuro', size: 11, color: muted),
-        ],
+        ),
+        if (!small)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 12, 6, 2),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 15,
+                  backgroundColor: Color(0xff282927),
+                  child: Icon(Icons.business_outlined, size: 15, color: gold),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: text(
+                    company == 'Minha empresa'
+                        ? company
+                        : '$company · Demonstração',
+                    size: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     ),
   );
@@ -298,17 +386,30 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
       body: LayoutBuilder(
         builder: (context, c) => Row(
           children: [
-            if (view != 'clips' || c.maxWidth >= 650) sidebar(c.maxWidth < 850),
+            if (!studio && (view != 'clips' || c.maxWidth >= 650))
+              sidebar(c.maxWidth < 850),
             Expanded(
               child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  c.maxWidth < 650 ? (view == 'clips' ? 14 : 8) : 22,
-                  22,
-                  view == 'clips' && c.maxWidth < 650 ? 14 : 22,
-                  16,
-                ),
-                child: view == 'genesis'
-                    ? const Studio()
+                padding: studio
+                    ? EdgeInsets.zero
+                    : EdgeInsets.fromLTRB(
+                        c.maxWidth < 650 ? (view == 'clips' ? 14 : 8) : 22,
+                        22,
+                        view == 'clips' && c.maxWidth < 650 ? 14 : 22,
+                        16,
+                      ),
+                child: studio
+                    ? Studio(
+                        initialBuildId:
+                            view.startsWith('tools/') ||
+                                (view.startsWith('genesis/') &&
+                                    view != 'genesis/new')
+                            ? view.split('/').last
+                            : null,
+                        startNew: view == 'genesis/new',
+                        toolMode: toolPreview,
+                        onBack: () => go('tools'),
+                      )
                     : !connected
                     ? const Center(
                         child: CircularProgressIndicator(color: gold),
@@ -335,14 +436,17 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
                             ],
                           ),
                           const SizedBox(height: 20),
-                          if (error.isNotEmpty)
+                          if (error.isNotEmpty ||
+                              (view == 'tools' && toolsError.isNotEmpty))
                             Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: Row(
                                 children: [
                                   Expanded(
                                     child: text(
-                                      error,
+                                      view == 'tools' && toolsError.isNotEmpty
+                                          ? toolsError
+                                          : error,
                                       size: 12,
                                       color: const Color(0xfff0b4a2),
                                     ),
@@ -368,13 +472,14 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
       ({
         'home': 'Início',
         'map': 'Mapa',
-        'systems': 'Sistemas',
+        'tools': 'Ferramentas',
+        'team': 'Seu time',
         'sdr': 'BIA SDR',
         'crm': 'CRM Arkom',
-        'clips': 'CLIPS',
-        'business': 'Minha empresa',
+        'clips': 'Luma',
+        'business': 'Seu negócio',
       })[section] ??
-      'Sistemas';
+      'Seu time';
   Widget content() {
     if (view.startsWith('systems/')) {
       final id = view.split('/').last;
@@ -386,7 +491,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
               solution: s,
               role: role,
               api: api,
-              onBack: () => go('systems'),
+              onBack: () => go('team'),
               onOpen: () => go(id),
             );
     }
@@ -404,12 +509,22 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
           key: ValueKey(sessionVersion),
           api: api,
           role: role,
-          onBack: () => go('systems/clips'),
+          onBack: () => go('team'),
         );
       case 'business':
         return BusinessWorkspace(api: api);
+      case 'team':
+        return team();
       default:
-        return systems();
+        return GenesisTools(
+          tools: tools,
+          loading: loadingTools,
+          canCreate: role != 'viewer',
+          error: toolsError,
+          onCreate: () => go('genesis/new'),
+          onOpen: (id) => go('tools/$id'),
+          onEdit: (id) => go('genesis/$id'),
+        );
     }
   }
 
@@ -448,7 +563,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
         ),
         const SizedBox(height: 15),
         text(
-          'Seu trabalho continua aqui. Abra uma solução ou crie o próximo passo com o Genesis.',
+          'Trabalhe com seus squads ou transforme uma ideia em ferramenta com o Genesis.',
           size: 14,
           color: muted,
         ),
@@ -459,12 +574,16 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
             runSpacing: 14,
             children: [
               stat(
-                '${solutions.where((s) => s['implemented'] == true).length}',
-                'soluções na estrutura',
+                '${workspaceSquads.expand((squad) => squad.members).where((member) => member.gopher != null && available(member.id)).length}',
+                'agentes disponíveis',
                 c.maxWidth,
               ),
-              stat('$projectCount', 'projetos no Genesis', c.maxWidth),
-              stat('6', 'especialistas de construção', c.maxWidth),
+              stat(
+                loadingTools || toolsError.isNotEmpty ? '–' : '${tools.length}',
+                'ferramentas do Genesis',
+                c.maxWidth,
+              ),
+              stat('${workspaceSquads.length}', 'squads', c.maxWidth),
             ],
           ),
         ),
@@ -493,7 +612,9 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
                     ),
                     const SizedBox(height: 18),
                     FilledButton(
-                      onPressed: () => go('genesis'),
+                      onPressed: role == 'viewer'
+                          ? null
+                          : () => go('genesis/new'),
                       style: FilledButton.styleFrom(
                         backgroundColor: gold,
                         foregroundColor: ink,
@@ -510,16 +631,16 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
         Row(
           children: [
             Expanded(
-              child: text('Suas soluções', size: 21, weight: FontWeight.w300),
+              child: text('Seus squads', size: 21, weight: FontWeight.w300),
             ),
             TextButton(
-              onPressed: () => go('systems'),
-              child: const Text('Ver sistemas'),
+              onPressed: () => go('team'),
+              child: const Text('Ver seu time'),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        solutionGrid(solutions.where((s) => s['implemented'] == true).toList()),
+        WorkspaceTeam(solutions: solutions, onOpen: go),
         const SizedBox(height: 25),
         InkWell(
           onTap: () => go('business'),
@@ -568,12 +689,25 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
       padding: const EdgeInsets.all(18),
     ),
   );
-  Widget systems() => SolutionCatalog(
-    solutions: solutions,
-    onSelect: (id) => go('systems/$id'),
+  Widget team() => Align(
+    alignment: Alignment.topLeft,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 830),
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 18),
+        children: [
+          text('Seu time', size: 36, weight: FontWeight.w300),
+          const SizedBox(height: 8),
+          text(
+            'Abra um agente ou acesse o espaço de trabalho do squad.',
+            color: muted,
+          ),
+          const SizedBox(height: 23),
+          WorkspaceTeam(solutions: solutions, onOpen: go),
+        ],
+      ),
+    ),
   );
-  Widget solutionGrid(List<Map<String, dynamic>> values) =>
-      SolutionCards(solutions: values, onSelect: (id) => go('systems/$id'));
   IconData icon(String id) =>
       ({
         'sdr': Icons.forum_outlined,
@@ -619,15 +753,15 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
         ),
         mapNode(
           'MARKETING',
-          'CLIPS',
-          'clips',
+          'Luma',
+          available('clips') ? 'clips' : null,
           const Alignment(0, -.78),
           const Color(0xff73c9d8),
         ),
         mapNode(
           'VENDAS',
           'BIA SDR · CRM',
-          'sdr',
+          available('sdr') ? 'sdr' : null,
           const Alignment(.85, -.15),
           const Color(0xffd88a7c),
         ),
@@ -655,8 +789,8 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
         Align(
           alignment: Alignment.bottomCenter,
           child: TextButton(
-            onPressed: () => go('systems'),
-            child: const Text('Explorar todos os sistemas'),
+            onPressed: () => go('team'),
+            child: const Text('Ver seus squads'),
           ),
         ),
       ],

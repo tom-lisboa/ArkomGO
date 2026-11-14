@@ -3,10 +3,10 @@ const assert=require('node:assert/strict');
 const vm=require('node:vm'),fs=require('node:fs');
 const source=fs.readFileSync(require.resolve('../web/bridge.js'),'utf8');
 const tick=()=>new Promise(setImmediate);
-function harness({role='admin',status='ready',handle=async()=>({status:200,body:'{}',content_type:'application/json'})}={}){
+function harness({role='admin',status='ready',view='',handle=async()=>({status:200,body:'{}',content_type:'application/json'})}={}){
  let receive,call;const calls=[],events=[],states=new Map();let starts=0;
  const parent={postMessage(){}};
- const global={document:{},parent,location:{origin:'http://localhost:3007'},AbortController,AbortSignal,TextDecoder,URL,
+ const global={document:{},parent,location:{origin:'http://localhost:3007',search:'?view='+encodeURIComponent(view)},AbortController,AbortSignal,TextDecoder,URL,
   setTimeout:(fn,ms)=>ms===400?setTimeout(fn,0):0,clearTimeout,
   addEventListener:(name,fn)=>{if(name==='message')receive=fn;},
   genesisPreview:{createPreview:(_files,fn)=>{call=fn;return {}; }},
@@ -24,7 +24,7 @@ function harness({role='admin',status='ready',handle=async()=>({status:200,body:
     result=await handle(JSON.parse(options.body));
     if(result.error)return {ok:false,status:502,json:async()=>result};
    }else result={builds:[]};
-   return {ok:true,json:async()=>result};
+   return {ok:true,status:url.endsWith('/start')?202:200,json:async()=>result};
   }};
  vm.runInNewContext(source,global);
  global.genesisBridge.connect(raw=>events.push(JSON.parse(raw)));
@@ -65,4 +65,13 @@ test('unfinished solutions and viewer sessions never start a backend',async()=>{
  for(const options of [{status:'awaiting_step'},{role:'viewer'}]){
   const h=harness(options);try{await h.select('app');await assert.rejects(()=>h.preview()({method:'GET',path:'/api/a',body:''}),/Conclua/);assert.equal(h.starts,0);}finally{h.close();}
  }
+});
+
+test('a tool shuts down its own backend when the user returns to the workspace',async()=>{
+ const h=harness({view:'tools/build_example'});
+ await h.select('build_example');
+ await h.preview()({method:'GET',path:'/api/a',body:''});
+ h.close();
+ assert.equal(h.states.get('build_example'),'stopped');
+ assert.ok(h.calls.some(r=>r.url.endsWith('/runtime/stop')&&r.options.keepalive));
 });

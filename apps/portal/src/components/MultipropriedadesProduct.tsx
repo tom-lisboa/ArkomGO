@@ -64,19 +64,19 @@ export default function MultipropriedadesProduct() {
  const showFrame = status === 'loading' || status === 'open';
  return <main className={styles.workspace}>
   <header className={styles.bar}>
-   <Link href="/demo/systems/multipropriedades"><ArrowLeft size={17}/> Sistemas</Link>
-   <h1><Building2 size={18}/> Arkom Multipropriedades</h1>
+   <Link href="/demo/team"><ArrowLeft size={17}/> Seu time</Link>
+   <h1><Building2 size={18}/> Maia</h1>
    <span>Espaço de teste</span>
   </header>
-  <section className={styles.stage} aria-label="Painel do Multipropriedades">
-   {showFrame && <iframe ref={frame} key={attempt} title="Arkom Multipropriedades"
+  <section className={styles.stage} aria-label="Painel da Maia">
+   {showFrame && <iframe ref={frame} key={attempt} title="Maia · Gestão de multipropriedades"
     className={styles.frame} style={{visibility:status === 'open' ? 'visible' : 'hidden'}}
     referrerPolicy="no-referrer" sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox"/>}
    {status !== 'open' && <div className={styles.message} role="status">
-    {status === 'loading' && <p>Abrindo o Multipropriedades da sua empresa…</p>}
-    {status === 'forbidden' && <p>O Multipropriedades ainda não foi liberado para esta conta.</p>}
-    {status === 'origin' && <a href={portal + '/demo/multipropriedades'}>Abrir o Multipropriedades na Arkom local</a>}
-    {status === 'unavailable' && <><p>Não foi possível abrir o Multipropriedades.</p><button onClick={() => {setStatus('loading');setAttempt(value => value + 1);}}>Tentar novamente</button></>}
+    {status === 'loading' && <p>Abrindo o espaço da Maia…</p>}
+    {status === 'forbidden' && <p>A Maia ainda não foi liberada para esta conta.</p>}
+    {status === 'origin' && <a href={portal + '/demo/multipropriedades'}>Abrir a Maia na Arkom local</a>}
+    {status === 'unavailable' && <><p>Não foi possível abrir o espaço da Maia.</p><button onClick={() => {setStatus('loading');setAttempt(value => value + 1);}}>Tentar novamente</button></>}
    </div>}
   </section>
  </main>;

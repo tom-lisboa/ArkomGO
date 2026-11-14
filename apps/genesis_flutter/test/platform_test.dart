@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:arkom_genesis/platform.dart';
+import 'package:arkom_genesis/workspace_team.dart';
 
 Future<dynamic> api(String path, [Map<String, dynamic>? body]) async {
   if (path.endsWith('/ecosystem'))
@@ -69,7 +70,7 @@ Future<dynamic> api(String path, [Map<String, dynamic>? body]) async {
         },
         {
           'id': 'clips',
-          'name': 'CLIPS',
+          'name': 'Luma',
           'area': 'Marketing',
           'description': 'Cortes verticais.',
           'implemented': true,
@@ -98,7 +99,42 @@ Future<dynamic> api(String path, [Map<String, dynamic>? body]) async {
     };
   if (path.endsWith('/rating'))
     return {'mine': body!['rating'], 'count': 1, 'average': body['rating']};
-  if (path.endsWith('/construction')) return {'builds': []};
+  if (path.endsWith('/construction')) {
+    return {
+      'builds': [
+        {
+          'id': 'build_draft',
+          'application_id': 'app_calc',
+          'name': 'Calculadora em alteração',
+          'status': 'running',
+          'has_frontend': true,
+          'revision': 3,
+        },
+        {
+          'id': 'build_calc',
+          'application_id': 'app_calc',
+          'name': 'Calculadora',
+          'status': 'ready',
+          'has_frontend': true,
+          'revision': 2,
+        },
+        {
+          'id': 'build_prev',
+          'application_id': 'app_calc',
+          'name': 'Calculadora antiga',
+          'status': 'ready',
+          'has_frontend': true,
+          'revision': 1,
+        },
+        {
+          'id': 'build_backend',
+          'name': 'Sem interface',
+          'status': 'ready',
+          'has_frontend': false,
+        },
+      ],
+    };
+  }
   if (path.endsWith('/conversations')) return {'items': []};
   if (path.endsWith('/pipelines.list') || path.endsWith('/contacts.list'))
     return {'data': []};
@@ -121,7 +157,8 @@ void main() {
   for (final width in [1440.0, 390.0]) {
     for (final view in [
       'home',
-      'systems',
+      'tools',
+      'team',
       'map',
       'systems/sdr',
       'sdr',
@@ -140,7 +177,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 500));
         expect(tester.takeException(), isNull);
         if (Platform.isMacOS &&
-            ['home', 'systems', 'map', 'systems/sdr'].contains(view))
+            ['home', 'tools', 'team', 'map', 'systems/sdr'].contains(view))
           await expectLater(
             find.byType(ArkomPlatform),
             matchesGoldenFile(
@@ -160,21 +197,43 @@ void main() {
           await tester.tap(find.text('Acessar sistema'));
           expect(navigated, ['sdr']);
         }
-        if (view == 'systems') {
-          await tester.enterText(find.byType(TextField).first, 'Finance');
-          await tester.pump();
-          expect(find.text('FinanceAI'), findsOneWidget);
-          await tester.ensureVisible(find.text('FinanceAI'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('FinanceAI'));
-          await tester.pump();
-          expect(navigated, isEmpty);
-          await tester.enterText(find.byType(TextField).first, 'BIA');
-          await tester.pump();
-          await tester.ensureVisible(find.text('BIA SDR'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('BIA SDR'));
-          expect(navigated, ['systems/sdr']);
+        if (view == 'tools') {
+          expect(find.text('Calculadora'), findsOneWidget);
+          expect(find.text('Calculadora antiga'), findsNothing);
+          expect(find.text('Calculadora em alteração'), findsNothing);
+          expect(find.text('Sem interface'), findsNothing);
+          expect(find.text('FinanceAI'), findsNothing);
+          await tester.tap(find.text('Calculadora'));
+          expect(navigated, ['tools/build_calc']);
+          await tester.tap(find.byTooltip('Editar Calculadora no Genesis'));
+          expect(navigated.last, 'genesis/build_calc');
+          await tester.tap(find.text('Criar ferramenta'));
+          expect(navigated.last, 'genesis/new');
+        }
+        if (view == 'team') {
+          for (final name in ['Vendas', 'Conteúdo', 'Operações']) {
+            expect(find.text(name), findsOneWidget);
+          }
+          final bia = find.descendant(
+            of: find.byType(WorkspaceTeam),
+            matching: find.text('BIA SDR'),
+          );
+          final clips = find.descendant(
+            of: find.byType(WorkspaceTeam),
+            matching: find.text('Luma'),
+          );
+          await tester.tap(bia);
+          await tester.tap(clips);
+          expect(navigated, ['sdr', 'clips']);
+          final maia = find.descendant(
+            of: find.byType(WorkspaceTeam),
+            matching: find.text('Maia'),
+          );
+          expect(maia, findsOneWidget);
+          await tester.tap(maia);
+          expect(navigated, ['sdr', 'clips']);
+          expect(find.text('Indisponível para esta conta.'), findsOneWidget);
+          expect(find.text('Calculadora'), findsNothing);
         }
         await tester.pumpWidget(const SizedBox());
       });

@@ -1,7 +1,7 @@
 # Arkom local em Flutter
 
-A demo em `/demo` usa Flutter para início, mapa, sistemas, CRM, CLIPS, contexto
-da empresa e Genesis. O SDR abre o cliente completo já preparado para o Lovable,
+A demo em `/demo` usa Flutter para início, squads, ferramentas do Genesis, mapa,
+CRM, CLIPS, contexto da empresa e estúdio Genesis. O SDR abre o cliente completo já preparado para o Lovable,
 em React, até que a migração Flutter preserve suas funções. O Next serve os arquivos compilados,
 obtém a sessão local e encaminha pedidos para Go. As demais rotas educacionais e
 administrativas do portal original continuam na aplicação Next existente.
@@ -108,8 +108,8 @@ copia nem provisiona o banco da operação.
 - Go: catálogo autenticado, identidade por organização, permissões e rotas CLIPS.
 - Integração local: CRM DEV consultado, vídeo sintético enviado pelo portal,
   MP4 realmente gerado e download recusado para outra empresa.
-- Jornada no Chromium: catálogo → detalhes → guia → acesso ao SDR, sem iniciar
-  o produto antes do acesso e sem erros JavaScript; identificador inválido recusado.
+- Jornada no Chromium: Seu time → agente → espaço de trabalho e Ferramentas →
+  aplicação → edição no Genesis.
 - Avaliações: alteração da própria nota, média, persistência após reabrir o banco,
   isolamento por empresa e recusa de escrita para consulta, anônimos e bloqueados.
 
@@ -118,18 +118,22 @@ estilo da referência com dados locais. A paridade de todos os módulos e conte�
 da plataforma antiga ainda não foi concluída. Essa entrega é local; não publica
 os serviços nem os dados na plataforma online.
 
-## Jornada de acesso a um sistema
+## Seu time e Ferramentas
 
-A galeria abre os detalhes em `/demo/systems/{id}`. O card não inicializa o produto.
-A página apresenta o sistema, um guia de uso, os recursos incluídos e a avaliação.
-**Acessar sistema** abre o módulo integrado com a sessão do portal; o cliente
-não precisa autenticar novamente no ambiente local. Voltar para Sistemas retorna
-à galeria. Um identificador desconhecido retorna 404.
+Em **Seu time**, o squad Vendas reúne a BIA SDR e o CRM. Conteúdo reúne a Luma, agente de cortes e GIFs.
+Operações reúne a Maia, agente de multipropriedades. BIA, Luma e Maia usam
+avatares Gopher e abrem seus espaços de trabalho. A disponibilidade vem do catálogo autenticado.
+Os squads organizam o acesso aos módulos existentes.
 
-Os sistemas sem serviço nesta estrutura continuam bloqueados na galeria. Mesmo
-em uma URL direta de detalhes, o botão de acesso fica desativado. O Remix no
-Lovable permanece identificado como pendente; não redireciona para um modelo
-externo com backend diferente.
+**Ferramentas** consulta as construções da empresa da sessão. Apresenta a última
+versão pronta com interface de cada aplicação do Genesis. Uma revisão em curso
+ou com falha mantém acessível a última versão concluída. A aplicação abre na
+prévia isolada vinculada ao seu backend Go quando compatível. **Editar no
+Genesis** abre a mesma versão no estúdio, conforme o papel da conta.
+
+Os links de detalhes `/demo/systems/{id}` continuam válidos. **Voltar para Seu
+time** retorna aos squads. O endereço antigo `/demo/systems` leva a Ferramentas.
+O Remix continua pendente para os módulos locais.
 
 As capas e os vídeos privados da plataforma antiga não estão nesta cópia. Esta
 entrega usa ilustrações vetoriais nativas em Flutter nos espaços das capas e

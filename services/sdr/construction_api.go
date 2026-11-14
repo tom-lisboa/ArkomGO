@@ -43,7 +43,19 @@ type ConstructionBuild struct {
 }
 
 func (b *ConstructionBuild) summary() map[string]any {
-	return map[string]any{"id": b.ID, "goal": b.Goal, "status": b.Status, "parent_id": b.ParentID, "created_at": b.CreatedAt, "updated_at": b.UpdatedAt, "files_count": len(b.Files), "sequence": len(b.Traces), "application_id": b.ApplicationID, "revision": b.Revision, "contract_status": b.contractStatus(), "runtime_compatible": construction.RuntimeCompatible(b.Files), "frontend_framework": frontendFramework(b.Files), "steps_version": b.StepsVersion, "revision_scope": b.RevisionScope, "steps": b.steps(), "next_step_id": b.nextStepID()}
+	status := b.contractStatus()
+	name := ""
+	if status == "validated" {
+		name = b.Contract.Manifest.Name
+	}
+	return map[string]any{
+		"id": b.ID, "name": name, "goal": b.Goal, "status": b.Status, "parent_id": b.ParentID,
+		"created_at": b.CreatedAt, "updated_at": b.UpdatedAt, "files_count": len(b.Files), "sequence": len(b.Traces),
+		"application_id": b.ApplicationID, "revision": b.Revision, "contract_status": status,
+		"has_frontend":       strings.TrimSpace(b.Files["frontend/index.html"]) != "",
+		"runtime_compatible": construction.RuntimeCompatible(b.Files), "frontend_framework": frontendFramework(b.Files),
+		"steps_version": b.StepsVersion, "revision_scope": b.RevisionScope, "steps": b.steps(), "next_step_id": b.nextStepID(),
+	}
 }
 func (a *App) constructionTrace(id string, event construction.Event) error {
 	return a.constructionRunTrace(id, "", event)

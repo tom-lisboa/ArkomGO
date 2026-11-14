@@ -17,8 +17,8 @@ export default function SDRProduct() {
   return <Shell demo>
     <section className="arkom-demo" aria-label="Produto SDR Arkom">
       <header className="demo-topline">
-        <Link href="/demo/systems/sdr" className="inline-flex items-center gap-2">
-          <ArrowLeft size={15}/> Voltar aos detalhes
+        <Link href="/demo/team" className="inline-flex items-center gap-2">
+          <ArrowLeft size={15}/> Voltar ao time
         </Link>
         <span>SDR Arkom · ambiente local</span>
       </header>

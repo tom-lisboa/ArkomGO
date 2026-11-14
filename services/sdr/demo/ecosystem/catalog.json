@@ -159,7 +159,7 @@
     },
     {
       "id": "clips",
-      "name": "CLIPS",
+      "name": "Luma",
       "area": "Marketing",
       "description": "Cortes verticais dos seus vídeos.",
       "service": "services/core/pilots/clips",
@@ -204,11 +204,11 @@
     },
     {
       "id": "multipropriedades",
-      "name": "Arkom Multipropriedades",
+      "name": "Maia",
       "area": "Back Office",
       "description": "Gerencie empreendimentos, cotistas, reservas de uso, vendas, contratos e recebíveis.",
       "service": "Multipropriedades · homologação local",
-      "kind": "Sistemas",
+      "kind": "Agentes",
       "guide": [
         {
           "title": "Escolha um empreendimento",

@@ -5,6 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'transport.dart' as transport;
 
 class StudioController extends ChangeNotifier {
+  final String? initialBuildId;
+  final bool startNew;
+
+  StudioController({this.initialBuildId, this.startNew = false});
+
   List<Map<String, dynamic>> projects = [];
   Map<String, dynamic>? build;
   final Map<String, String> files = {};
@@ -13,6 +18,7 @@ class StudioController extends ChangeNotifier {
   String runtimeStatus = 'stopped';
   String role = 'viewer', connection = 'waiting', error = '', selectedFile = '';
   bool busy = false, authenticated = false, _disposed = false;
+  bool initialBuildMissing = false;
   int _refresh = 0;
   List<Map<String, dynamic>> get steps => ((build?['steps'] ?? []) as List)
       .map((s) => Map<String, dynamic>.from(s))
@@ -44,6 +50,7 @@ class StudioController extends ChangeNotifier {
       case 'session':
         runtimeStatus = 'stopped';
         build = null;
+        initialBuildMissing = false;
         projects.clear();
         files.clear();
         traces.clear();
@@ -105,12 +112,18 @@ class StudioController extends ChangeNotifier {
       projects = (data['builds'] as List)
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
-      if (build == null && projects.isNotEmpty) {
+      if (build == null && initialBuildId != null) {
+        if (projects.any((project) => project['id'] == initialBuildId)) {
+          await select(initialBuildId!);
+        } else {
+          initialBuildMissing = true;
+        }
+      } else if (build == null && !startNew && projects.isNotEmpty) {
         await select(projects.first['id']);
       }
-      notifyListeners();
+      if (!_disposed && n == _refresh) notifyListeners();
     } catch (e) {
-      failure(e);
+      if (n == _refresh) failure(e);
     }
   }
 

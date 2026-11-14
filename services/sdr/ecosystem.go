@@ -133,7 +133,7 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 							_, _, configured = multiCredentials(dir, binding)
 							configured = configured && multiReady(r.Context())
 						} else {
-							item["reason"] = "O Multipropriedades ainda não foi liberado para esta conta."
+							item["reason"] = "A Maia ainda não foi liberada para esta conta."
 						}
 					}
 				}

@@ -68,11 +68,10 @@ const NAV: NavItem[] = [
 const DEMO_NAV: NavItem[] = [
  {label:"Início",href:"/demo",icon:Home},
  {label:"Mapa",href:"/demo/map",icon:Map},
- {label:"Sistemas",href:"/demo/systems",icon:LayoutGrid},
+ {label:"Ferramentas",href:"/demo/tools",icon:LayoutGrid},
  {label:"Genesis",href:"/demo/genesis",icon:Sparkles},
- {label:"Minha empresa",href:"/demo/business",icon:Brain},
- {label:"Bia · SDR",href:"/demo/sdr",icon:MessagesSquare},
- {label:"CRM",href:"/demo/crm",icon:Users},
+ {label:"Seu negócio",href:"/demo/business",icon:Brain},
+ {label:"Seu time",href:"/demo/team",icon:Users},
  {label:"Automações",href:"/demo/automations",icon:GitBranch},
  {label:"Execuções",href:"/demo/executions",icon:Layers},
 ];
@@ -173,7 +172,7 @@ function ShellChrome({ children, demo }: { children: React.ReactNode; demo: bool
             const Icon = item.icon;
 
             const active =
-              pathname === item.href || (item.href !== "/demo" && pathname.startsWith(`${item.href}/`));
+              pathname === item.href || (demo && item.href === "/demo/team" && ["/demo/sdr","/demo/clips","/demo/crm","/demo/multipropriedades"].includes(pathname)) || (item.href !== "/demo" && pathname.startsWith(`${item.href}/`));
             return (
               <Link
                 key={item.href}

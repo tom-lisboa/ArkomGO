@@ -95,7 +95,7 @@ class _SolutionDetailState extends State<SolutionDetail> {
                 child: TextButton.icon(
                   onPressed: widget.onBack,
                   icon: const Icon(Icons.arrow_back, size: 16),
-                  label: const Text('Voltar para Sistemas'),
+                  label: const Text('Voltar para Seu time'),
                 ),
               ),
               const SizedBox(height: 14),

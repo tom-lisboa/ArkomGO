@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'clips_player.dart';
 import 'platform.dart' show PlatformCall;
 import 'transport.dart' as transport;
+import 'visuals.dart' show Gopher;
 
 part 'clips_gifs.dart';
 
@@ -460,16 +461,26 @@ class _ClipsWorkspaceState extends State<ClipsWorkspace> {
                       child: TextButton.icon(
                         onPressed: widget.onBack,
                         icon: const Icon(Icons.arrow_back, size: 16),
-                        label: const Text('Voltar aos detalhes'),
+                        label: const Text('Voltar ao time'),
                       ),
                     ),
                     const SizedBox(height: 13),
-                    Image.asset(
-                      'assets/arkom-clips-logo.png',
-                      width: 130,
-                      height: 48,
-                      alignment: Alignment.centerLeft,
-                      semanticLabel: 'Arkom CLIPS',
+                    Row(
+                      children: [
+                        const ExcludeSemantics(
+                          child: Gopher(index: 2, size: 47),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Luma',
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     _navigation(),

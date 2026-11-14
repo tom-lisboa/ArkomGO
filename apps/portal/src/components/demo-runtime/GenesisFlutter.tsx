@@ -1,14 +1,14 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
-import {isLocalSolutionDetail} from '@/lib/local-solutions';
+import {isLocalDemoDestination} from '@/lib/local-solutions';
 import type {Session} from './api';
 export default function GenesisFlutter({session,onQualification,initialView='genesis',fullScreen=false}:{session:Session;onQualification:()=>void;initialView?:string;fullScreen?:boolean}){
  const router=useRouter(); const frame=useRef<HTMLIFrameElement>(null);const currentSession=useRef(session);currentSession.current=session;const [ready,setReady]=useState(false);const [slow,setSlow]=useState(false);
  useEffect(()=>{setReady(false);setSlow(false);const timeout=setTimeout(()=>setSlow(true),18000);
   function receive(event:MessageEvent){if(event.origin!==window.location.origin||event.source!==frame.current?.contentWindow)return;
    if(event.data?.type==='arkom.genesis.ready'){setReady(true);clearTimeout(timeout);frame.current?.contentWindow?.postMessage({type:'arkom.genesis.session',session:currentSession.current},window.location.origin);}
-   if(event.data?.type==='arkom.platform.navigate'&&typeof event.data.view==='string'&&(['home','map','systems','sdr','crm','clips','multipropriedades','genesis','business'].includes(event.data.view)||isLocalSolutionDetail(event.data.view)))router.push(event.data.view==='home'?'/demo':'/demo/'+event.data.view);
+   if(event.data?.type==='arkom.platform.navigate'&&typeof event.data.view==='string'&&isLocalDemoDestination(event.data.view))router.push(event.data.view==='home'?'/demo':'/demo/'+event.data.view);
    if(event.data?.type==='arkom.genesis.qualification')onQualification();
   }
   window.addEventListener('message',receive);return()=>{clearTimeout(timeout);window.removeEventListener('message',receive)};

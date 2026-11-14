@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import 'code_workspace.dart';
+import 'genesis_tools.dart';
 import 'live_activity.dart';
 import 'solution_preview.dart';
 import 'studio_controller.dart';
@@ -49,7 +50,17 @@ class GenesisApp extends StatelessWidget {
 
 class Studio extends StatefulWidget {
   final StudioController? controller;
-  const Studio({super.key, this.controller});
+  final String? initialBuildId;
+  final bool startNew, toolMode;
+  final VoidCallback? onBack;
+  const Studio({
+    super.key,
+    this.controller,
+    this.initialBuildId,
+    this.startNew = false,
+    this.toolMode = false,
+    this.onBack,
+  });
   @override
   State<Studio> createState() => _StudioState();
 }
@@ -96,7 +107,14 @@ class _StudioState extends State<Studio> {
   @override
   void initState() {
     super.initState();
-    model = widget.controller ?? StudioController();
+    model =
+        widget.controller ??
+        StudioController(
+          initialBuildId: widget.initialBuildId,
+          startNew: widget.startNew,
+        );
+    newIdea = widget.startNew;
+    mobileChat = widget.startNew;
     lastBuild = model.id;
     lastStatus = model.build?['status'] ?? '';
     lastSequence = model.build?['sequence'] ?? 0;
@@ -277,59 +295,157 @@ class _StudioState extends State<Studio> {
   );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: LayoutBuilder(
-      builder: (context, c) {
-        final narrow = c.maxWidth < 760;
-        return Column(
-          children: [
-            header(narrow),
-            if (model.error.isNotEmpty)
-              Container(
-                width: double.infinity,
-                color: const Color(0xff30201e),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 9,
+  Widget build(BuildContext context) {
+    if (widget.toolMode) return toolWorkspace();
+    return Scaffold(
+      body: LayoutBuilder(
+        builder: (context, c) {
+          final narrow = c.maxWidth < 760;
+          return Column(
+            children: [
+              header(narrow),
+              if (model.error.isNotEmpty || model.initialBuildMissing)
+                Container(
+                  width: double.infinity,
+                  color: const Color(0xff30201e),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 9,
+                  ),
+                  child: label(
+                    model.initialBuildMissing
+                        ? 'Este projeto não está disponível nesta conta.'
+                        : model.error,
+                    color: const Color(0xfff0b0a0),
+                    size: 11,
+                    lines: 3,
+                  ),
                 ),
-                child: label(
-                  model.error,
-                  color: const Color(0xfff0b0a0),
-                  size: 11,
-                  lines: 3,
+              Expanded(
+                child: Row(
+                  children: [
+                    if (!narrow && showChat)
+                      SizedBox(
+                        width: c.maxWidth < 1050 ? 280 : 316,
+                        child: conversation(),
+                      ),
+                    if (!narrow && showChat)
+                      const VerticalDivider(width: 1, color: line),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          toolbar(narrow),
+                          Expanded(
+                            child: IndexedStack(
+                              index: narrow && mobileChat ? 1 : 0,
+                              children: [
+                                workspace(),
+                                if (narrow) conversation(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            Expanded(
-              child: Row(
-                children: [
-                  if (!narrow && showChat)
-                    SizedBox(
-                      width: c.maxWidth < 1050 ? 280 : 316,
-                      child: conversation(),
-                    ),
-                  if (!narrow && showChat)
-                    const VerticalDivider(width: 1, color: line),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        toolbar(narrow),
-                        Expanded(
-                          child: IndexedStack(
-                            index: narrow && mobileChat ? 1 : 0,
-                            children: [workspace(), if (narrow) conversation()],
-                          ),
-                        ),
-                      ],
-                    ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget toolWorkspace() {
+    final build = model.build;
+    final available = build != null && hasGenesisTool(build);
+    final missing = model.initialBuildMissing || (build != null && !available);
+    final needsConnection =
+        available && build['runtime_compatible'] == true && model.canEdit;
+    return Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            height: 62,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: const BoxDecoration(
+              color: panel,
+              border: Border(bottom: BorderSide(color: line)),
+            ),
+            child: Row(
+              children: [
+                iconAction(
+                  'Voltar para Ferramentas',
+                  Icons.arrow_back,
+                  widget.onBack,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: label(
+                    available ? genesisToolName(build) : 'Ferramentas',
+                    size: 15,
+                    lines: 1,
+                    weight: FontWeight.w500,
                   ),
-                ],
+                ),
+                if (needsConnection &&
+                    ['failed', 'stopped'].contains(model.runtimeStatus))
+                  iconAction(
+                    'Conectar ferramenta',
+                    Icons.link,
+                    () => model.action('runtime_start'),
+                  ),
+                if (available)
+                  iconAction(
+                    'Atualizar ferramenta',
+                    Icons.refresh,
+                    () => setState(() => previewRevision++),
+                  ),
+                if (available && model.canEdit)
+                  iconAction(
+                    'Editar no Genesis',
+                    Icons.edit_outlined,
+                    () =>
+                        model.call('navigate', {'view': 'genesis/${model.id}'}),
+                  ),
+              ],
+            ),
+          ),
+          if (!missing && model.error.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: label(
+                model.error,
+                color: const Color(0xfff0b0a0),
+                size: 12,
               ),
             ),
-          ],
-        );
-      },
-    ),
-  );
+          Expanded(
+            child: missing
+                ? Center(
+                    child: label(
+                      'Esta ferramenta não está disponível nesta conta.',
+                      color: muted,
+                      size: 14,
+                    ),
+                  )
+                : !hasPreview || !available
+                ? model.error.isNotEmpty
+                      ? const SizedBox.shrink()
+                      : const Center(
+                          child: CircularProgressIndicator(color: gold),
+                        )
+                : SolutionPreview(
+                    key: ValueKey('${model.id}-$previewRevision'),
+                    files: Map.of(model.files),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget header(bool narrow) => Container(
     height: 62,
@@ -340,6 +456,14 @@ class _StudioState extends State<Studio> {
     ),
     child: Row(
       children: [
+        if (widget.onBack != null) ...[
+          iconAction(
+            'Voltar para Ferramentas',
+            Icons.arrow_back,
+            widget.onBack,
+          ),
+          const SizedBox(width: 5),
+        ],
         Container(
           width: 30,
           height: 30,

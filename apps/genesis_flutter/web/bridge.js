@@ -21,6 +21,19 @@ function releaseClipsMedia(url){if(clipsMedia.delete(url)){pauseClipsMedia(url);
 function clearClipsMedia(){for(const url of clipsMedia)releaseClipsMedia(url);}
 let runtimeTimer=null,runtimeStatus='stopped',selectedBuild=null,runtimePending=null,runtimePaused=false,autoAttempted=false;
 let lifecycle=Promise.resolve(),requests=Promise.resolve(),ownedRuntime=null;
+const toolView=new URL(global.location.origin+(global.location.search||'')).searchParams.get('view')?.startsWith('tools/');
+function stopToolRuntime(id,identity){
+ return fetch(base+'/'+encodeURIComponent(id)+'/runtime/stop',{
+  method:'POST',headers:{Authorization:'Bearer '+identity.access_token,'Content-Type':'application/json'},
+  body:'{}',credentials:'omit',redirect:'error',keepalive:true
+ }).catch(()=>{});
+}
+function releaseToolRuntime(){
+ if(!toolView||!ownedRuntime||ownedRuntime.identity!==session)return;
+ const {id,identity}=ownedRuntime;
+ ownedRuntime=null;
+ void stopToolRuntime(id,identity);
+}
 const current=(id,generation,identity)=>!disposed&&id===selected&&generation===selection&&identity===session;
 const ready=()=>selectedBuild?.status==='ready'&&selectedBuild.contract_status==='validated'&&selectedBuild.runtime_compatible&&session?.identity.role!=='viewer';
 const runtimeState=state=>{runtimeStatus=state.status;emit('runtime',state);};
@@ -48,8 +61,14 @@ function ensureRuntime(id,generation,identity){
    await request(base+'/'+encodeURIComponent(ownedRuntime.id)+'/runtime/stop',{});check();ownedRuntime=null;
   }
   let state=await(await request(base+'/'+encodeURIComponent(id)+'/runtime')).json();check();
-  ownedRuntime={id,identity};
-  if(!['running','starting'].includes(state.status))state=await(await request(base+'/'+encodeURIComponent(id)+'/runtime/start',{})).json();
+  if(!['running','starting'].includes(state.status)){
+   const response=await request(base+'/'+encodeURIComponent(id)+'/runtime/start',{});
+   state=await response.json();
+   if(response.status===202){
+    if(toolView&&!current(id,generation,identity))void stopToolRuntime(id,identity);
+    else ownedRuntime={id,identity};
+   }
+  }
   check();runtimeState(state);
   const deadline=Date.now()+110000;
   while(state.status==='starting'&&Date.now()<deadline){
@@ -82,7 +101,7 @@ async function pollRuntime(id,generation){
  try{const state=await(await request(base+'/'+encodeURIComponent(id)+'/runtime')).json();if(generation!==selection||id!==selected||disposed)return;if(runtimePending)return;runtimeState(state);if(['starting','running'].includes(state.status))runtimeTimer=setTimeout(()=>pollRuntime(id,generation),1500);}
  catch(e){if(generation===selection){runtimeStatus='stopped';emit('runtime',{status:'stopped'});emit('error',{message:e.message});}}
 }
-function receive(event){if(event.origin!==global.location.origin||event.source!==global.parent||event.data?.type!=='arkom.genesis.session')return;const next=event.data.session;if(!next?.access_token||!next?.identity)return;if(session?.access_token===next.access_token)return;stop();platformFile=null;clearClipsMedia();ownedRuntime=null;selected='';cursor=0;session=next;clearTimeout(handshake);emit('session',{identity:session.identity});}
+function receive(event){if(event.origin!==global.location.origin||event.source!==global.parent||event.data?.type!=='arkom.genesis.session')return;const next=event.data.session;if(!next?.access_token||!next?.identity)return;if(session?.access_token===next.access_token)return;releaseToolRuntime();stop();platformFile=null;clearClipsMedia();ownedRuntime=null;selected='';cursor=0;session=next;clearTimeout(handshake);emit('session',{identity:session.identity});}
 global.addEventListener('message',receive);
 global.genesisBridge={
  createClipsPlayer(url){
@@ -112,7 +131,7 @@ global.genesisBridge={
   const result=requests.then(run);requests=result.catch(()=>{});return result;
  });},
  connect(cb){callback=cb;disposed=false;const ready=()=>{if(disposed)return;global.parent.postMessage({type:'arkom.genesis.ready'},global.location.origin);if(!session)handshake=setTimeout(ready,1000);};ready();if(session)emit('session',{identity:session.identity});},
- disconnect(){disposed=true;platformFile=null;clearClipsMedia();stop();clearTimeout(handshake);session=null;callback=null;},
+ disconnect(){releaseToolRuntime();disposed=true;platformFile=null;clearClipsMedia();stop();clearTimeout(handshake);session=null;callback=null;},
  async invoke(action,payload){const data=JSON.parse(payload||'{}');
  if(action==='platform'){
   if(typeof data.path!=='string'||!['/v1/sdr/','/v1/core/','/v1/platform/','/__test/ui/'].some(prefix=>data.path.startsWith(prefix))||data.path.includes('..')||data.path.includes('://'))throw Error('Rota não permitida.');
@@ -122,7 +141,7 @@ global.genesisBridge={
   if(identity!==session||disposed)throw Error('Sua sessão mudou. Atualize a tela.');
   return JSON.stringify(result);
  }
- if(action==='navigate'){if(!['home','map','systems','sdr','crm','clips','multipropriedades','genesis','business'].includes(data.view)&&!/^systems\/[a-z][a-z0-9_]{0,40}$/.test(data.view))throw Error('Destino indisponível.');global.parent.postMessage({type:'arkom.platform.navigate',view:data.view},global.location.origin);return '{}';}
+ if(action==='navigate'){if(!['home','map','tools','team','sdr','crm','clips','multipropriedades','genesis','genesis/new','business'].includes(data.view)&&!/^systems\/[a-z][a-z0-9_]{0,40}$/.test(data.view)&&!/^(?:tools|genesis)\/build_[a-f0-9]{48}$/.test(data.view))throw Error('Destino indisponível.');global.parent.postMessage({type:'arkom.platform.navigate',view:data.view},global.location.origin);return '{}';}
  if(action==='clips_pick'){
   const identity=session;
   if(!identity||identity.identity.role==='viewer')throw Error('Seu perfil permite apenas acompanhar.');
