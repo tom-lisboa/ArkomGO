@@ -15,9 +15,10 @@ import (
 const betaOrganization = "org_demo_beta"
 
 type homologCRM struct {
-	Pipelines map[string]homologPipeline
-	Contacts  map[string]homologContact
-	Cards     map[string]homologCard
+	DefaultPipeline string `json:",omitempty"`
+	Pipelines       map[string]homologPipeline
+	Contacts        map[string]homologContact
+	Cards           map[string]homologCard
 }
 
 type homologStage struct {
@@ -76,8 +77,8 @@ type homologCRMInput struct {
 }
 
 func homologCRMEnabled(org string) bool {
-	return org == betaOrganization && platformRequiresLogin() &&
-		os.Getenv("SDR_CRM_DEV_ENABLED") == "true" && os.Getenv("ARKOM_CRM_BETA_HOMOLOG") == "true"
+	return platformRequiresLogin() && os.Getenv("SDR_CRM_DEV_ENABLED") == "true" &&
+		(org == betaOrganization && os.Getenv("ARKOM_CRM_BETA_HOMOLOG") == "true" || registeredOrganization.MatchString(org))
 }
 
 func newHomologCRM() *homologCRM {
@@ -102,6 +103,10 @@ func (a *App) homologCRMHTTP(w http.ResponseWriter, r *http.Request, u User, ope
 	defer a.mu.Unlock()
 	crm := a.state.HomologCRMs[u.Org]
 	if crm == nil {
+		if u.Org != betaOrganization {
+			fail(w, 503, "crm_unavailable")
+			return
+		}
 		crm = newHomologCRM()
 	}
 	var result any
@@ -317,7 +322,11 @@ func (a *App) recordHomologOpportunity(conversation *Conversation, lead, title s
 	if crm == nil || crm.Contacts[lead].ID == "" {
 		return
 	}
-	pipeline := crm.Pipelines["beta-matriculas"]
+	pipelineID := crm.DefaultPipeline
+	if pipelineID == "" && conversation.Org == betaOrganization {
+		pipelineID = "beta-matriculas"
+	}
+	pipeline := crm.Pipelines[pipelineID]
 	if len(pipeline.Stages) == 0 {
 		return
 	}

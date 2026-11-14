@@ -9,7 +9,7 @@ PORTAL = "http://127.0.0.1:3007"
 WEB_HOST = "127.0.0.1:8194"
 API_PORT = 8195
 ORIGINS = {company: f"https://finance-{company}.arkom.test" for company in ("alfa", "beta")}
-API_ROUTE = re.compile(r"/api/(alfa|beta)(/v1(?:/[A-Za-z0-9_-]+)+)")
+API_ROUTE = re.compile(r"/api/(alfa|beta|h-[a-f0-9]{32})(/v1(?:/[A-Za-z0-9_-]+)+)")
 ASSET = re.compile(r"/assets/([A-Za-z0-9_.-]+)")
 CONTENT_TYPES = {".js": "text/javascript", ".css": "text/css", ".html": "text/html"}
 
@@ -39,7 +39,7 @@ def server(directory):
                 return
             match = API_ROUTE.fullmatch(url.path)
             if match:
-                self.proxy(ORIGINS[match[1]], match[2] + ("?" + url.query if url.query else ""))
+                self.proxy(f"https://finance-{match[1]}.arkom.test", match[2] + ("?" + url.query if url.query else ""))
                 return
             if self.command not in ("GET", "HEAD"):
                 self.send_error(405)

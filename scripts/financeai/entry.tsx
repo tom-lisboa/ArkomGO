@@ -22,7 +22,7 @@ async function connect() {
       data?.type !== 'arkom.finance.handoff' || data.state !== state) return;
     window.removeEventListener('message', receive);
     try {
-      if (!['alfa', 'beta'].includes(data.company) || typeof data.name !== 'string') throw Error('invalid_company');
+      if (!/^(alfa|beta|h-[a-f0-9]{32})$/.test(data.company) || typeof data.name !== 'string') throw Error('invalid_company');
       const apiBase = product + (hosted ? '/arkomgo/finance-api/' : '/api/') + data.company;
       const session = new FinanceAISession(apiBase, data.installationId);
       await session.exchangeArkomHandoff(data.code, state, verifier);

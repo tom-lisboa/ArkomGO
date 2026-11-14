@@ -8,7 +8,7 @@ import (
 )
 
 func (s *Server) registerArkomFinance() {
-	finance, ok := s.opts.Finance.(financebridge.Registry)
+	finance, ok := s.opts.Finance.(*financebridge.Registry)
 	if !ok {
 		return
 	}

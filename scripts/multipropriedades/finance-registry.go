@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"arkom/multipropriedades/internal/supabase"
@@ -16,12 +17,20 @@ import (
 
 // Registry is loaded only by the ArkomGO homologation launcher. The embedded
 // Bridge continues to validate evidence and run the original Maia commands.
-type Registry map[string]struct {
+type registryEntry struct {
 	*Bridge
 	TitleToken string
 }
 
-func OpenRegistry(ctx context.Context, file, address, supabaseURL string, writes bool) (Registry, error) {
+type Registry struct {
+	seeds                     map[string]registryEntry
+	dir, address, supabaseURL string
+	writes                    bool
+}
+
+var signupUUID = regexp.MustCompile(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)
+
+func OpenRegistry(ctx context.Context, file, address, supabaseURL string, writes bool) (*Registry, error) {
 	if file == "" {
 		return nil, nil
 	}
@@ -40,7 +49,7 @@ func OpenRegistry(ctx context.Context, file, address, supabaseURL string, writes
 	if json.Unmarshal(raw, &entries) != nil || len(entries) != 2 {
 		return nil, errors.New("cada empresa da Maia exige seu próprio vínculo")
 	}
-	registry := make(Registry, len(entries))
+	registry := &Registry{seeds: make(map[string]registryEntry, len(entries)), dir: filepath.Join(filepath.Dir(file), "onboarded"), address: address, supabaseURL: supabaseURL, writes: writes}
 	for org, entry := range entries {
 		if filepath.Dir(entry.File) != filepath.Dir(file) || !ValidID(entry.TitleToken) || len(entry.TitleToken) < 32 {
 			registry.Close()
@@ -52,7 +61,7 @@ func OpenRegistry(ctx context.Context, file, address, supabaseURL string, writes
 			return nil, err
 		}
 		valid := bridge.MultiOrg == org && bridge.Token != entry.TitleToken
-		for _, prior := range registry {
+		for _, prior := range registry.seeds {
 			valid = valid && bridge.FinanceOrg != prior.FinanceOrg && bridge.Account != prior.Account &&
 				bridge.Subject != prior.Subject && bridge.Database != prior.Database &&
 				bridge.Token != prior.Token && bridge.Token != prior.TitleToken &&
@@ -63,39 +72,72 @@ func OpenRegistry(ctx context.Context, file, address, supabaseURL string, writes
 			registry.Close()
 			return nil, errors.New("vínculos da Maia não isolam as duas empresas")
 		}
-		registry[org] = struct {
-			*Bridge
-			TitleToken string
-		}{bridge, entry.TitleToken}
+		registry.seeds[org] = registryEntry{bridge, entry.TitleToken}
 	}
 	return registry, nil
 }
 
-func (r Registry) Close() {
-	for _, entry := range r {
+// Newly registered tenants use a separate scoped SQL login. Open only the
+// requested owner's binding so an invalid new file cannot block other tenants.
+func (r *Registry) entry(ctx context.Context, org string) (registryEntry, func(), error) {
+	if entry, ok := r.seeds[org]; ok {
+		return entry, func() {}, nil
+	}
+	if !signupUUID.MatchString(org) {
+		return registryEntry{}, nil, supabase.ErrForbidden
+	}
+	path := filepath.Join(r.dir, org)
+	info, err := os.Lstat(path + ".title")
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 || info.Size() > 240 {
+		return registryEntry{}, nil, supabase.ErrForbidden
+	}
+	raw, err := os.ReadFile(path + ".title")
+	token := string(raw)
+	if err != nil || !ValidID(token) || len(token) < 32 {
+		return registryEntry{}, nil, supabase.ErrUnavailable
+	}
+	bridge, err := Open(ctx, path+".json", r.address, r.supabaseURL, r.writes)
+	if err != nil {
+		return registryEntry{}, nil, supabase.ErrUnavailable
+	}
+	if bridge.MultiOrg != org || bridge.Token == token {
+		bridge.Close()
+		return registryEntry{}, nil, supabase.ErrForbidden
+	}
+	return registryEntry{bridge, token}, bridge.Close, nil
+}
+
+func (r *Registry) Close() {
+	for _, entry := range r.seeds {
 		entry.Close()
 	}
 }
 
-func (r Registry) Link(ctx context.Context, org, actor, parcel, title string, version time.Time) (json.RawMessage, error) {
-	if entry, ok := r[org]; ok {
-		return entry.Link(ctx, org, actor, parcel, title, version)
+func (r *Registry) Link(ctx context.Context, org, actor, parcel, title string, version time.Time) (json.RawMessage, error) {
+	entry, close, err := r.entry(ctx, org)
+	if err != nil {
+		return nil, err
 	}
-	return nil, supabase.ErrForbidden
+	defer close()
+	return entry.Link(ctx, org, actor, parcel, title, version)
 }
 
-func (r Registry) Apply(ctx context.Context, org, actor, parcel, reconciliation string) (json.RawMessage, error) {
-	if entry, ok := r[org]; ok {
-		return entry.Apply(ctx, org, actor, parcel, reconciliation)
+func (r *Registry) Apply(ctx context.Context, org, actor, parcel, reconciliation string) (json.RawMessage, error) {
+	entry, close, err := r.entry(ctx, org)
+	if err != nil {
+		return nil, err
 	}
-	return nil, supabase.ErrForbidden
+	defer close()
+	return entry.Apply(ctx, org, actor, parcel, reconciliation)
 }
 
-func (r Registry) Reverse(ctx context.Context, org, actor, parcel, reconciliation string) (json.RawMessage, error) {
-	if entry, ok := r[org]; ok {
-		return entry.Reverse(ctx, org, actor, parcel, reconciliation)
+func (r *Registry) Reverse(ctx context.Context, org, actor, parcel, reconciliation string) (json.RawMessage, error) {
+	entry, close, err := r.entry(ctx, org)
+	if err != nil {
+		return nil, err
 	}
-	return nil, supabase.ErrForbidden
+	defer close()
+	return entry.Reverse(ctx, org, actor, parcel, reconciliation)
 }
 
 type installment struct {
@@ -132,11 +174,12 @@ type financeStatus struct {
 	Title string `json:"titulo_id,omitempty"`
 }
 
-func (r Registry) Status(ctx context.Context, org, actor, parcel string) (financeStatus, error) {
-	entry, ok := r[org]
-	if !ok {
-		return financeStatus{}, supabase.ErrForbidden
+func (r *Registry) Status(ctx context.Context, org, actor, parcel string) (financeStatus, error) {
+	entry, close, err := r.entry(ctx, org)
+	if err != nil {
+		return financeStatus{}, err
 	}
+	defer close()
 	p, err := entry.installment(ctx, org, actor, parcel)
 	if err != nil {
 		return financeStatus{}, err
@@ -204,11 +247,12 @@ func (r Registry) Status(ctx context.Context, org, actor, parcel string) (financ
 	return status, nil
 }
 
-func (r Registry) Prepare(ctx context.Context, org, actor, parcel string) (json.RawMessage, error) {
-	entry, ok := r[org]
-	if !ok {
-		return nil, supabase.ErrForbidden
+func (r *Registry) Prepare(ctx context.Context, org, actor, parcel string) (json.RawMessage, error) {
+	entry, close, err := r.entry(ctx, org)
+	if err != nil {
+		return nil, err
 	}
+	defer close()
 	p, err := entry.installment(ctx, org, actor, parcel)
 	if err != nil {
 		return nil, err

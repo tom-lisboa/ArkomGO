@@ -28,6 +28,9 @@ type financeBinding struct {
 
 // Both the tenant and the member reference are resolved from the Arkom session.
 func financeCompany(u User) string {
+	if company := registeredFinanceCompany(u); company != "" {
+		return company
+	}
 	if u.Environment != "isolated-test" {
 		return ""
 	}
@@ -69,6 +72,12 @@ func financeReadPrivate(dir, name string) []byte {
 
 func findFinanceBinding(dir, company string) (financeBinding, bool) {
 	var bindings map[string]financeBinding
+	if dir != "" && registeredCompany.MatchString(company) {
+		var binding financeBinding
+		err := json.Unmarshal(financeReadPrivate(filepath.Join(dir, "onboarded"), company+".json"), &binding)
+		return binding, err == nil && financeID.MatchString(binding.Organization) &&
+			financeID.MatchString(binding.Installation) && binding.Name != ""
+	}
 	if dir == "" || company == "" || json.Unmarshal(financeReadPrivate(dir, "bindings.json"), &bindings) != nil {
 		return financeBinding{}, false
 	}

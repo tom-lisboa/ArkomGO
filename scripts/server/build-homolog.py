@@ -58,5 +58,10 @@ with tempfile.TemporaryDirectory(prefix=".arkomgo-release-", dir=out.parent) as 
                     ignore=shutil.ignore_patterns(".deeph"))
     for name in ("run-homolog.sh", "arkomgo-homolog@.service", "sandbox-docker"):
         shutil.copy2(root / "scripts/server" / name, bundle / name)
+    signup = bundle / "signup"
+    signup.mkdir()
+    shutil.copy2(root / "scripts/server/provision-signup.py", signup / "provision.py")
+    for migration in ("signup-maia.sql", "signup-finance.sql", "install-signup-db.sh"):
+        shutil.copy2(root / "scripts/server" / migration, signup / migration)
     shutil.copy2(root / "scripts/server/docker", binaries / "docker")
     bundle.rename(out)

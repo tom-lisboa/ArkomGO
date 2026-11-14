@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -5,9 +7,17 @@ import 'platform.dart' show ArkomWordmark;
 import 'visuals.dart';
 
 class PlatformLogin extends StatefulWidget {
-  const PlatformLogin({super.key, required this.onLogin, this.notice = ''});
+  const PlatformLogin({
+    super.key,
+    required this.onLogin,
+    this.onSignup,
+    this.initialSignup = false,
+    this.notice = '',
+  });
 
-  final Future<void> Function(String email, String password) onLogin;
+  final Future<bool> Function(String email, String password) onLogin;
+  final Future<bool> Function(Map<String, String> details)? onSignup;
+  final bool initialSignup;
   final String notice;
 
   @override
@@ -20,12 +30,31 @@ class _PlatformLoginState extends State<PlatformLogin> {
   final _password = TextEditingController();
   bool _busy = false;
   bool _showPassword = false;
+  final _company = TextEditingController();
+  final _description = TextEditingController();
+  late bool _signup;
+  bool _preparing = false;
+  String _timezone = 'America/Sao_Paulo';
   String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _signup = widget.initialSignup && widget.onSignup != null;
+  }
+
+  void _switch() => setState(() {
+    _signup = !_signup;
+    _error = '';
+    _password.clear();
+  });
 
   @override
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _company.dispose();
+    _description.dispose();
     super.dispose();
   }
 
@@ -36,13 +65,37 @@ class _PlatformLoginState extends State<PlatformLogin> {
       _error = '';
     });
     try {
-      await widget.onLogin(_email.text.trim(), _password.text);
-      TextInput.finishAutofillContext();
+      final email = _email.text.trim(), password = _password.text;
+      var preparing = _signup
+          ? await widget.onSignup!({
+              'email': email,
+              'password': password,
+              'company': _company.text.trim(),
+              'description': _description.text.trim(),
+              'timezone': _timezone,
+            })
+          : await widget.onLogin(email, password);
+      if (mounted && preparing) setState(() => _preparing = true);
+      final deadline = DateTime.now().add(const Duration(minutes: 2));
+      while (preparing && mounted && DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(seconds: 4));
+        if (!mounted) return;
+        preparing = await widget.onLogin(email, password);
+      }
+      if (!mounted) return;
+      if (preparing) {
+        setState(() {
+          _signup = false;
+          _error = 'Sua empresa ainda está sendo preparada. Tente entrar novamente em instantes.';
+        });
+      } else {
+        TextInput.finishAutofillContext();
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = error.toString().replaceFirst('Error: ', ''));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _busy = _preparing = false);
     }
   }
 
@@ -96,18 +149,85 @@ class _PlatformLoginState extends State<PlatformLogin> {
                                 const SizedBox(height: 28),
                               ],
                               Text(
-                                'Entre na Arkom',
+                                _signup ? 'Crie sua conta' : 'Entre na Arkom',
                                 style: Theme.of(context)
                                     .textTheme
                                     .headlineMedium
                                     ?.copyWith(fontWeight: FontWeight.w500),
                               ),
                               const SizedBox(height: 8),
-                              const Text(
-                                'Acesse o espaço de trabalho da sua empresa.',
-                                style: TextStyle(color: Color(0xffacaeb5)),
+                              Text(
+                                _signup
+                                    ? 'Conte um pouco sobre sua empresa para prepararmos seu time.'
+                                    : 'Acesse o espaço de trabalho da sua empresa.',
+                                style: const TextStyle(
+                                  color: Color(0xffacaeb5),
+                                ),
                               ),
                               const SizedBox(height: 28),
+                              if (_signup) ...[
+                                TextFormField(
+                                  controller: _company,
+                                  enabled: !_busy,
+                                  maxLength: 100,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Nome da empresa',
+                                    counterText: '',
+                                  ),
+                                  validator: (value) =>
+                                      value == null || value.trim().isEmpty
+                                      ? 'Informe o nome da empresa.'
+                                      : null,
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _description,
+                                  enabled: !_busy,
+                                  maxLength: 1000,
+                                  minLines: 2,
+                                  maxLines: 4,
+                                  decoration: const InputDecoration(
+                                    labelText: 'O que sua empresa faz?',
+                                    counterText: '',
+                                  ),
+                                  validator: (value) =>
+                                      value == null || value.trim().length < 12
+                                      ? 'Descreva a atividade em pelo menos 12 caracteres.'
+                                      : null,
+                                ),
+                                const SizedBox(height: 16),
+                                DropdownButtonFormField<String>(
+                                  initialValue: _timezone,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Fuso horário',
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: 'America/Sao_Paulo',
+                                      child: Text('Brasília (UTC−3)'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'America/Cuiaba',
+                                      child: Text('Cuiabá (UTC−4)'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'America/Rio_Branco',
+                                      child: Text('Acre (UTC−5)'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'America/Noronha',
+                                      child: Text(
+                                        'Fernando de Noronha (UTC−2)',
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: _busy
+                                      ? null
+                                      : (zone) =>
+                                            setState(() => _timezone = zone!),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
                               TextFormField(
                                 controller: _email,
                                 enabled: !_busy,
@@ -130,7 +250,9 @@ class _PlatformLoginState extends State<PlatformLogin> {
                                 enabled: !_busy,
                                 obscureText: !_showPassword,
                                 textInputAction: TextInputAction.done,
-                                autofillHints: const [AutofillHints.password],
+                                autofillHints: _signup
+                                    ? const [AutofillHints.newPassword]
+                                    : const [AutofillHints.password],
                                 onFieldSubmitted: (_) => _submit(),
                                 decoration: InputDecoration(
                                   labelText: 'Senha',
@@ -152,6 +274,8 @@ class _PlatformLoginState extends State<PlatformLogin> {
                                 validator: (value) =>
                                     value == null || value.isEmpty
                                     ? 'Informe sua senha.'
+                                    : _signup && value.length < 12
+                                    ? 'Use pelo menos 12 caracteres.'
                                     : null,
                               ),
                               if (message.isNotEmpty)
@@ -175,8 +299,25 @@ class _PlatformLoginState extends State<PlatformLogin> {
                                   backgroundColor: gold,
                                   foregroundColor: ink,
                                 ),
-                                child: Text(_busy ? 'Entrando…' : 'Entrar'),
+                                child: Text(
+                                  _preparing
+                                      ? 'Preparando sua empresa…'
+                                      : _busy
+                                      ? 'Aguarde…'
+                                      : _signup
+                                      ? 'Criar minha conta'
+                                      : 'Entrar',
+                                ),
                               ),
+                              if (widget.onSignup != null) ...[
+                                const SizedBox(height: 10),
+                                TextButton(
+                                  onPressed: _busy ? null : _switch,
+                                  child: Text(
+                                    _signup ? 'Já tenho conta' : 'Criar conta',
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),

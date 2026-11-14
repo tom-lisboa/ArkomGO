@@ -40,6 +40,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
   String view = '', error = '', toolsError = '', role = 'viewer';
   bool connected = false,
       checkingSession = true,
+      signupAvailable = false,
       loadingTools = true,
       teamExpanded = true;
   bool navigationOnly = false, menuOpen = true;
@@ -115,6 +116,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
           setState(() {
             loadVersion++;
             connected = checkingSession = returnToMaia = false;
+            signupAvailable = e['signup'] == true;
             role = 'viewer';
             company = 'Minha empresa';
             solutions = [];
@@ -511,12 +513,25 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
                 ? const Center(child: CircularProgressIndicator(color: gold))
                 : PlatformLogin(
                     notice: error,
-                    onLogin: (email, password) async {
-                      await transport.invoke(
-                        'platform_login',
-                        jsonEncode({'email': email, 'password': password}),
-                      );
-                    },
+                    initialSignup: view == 'signup',
+                    onSignup: signupAvailable
+                        ? (details) async =>
+                              jsonDecode(
+                                await transport.invoke(
+                                  'platform_signup',
+                                  jsonEncode(details),
+                                ),
+                              )['preparing'] ==
+                              true
+                        : null,
+                    onLogin: (email, password) async =>
+                        jsonDecode(
+                          await transport.invoke(
+                            'platform_login',
+                            jsonEncode({'email': email, 'password': password}),
+                          ),
+                        )['preparing'] ==
+                        true,
                   )
           : LayoutBuilder(
               builder: (context, c) => navigationOnly

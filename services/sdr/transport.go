@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"regexp"
 	"sdr-next-pilot/pkg/sdrsdk"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -480,8 +481,17 @@ func (a *App) TransportTick(ctx context.Context) error {
 		return nil
 	}
 	var firstErr error
+	a.mu.Lock()
+	orgs := make([]string, 0, len(a.state.Transport.Policies))
+	for org := range a.state.Transport.Policies {
+		orgs = append(orgs, org)
+	}
+	slices.SortFunc(orgs, func(left, right string) int {
+		return a.state.Transport.LastSync[left].Compare(a.state.Transport.LastSync[right])
+	})
+	a.mu.Unlock()
 companyLoop:
-	for _, org := range []string{"org_demo_alfa", "org_demo_beta"} {
+	for _, org := range orgs {
 		a.mu.Lock()
 		p := a.state.Transport.Policies[org]
 		needSync := a.state.Transport.Synced[org] != p.Revision || a.now().Sub(a.state.Transport.LastSync[org]) >= 30*time.Second

@@ -90,10 +90,13 @@ func (a *App) platformLogin(w http.ResponseWriter, r *http.Request) {
 	if bucket == "" {
 		bucket = "unknown"
 	}
+	if name == "" {
+		a.loginRegisteredPlatformUser(w, r, email, in.Password)
+		return
+	}
 	hash := sha256.Sum256([]byte(in.Password))
-	expected, known := a.passwords[name]
-	match := subtle.ConstantTimeCompare(hash[:], expected[:]) == 1
-	if !known || !match {
+	expected := a.passwords[name]
+	if subtle.ConstantTimeCompare(hash[:], expected[:]) != 1 {
 		if !a.allow(w, r, []quota{{"platform-login-failure:" + bucket, 10, 15 * time.Minute}}) {
 			return
 		}
@@ -102,12 +105,19 @@ func (a *App) platformLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	u, err := a.directoryUser(r.Context(), a.users[name])
+	a.finishPlatformLogin(w, r, a.users[name])
+}
+
+func (a *App) finishPlatformLogin(w http.ResponseWriter, r *http.Request, account User) {
+	u, err := a.directoryUser(r.Context(), account)
 	if err != nil {
 		directoryFailure(w, err)
 		return
 	}
-	if !a.authAudit(w, name, "platform.login.accepted") {
+	if err := a.transact(func() {
+		a.record(AuditEntry{Org: account.Org, Actor: account.ID, Action: "platform.login.accepted"})
+	}); err != nil {
+		fail(w, 503, "storage_unavailable")
 		return
 	}
 	if err := a.prepareWhatsApp(u.Org); err != nil {
@@ -123,7 +133,7 @@ func (a *App) platformLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	value := token()
 	expiry := a.now().Add(time.Hour)
-	a.sessions[platformSessionKey(value)] = session{a.users[name], expiry}
+	a.sessions[platformSessionKey(value)] = session{account, expiry}
 	setPlatformCookie(w, value, int(time.Hour.Seconds()))
 	a.writePlatformSession(w, value, u, expiry)
 }

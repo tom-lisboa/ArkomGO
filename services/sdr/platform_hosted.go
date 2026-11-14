@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	hostedFinanceRoute = regexp.MustCompile(`^/(alfa|beta)/v1(?:/[A-Za-z0-9_-]+)+$`)
+	hostedFinanceRoute = regexp.MustCompile(`^/(alfa|beta|h-[a-f0-9]{32})/v1(?:/[A-Za-z0-9_-]+)+$`)
 	hostedMaiaRoute    = regexp.MustCompile(`^/v[12]/orgs/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$`)
 	hostedMaiaRest     = regexp.MustCompile(`^/rest/v1/(?:rpc/)?[a-z][a-z0-9_]*$`)
 	hostedSafePath     = regexp.MustCompile(`^/[A-Za-z0-9_/-]+(?:\.[A-Za-z0-9_/-]+)*$`)

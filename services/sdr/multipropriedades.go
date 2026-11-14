@@ -32,6 +32,11 @@ type multiBinding struct{ Email, Org, Role string }
 
 // Each supported role belongs to its own pre-seeded GoTrue identity.
 func multipropriedadesBinding(u User) (multiBinding, bool) {
+	if company := registeredFinanceCompany(u); company != "" {
+		raw := company[2:]
+		org := raw[:8] + "-" + raw[8:12] + "-" + raw[12:16] + "-" + raw[16:20] + "-" + raw[20:]
+		return multiBinding{company + "@maia.arkom.test", org, "admin"}, true
+	}
 	if u.Environment != "isolated-test" {
 		return multiBinding{}, false
 	}
@@ -108,6 +113,15 @@ func multiCredentials(dir string, binding multiBinding) (multiAccount, string, b
 	raw, err := os.ReadFile(filepath.Join(dir, "runtime.json"))
 	if err != nil || json.Unmarshal(raw, &runtime) != nil ||
 		runtime.URL != multiAuth || !strings.HasPrefix(runtime.Key, "sb_publishable_") {
+		return multiAccount{}, "", false
+	}
+	if company, ok := strings.CutSuffix(binding.Email, "@maia.arkom.test"); ok && registeredCompany.MatchString(company) {
+		var account multiAccount
+		raw = financeReadPrivate(filepath.Join(dir, "onboarded"), company+".json")
+		if json.Unmarshal(raw, &account) == nil && account.Email == binding.Email && account.Org == binding.Org &&
+			account.Role == binding.Role && account.Password != "" && multiUUID.MatchString(account.ID) {
+			return account, runtime.Key, true
+		}
 		return multiAccount{}, "", false
 	}
 	raw, err = os.ReadFile(filepath.Join(dir, "accounts.json"))

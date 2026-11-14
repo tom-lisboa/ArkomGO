@@ -69,7 +69,7 @@ func (a *App) demoInbound(w http.ResponseWriter, r *http.Request, u User) {
 	if !a.allow(w, r, []quota{{"harness:" + connection, 120, time.Minute}}) {
 		return
 	}
-	a.acceptInbound(w, r, connection)
+	a.acceptInbound(w, r, u.Org, connection)
 }
 
 func (a *App) createTestConversation(w http.ResponseWriter, r *http.Request, u User) {

@@ -84,6 +84,7 @@ type Task struct {
 	RunID        string
 }
 type State struct {
+	Signups         map[string]platformAccount   `json:",omitempty"`
 	HomologCRMs     map[string]*homologCRM       `json:",omitempty"`
 	CRMContacts     map[string]map[string]string `json:",omitempty"`
 	CRMOutbox       map[string]crmEvent          `json:",omitempty"`
@@ -306,6 +307,9 @@ func (a *App) Handler() http.Handler {
 			a.activateVoiceHTTP(w, r)
 			return
 		}
+		if a.platformSignupHTTP(w, r) {
+			return
+		}
 		if a.genesisDemoHTTP(w, r) {
 			return
 		}
@@ -526,9 +530,9 @@ func (a *App) inbound(w http.ResponseWriter, r *http.Request, connection string)
 	if !a.allow(w, r, []quota{{"harness:" + connection, 120, time.Minute}}) {
 		return
 	}
-	a.acceptInbound(w, r, connection)
+	a.acceptInbound(w, r, "org_demo_"+strings.TrimPrefix(connection, "conn_demo_"), connection)
 }
-func (a *App) acceptInbound(w http.ResponseWriter, r *http.Request, connection string) {
+func (a *App) acceptInbound(w http.ResponseWriter, r *http.Request, org, connection string) {
 	var b struct {
 		Event        string `json:"provider_event_id"`
 		Conversation string `json:"conversation_id"`
@@ -538,8 +542,7 @@ func (a *App) acceptInbound(w http.ResponseWriter, r *http.Request, connection s
 		return
 	}
 	c := a.state.Conversations[b.Conversation]
-	company := strings.TrimPrefix(connection, "conn_demo_")
-	if c == nil || c.Org != "org_demo_"+company {
+	if c == nil || c.Org != org {
 		fail(w, 404, "not_found")
 		return
 	}
@@ -994,6 +997,9 @@ func main() {
 			}
 		}
 	}()
+	if platformSignupEnabled() {
+		go a.runPlatformSignups(context.Background())
+	}
 	log.Print("SDR next pilot: isolated API; protected access; delivery restricted to test conversations")
 	formOrigins := []string{}
 	if a.calendarGoogle != nil {

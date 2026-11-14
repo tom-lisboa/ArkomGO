@@ -108,7 +108,7 @@ async function pollRuntime(id,generation){
 }
 function allowedView(view){
  return typeof view==='string'&&(
-  ['login','home','map','tools','team','sdr','crm','agenda','clips','multipropriedades','financeai','genesis','genesis/new','business'].includes(view)||
+  ['login','signup','home','map','tools','team','sdr','crm','agenda','clips','multipropriedades','financeai','genesis','genesis/new','business'].includes(view)||
   /^systems\/[a-z][a-z0-9_]{0,40}$/.test(view)||/^(?:tools|genesis)\/build_[a-f0-9]{48}$/.test(view)
  );
 }
@@ -130,9 +130,14 @@ function navigate(view,extra={}){
  emit('view',{view,...extra});
 }
 const authBase=api+'/v1/platform/auth/';
+let signupAvailable=false;
+async function authOptions(){
+ const response=await authRequest('options');
+ return response.ok&&(await response.json()).signup===true;
+}
 function clearSession(message=''){
  releaseToolRuntime();stop();agents?.reset();platformFile=null;clearClipsMedia();ownedRuntime=null;selected='';cursor=0;
- session=null;emit('signed_out',{message});
+ session=null;emit('signed_out',{message,signup:signupAvailable});
 }
 function authRequest(route,body=undefined,identity=null){
  return fetch(authBase+route,{
@@ -146,9 +151,12 @@ async function ensureSession(){
  sessionPending=(async()=>{
   try{
    const r=await authRequest('session');
-   if(r.status===401){emit('signed_out');return;}
+   if(r.status===401){
+    try{signupAvailable=await authOptions();}catch{signupAvailable=false;}
+    emit('signed_out',{signup:signupAvailable});return;
+   }
    if(!r.ok)throw Error('Não foi possível conectar à Arkom. Tente novamente.');
-   if(viewFromLocation()==='login')navigate('team');
+   if(['login','signup'].includes(viewFromLocation()))navigate('team');
    setSession(await r.json());
   }catch(error){emit('signed_out',{message:error.message});}
   finally{sessionPending=null;}
@@ -157,13 +165,23 @@ async function ensureSession(){
 }
 async function login(data){
  const r=await authRequest('login',{email:data.email,password:data.password});
+ if(r.status===202)return {preparing:true};
  if(r.status===401)throw Error('E-mail ou senha incorretos.');
  if(r.status===429)throw Error('Muitas tentativas. Aguarde alguns minutos e tente novamente.');
  if(!r.ok)throw Error('Não foi possível entrar agora. Tente novamente.');
  const next=await r.json();
  if(!next?.access_token||!next?.identity)throw Error('Não foi possível abrir sua conta.');
- if(viewFromLocation()==='login')navigate('team');
+ if(['login','signup'].includes(viewFromLocation()))navigate('team');
  setSession(next);
+ return {};
+}
+async function signup(data){
+ const r=await authRequest('signup',data);
+ if(r.status===409)throw Error('Já existe um cadastro com esse e-mail. Use Entrar.');
+ if(r.status===422)throw Error('Confira os dados da empresa e use uma senha de pelo menos 12 caracteres.');
+ if(r.status===429)throw Error('Muitas tentativas. Aguarde alguns minutos.');
+ if(r.status!==202)throw Error('O cadastro está indisponível agora. Tente novamente.');
+ return {preparing:true};
 }
 async function logout(){
  const identity=session;
@@ -243,7 +261,8 @@ global.genesisBridge={
  }
  if(action==='navigate'){navigate(data.view);return '{}';}
  if(action==='platform_retry'){await ensureSession();return '{}';}
- if(action==='platform_login'&&global.parent===global){await login(data);return '{}';}
+ if(action==='platform_login'&&global.parent===global)return JSON.stringify(await login(data));
+ if(action==='platform_signup'&&global.parent===global)return JSON.stringify(await signup(data));
  if(action==='platform_logout'&&global.parent===global){await logout();return '{}';}
  if(action.startsWith('agent_')){if(!agents)throw Error('Agentes indisponíveis.');return agents.invoke(action,data);}
  if(action==='clips_pick'){
