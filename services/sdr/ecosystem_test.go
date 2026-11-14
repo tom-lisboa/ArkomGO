@@ -29,11 +29,11 @@ func TestEcosystemCatalogAndPrivateClipsBridge(t *testing.T) {
 		if s["implemented"] == true {
 			count++
 		}
-		if s["id"] == "financeai" && s["implemented"] != false {
+		if s["id"] == "atendimento" && s["implemented"] != false {
 			t.Fatal("unimplemented service unlocked")
 		}
 	}
-	if count != 5 {
+	if count != 6 {
 		t.Fatal("incorrect operational catalog", count)
 	}
 	t.Setenv("SDR_CLIPS_BRIDGE_KEY", strings.Repeat("a", 48))

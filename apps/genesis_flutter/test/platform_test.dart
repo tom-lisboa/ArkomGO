@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:arkom_genesis/genesis_tools.dart';
 import 'package:arkom_genesis/platform.dart';
 import 'package:arkom_genesis/workspace_team.dart';
 
@@ -92,8 +93,8 @@ Future<dynamic> api(String path, [Map<String, dynamic>? body]) async {
           'name': 'FinanceAI',
           'area': 'Back Office',
           'description': 'Gestão financeira.',
-          'implemented': false,
-          'configured': false,
+          'implemented': true,
+          'configured': true,
         },
       ],
     };
@@ -202,7 +203,13 @@ void main() {
           expect(find.text('Calculadora antiga'), findsNothing);
           expect(find.text('Calculadora em alteração'), findsNothing);
           expect(find.text('Sem interface'), findsNothing);
-          expect(find.text('FinanceAI'), findsNothing);
+          expect(
+            find.descendant(
+              of: find.byType(GenesisTools),
+              matching: find.text('FinanceAI'),
+            ),
+            findsNothing,
+          );
           await tester.tap(find.text('Calculadora'));
           expect(navigated, ['tools/build_calc']);
           await tester.tap(find.byTooltip('Editar Calculadora no Genesis'));
@@ -211,8 +218,15 @@ void main() {
           expect(navigated.last, 'genesis/new');
         }
         if (view == 'team') {
-          for (final name in ['Vendas', 'Conteúdo', 'Operações']) {
-            expect(find.text(name), findsOneWidget);
+          for (final name in [
+            'Vendas',
+            'Conteúdo',
+            'Financeiro',
+            'Operações',
+          ]) {
+            final heading = find.text(name);
+            await tester.ensureVisible(heading);
+            expect(heading, findsOneWidget);
           }
           final bia = find.descendant(
             of: find.byType(WorkspaceTeam),
@@ -222,17 +236,27 @@ void main() {
             of: find.byType(WorkspaceTeam),
             matching: find.text('Luma'),
           );
+          await tester.ensureVisible(bia);
           await tester.tap(bia);
+          await tester.ensureVisible(clips);
           await tester.tap(clips);
           expect(navigated, ['sdr', 'clips']);
           final maia = find.descendant(
             of: find.byType(WorkspaceTeam),
             matching: find.text('Maia'),
           );
+          await tester.ensureVisible(maia);
           expect(maia, findsOneWidget);
-          await tester.tap(maia);
+          await tester.tap(maia, warnIfMissed: false);
           expect(navigated, ['sdr', 'clips']);
           expect(find.text('Indisponível para esta conta.'), findsOneWidget);
+          final finance = find.descendant(
+            of: find.byType(WorkspaceTeam),
+            matching: find.text('FinanceAI'),
+          );
+          await tester.ensureVisible(finance);
+          await tester.tap(finance);
+          expect(navigated.last, 'financeai');
           expect(find.text('Calculadora'), findsNothing);
         }
         await tester.pumpWidget(const SizedBox());

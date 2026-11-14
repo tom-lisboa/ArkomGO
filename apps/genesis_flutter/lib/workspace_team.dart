@@ -49,6 +49,22 @@ const workspaceSquads = [
     ],
   ),
   (
+    name: 'Financeiro',
+    description:
+        'Acompanhe o caixa, revise conciliações e consulte especialistas.',
+    icon: Icons.account_balance_wallet_outlined,
+    color: Color(0xffa9baff),
+    members: <TeamMember>[
+      (
+        id: 'financeai',
+        name: 'FinanceAI',
+        role: 'Contas, conciliação e relatórios',
+        icon: Icons.account_balance_wallet_outlined,
+        gopher: 5,
+      ),
+    ],
+  ),
+  (
     name: 'Operações',
     description: 'Acompanhe empreendimentos, cotistas, contratos e recebíveis.',
     icon: Icons.apartment_outlined,

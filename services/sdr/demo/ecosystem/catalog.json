@@ -255,14 +255,26 @@
       "id": "financeai",
       "name": "FinanceAI",
       "area": "Back Office",
-      "description": "Gestão financeira e organização da operação.",
-      "service": null,
-      "kind": "Dashboards",
-      "guide": [],
-      "features": [],
+      "description": "Organize o caixa, acompanhe contas a pagar e receber e consulte seus especialistas financeiros.",
+      "service": "FinanceAI Core · homologação local",
+      "kind": "Agentes",
+      "guide": [
+        {"title": "Escolha o titular", "description": "Selecione a empresa ou o titular de exemplo para acompanhar o financeiro."},
+        {"title": "Confira a conciliação", "description": "Abra Conciliação e revise as sugestões antes de confirmar o vínculo."},
+        {"title": "Consulte os especialistas", "description": "Abra Especialistas e peça uma análise dos dados financeiros disponíveis."}
+      ],
+      "features": ["Contas e movimentações", "Contas a pagar e receber", "Conciliação e classificação", "Relatórios e especialistas financeiros", "Notas fiscais em simulação"],
       "tutorial_video_url": null,
       "remix_available": false,
-      "requirements": []
+      "requirements": [
+        {"name": "Conta Arkom", "status": "Incluído"},
+        {"name": "Dados bancários e fiscais", "status": "Simulação local"}
+      ],
+      "interface": {
+        "route": "/demo/financeai",
+        "framework": "React",
+        "flutter_migration": "pending_feature_parity"
+      }
     },
     {
       "id": "atendimento",

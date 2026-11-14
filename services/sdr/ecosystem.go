@@ -28,6 +28,10 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 	if r.URL.Path != base && !strings.HasPrefix(r.URL.Path, base+"/") {
 		return false
 	}
+	if r.URL.Path == base+"/financeai/session" {
+		a.financeSession(w, r, u)
+		return true
+	}
 	if r.URL.Path == base+"/multipropriedades/session" {
 		a.multiSession(w, r, u)
 		return true
@@ -53,6 +57,15 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 			u = resolved
 			_, available = multipropriedadesBinding(u)
 			available = available && multiStateDir(r) != ""
+		}
+		if id == "financeai" && available {
+			resolved, err := a.directoryUser(r.Context(), u)
+			if err != nil {
+				directoryFailure(w, err)
+				return true
+			}
+			u = resolved
+			_, available = findFinanceBinding(financeStateDir(r), financeCompany(u))
 		}
 		if !available {
 			fail(w, 404, "not_found")
@@ -126,6 +139,17 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 				configured = crm
 			case "clips":
 				configured = clips
+			case "financeai":
+				if dir := financeStateDir(r); dir != "" {
+					if resolved, err := a.directoryUser(r.Context(), u); err == nil {
+						company := financeCompany(resolved)
+						if _, ok := findFinanceBinding(dir, company); ok {
+							configured = financeReady(r.Context())
+						} else if company == "" {
+							item["reason"] = "O FinanceAI ainda não foi liberado para esta conta."
+						}
+					}
+				}
 			case "multipropriedades":
 				if dir := multiStateDir(r); dir != "" {
 					if resolved, err := a.directoryUser(r.Context(), u); err == nil {

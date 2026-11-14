@@ -141,7 +141,7 @@ global.genesisBridge={
   if(identity!==session||disposed)throw Error('Sua sessão mudou. Atualize a tela.');
   return JSON.stringify(result);
  }
- if(action==='navigate'){if(!['home','map','tools','team','sdr','crm','clips','multipropriedades','genesis','genesis/new','business'].includes(data.view)&&!/^systems\/[a-z][a-z0-9_]{0,40}$/.test(data.view)&&!/^(?:tools|genesis)\/build_[a-f0-9]{48}$/.test(data.view))throw Error('Destino indisponível.');global.parent.postMessage({type:'arkom.platform.navigate',view:data.view},global.location.origin);return '{}';}
+ if(action==='navigate'){if(!['home','map','tools','team','sdr','crm','clips','multipropriedades','financeai','genesis','genesis/new','business'].includes(data.view)&&!/^systems\/[a-z][a-z0-9_]{0,40}$/.test(data.view)&&!/^(?:tools|genesis)\/build_[a-f0-9]{48}$/.test(data.view))throw Error('Destino indisponível.');global.parent.postMessage({type:'arkom.platform.navigate',view:data.view},global.location.origin);return '{}';}
  if(action==='clips_pick'){
   const identity=session;
   if(!identity||identity.identity.role==='viewer')throw Error('Seu perfil permite apenas acompanhar.');

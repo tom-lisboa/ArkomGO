@@ -22,7 +22,8 @@ copiados para a demo; os indicadores locais vêm dos serviços existentes.
 | CLIPS | `services/core/pilots/clips` | Biblioteca e estúdio Flutter para cortes verticais e geração de GIFs por descrição |
 | Arkom Multipropriedades | API Go e homologação local no checkout próprio | Operação original incorporada à plataforma |
 | Genesis | `packages/deeph` + `services/sdr` | Estúdio existente, etapas, código, prévia e traces SSE |
-| FinanceAI e demais entradas | Backend ainda não integrado neste repositório | Bloqueadas; sem redirecionamento para uma aplicação externa |
+| FinanceAI | FinanceAI Core, PostgreSQL e workers | Agente do squad Financeiro com interface React original e dados simulados |
+| Demais entradas | Backend ainda não integrado neste repositório | Bloqueadas; sem redirecionamento para uma aplicação externa |
 
 O contrato do catálogo é `services/sdr/demo/ecosystem/catalog.json`. O servidor
 acrescenta `implemented`, `configured` e a razão de indisponibilidade. Configuração
@@ -187,3 +188,39 @@ estão configurados nesta integração. Conectores externos de cobrança e assin
 ficam fora da homologação. Ao parar a demo, a stack Docker e o volume
 do produto são preservados. Para parar também os containers, execute
 `npm run homolog:stop` no checkout do Multipropriedades.
+
+## FinanceAI
+
+Em **Seu time → Financeiro**, o agente FinanceAI abre sua interface React original
+em `/demo/financeai`. O frontend é compilado a partir do checkout configurado no
+`.env` privado em `ARKOM_FINANCEAI_ROOT`. Instale as dependências em
+`frontend/` nesse checkout e execute `python3 scripts/demo.py` na ArkomGO.
+O lançador usa PostgreSQL 17, Go e Node 22 ou superior.
+
+O FinanceAI roda com banco próprio, API Go e seis workers locais. O console
+fica em loopback na porta 8194, a API na 8195 e o banco na 55494. O estado
+persiste em `.local/runtime/financeai`. Banco, fiscal e IA operam em simulação.
+O checkout original e seus dados operacionais ficam separados.
+
+```mermaid
+sequenceDiagram
+    participant B as Interface FinanceAI
+    participant P as Portal ArkomGO
+    participant A as API Go da Arkom
+    participant F as API Go do FinanceAI
+    B->>P: Desafio PKCE e estado
+    P->>A: Sessão Arkom e desafio
+    A->>F: Emite entrada para a empresa e o membro vinculados
+    A-->>B: Código de uso único via portal
+    B->>F: Troca código pelo token do FinanceAI
+    B->>F: Operações com sessão própria
+```
+
+Alfa e Beta recebem instalações com origens internas distintas. O gateway
+local preserva essa separação ao encaminhar as chamadas do navegador. O
+FinanceAI valida o token, a origem e as permissões de administrador,
+operador ou consulta. Os tokens ficam em memória. As atribuições de contas e instalações são feitas no servidor da ArkomGO.
+
+As rotas de baixa e estorno entre Maia e FinanceAI foram homologadas
+separadamente no Multipropriedades. Esse fluxo e o Remix do FinanceAI ainda
+precisam ser habilitados na ArkomGO.

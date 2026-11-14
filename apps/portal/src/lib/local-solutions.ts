@@ -11,5 +11,5 @@ export function isLocalPlatformView(view:string):boolean {
 }
 
 export function isLocalDemoDestination(view:string):boolean {
- return isLocalPlatformView(view) || ['sdr','multipropriedades'].includes(view);
+ return isLocalPlatformView(view) || ['sdr','multipropriedades','financeai'].includes(view);
 }
