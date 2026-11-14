@@ -55,86 +55,6 @@
     "block": 1
   },
   {
-    "source": "apps/portal/README.md",
-    "diagram": "docs/mermaid/importados/apps-README-e1f611f0-01.mmd",
-    "block": 1
-  },
-  {
-    "source": "apps/portal/README.md",
-    "diagram": "docs/mermaid/importados/apps-README-e1f611f0-02.mmd",
-    "block": 2
-  },
-  {
-    "source": "apps/portal/docs/ARQUITETURA-DASH-UNIFICADO.md",
-    "diagram": "docs/mermaid/importados/apps-ARQUITETURA-DASH-UNIFICADO-3ba080d0-01.mmd",
-    "block": 1
-  },
-  {
-    "source": "apps/portal/documentacao/architecture/data-flow.mdx",
-    "diagram": "docs/mermaid/importados/apps-data-flow-c0893093-01.mmd",
-    "block": 1
-  },
-  {
-    "source": "apps/portal/documentacao/architecture/data-flow.mdx",
-    "diagram": "docs/mermaid/importados/apps-data-flow-c0893093-02.mmd",
-    "block": 2
-  },
-  {
-    "source": "apps/portal/documentacao/architecture/data-flow.mdx",
-    "diagram": "docs/mermaid/importados/apps-data-flow-c0893093-03.mmd",
-    "block": 3
-  },
-  {
-    "source": "apps/portal/documentacao/architecture/overview.mdx",
-    "diagram": "docs/mermaid/importados/apps-overview-c6f73b5f-01.mmd",
-    "block": 1
-  },
-  {
-    "source": "apps/portal/documentacao/components/dash.mdx",
-    "diagram": "docs/mermaid/importados/apps-dash-4fe2e4d9-01.mmd",
-    "block": 1
-  },
-  {
-    "source": "apps/portal/documentacao/components/map.mdx",
-    "diagram": "docs/mermaid/importados/apps-map-9abb3fe2-01.mmd",
-    "block": 1
-  },
-  {
-    "source": "apps/portal/documentacao/components/overview.mdx",
-    "diagram": "docs/mermaid/importados/apps-overview-0d3e4ca6-01.mmd",
-    "block": 1
-  },
-  {
-    "source": "apps/portal/documentacao/database/overview.mdx",
-    "diagram": "docs/mermaid/importados/apps-overview-1bdfe75c-01.mmd",
-    "block": 1
-  },
-  {
-    "source": "apps/portal/documentacao/endpoints/overview.mdx",
-    "diagram": "docs/mermaid/importados/apps-overview-b1e01525-01.mmd",
-    "block": 1
-  },
-  {
-    "source": "apps/portal/documentacao/logic/auth-sessao.mdx",
-    "diagram": "docs/mermaid/importados/apps-auth-sessao-b42412fa-01.mmd",
-    "block": 1
-  },
-  {
-    "source": "apps/portal/documentacao/logic/genesis-builder.mdx",
-    "diagram": "docs/mermaid/importados/apps-genesis-builder-5f78af78-01.mmd",
-    "block": 1
-  },
-  {
-    "source": "apps/portal/documentacao/prompts/overview.mdx",
-    "diagram": "docs/mermaid/importados/apps-overview-f7a125a6-01.mmd",
-    "block": 1
-  },
-  {
-    "source": "apps/portal/documentacao/testing/e2e.mdx",
-    "diagram": "docs/mermaid/importados/apps-e2e-ea17455f-01.mmd",
-    "block": 1
-  },
-  {
     "source": "services/core/docs/clips-go-integracao-backends.md",
     "diagram": "docs/mermaid/importados/services-clips-go-integracao-backends-3196c877-01.mmd",
     "block": 1
@@ -347,6 +267,86 @@
   {
     "source": "packages/deeph/docs/CHAT_CODEX_LEVEL_ARCHITECTURE.md",
     "diagram": "docs/mermaid/importados/packages-CHAT_CODEX_LEVEL_ARCHITECTURE-820f305d-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-ARQUITETURA-DASH-UNIFICADO-3ba080d0-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-ARQUITETURA-DASH-UNIFICADO-3ba080d0-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-README-e1f611f0-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-README-e1f611f0-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-README-e1f611f0-02.mmd",
+    "diagram": "docs/mermaid/importados/apps-README-e1f611f0-02.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-auth-sessao-b42412fa-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-auth-sessao-b42412fa-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-dash-4fe2e4d9-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-dash-4fe2e4d9-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-data-flow-c0893093-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-data-flow-c0893093-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-data-flow-c0893093-02.mmd",
+    "diagram": "docs/mermaid/importados/apps-data-flow-c0893093-02.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-data-flow-c0893093-03.mmd",
+    "diagram": "docs/mermaid/importados/apps-data-flow-c0893093-03.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-e2e-ea17455f-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-e2e-ea17455f-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-genesis-builder-5f78af78-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-genesis-builder-5f78af78-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-map-9abb3fe2-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-map-9abb3fe2-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-overview-0d3e4ca6-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-overview-0d3e4ca6-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-overview-1bdfe75c-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-overview-1bdfe75c-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-overview-b1e01525-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-overview-b1e01525-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-overview-c6f73b5f-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-overview-c6f73b5f-01.mmd",
+    "block": 1
+  },
+  {
+    "source": "docs/mermaid/importados/apps-overview-f7a125a6-01.mmd",
+    "diagram": "docs/mermaid/importados/apps-overview-f7a125a6-01.mmd",
     "block": 1
   }
 ]

@@ -156,6 +156,71 @@ void main() {
     await icons.load();
   });
   for (final width in [1440.0, 390.0]) {
+    testWidgets('Navigation collapses and reopens at $width', (tester) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(ArkomPlatform(initialView: 'team', api: api));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('navigation-collapse')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('navigation-open')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('navigation-open')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('navigation-open')), findsNothing);
+      expect(find.byType(WorkspaceTeam), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+    testWidgets('Shared solution navigation at $width', (tester) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final navigated = <String>[];
+      await tester.pumpWidget(
+        ArkomPlatform(
+          initialView: 'sdr',
+          navigationOnly: true,
+          api: api,
+          onNavigate: navigated.add,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final bia = find.byKey(const ValueKey('navigation-sdr'));
+      expect(bia, findsOneWidget);
+      expect(
+        tester.getTopLeft(bia).dy,
+        greaterThan(
+          tester.getTopLeft(find.byKey(const ValueKey('navigation-team'))).dy,
+        ),
+      );
+      expect(
+        tester.getTopLeft(bia).dy,
+        lessThan(
+          tester.getTopLeft(find.byKey(const ValueKey('navigation-tools'))).dy,
+        ),
+      );
+      expect(
+        tester
+            .widget<Semantics>(find.byKey(const ValueKey('navigation-sdr')))
+            .properties
+            .selected,
+        isTrue,
+      );
+      expect(find.text('ARKOM  /  BIA SDR'), findsNothing);
+      expect(find.byType(WorkspaceTeam), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('navigation-financeai')));
+      expect(navigated, ['financeai']);
+      await tester.tap(find.byKey(const ValueKey('navigation-team')));
+      expect(navigated.last, 'team');
+      await tester.tap(find.byKey(const ValueKey('navigation-home')));
+      expect(navigated.last, 'home');
+      expect(tester.takeException(), isNull);
+    });
+  }
+  for (final width in [1440.0, 390.0]) {
     for (final view in [
       'home',
       'tools',

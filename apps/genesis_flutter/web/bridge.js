@@ -9,6 +9,7 @@ class SSEParser {
 if(typeof module!=='undefined')module.exports={SSEParser};
 if(!global.document)return;
 let session=null,callback=null,controller=null,selection=0,retry=null,handshake=null,selected='',cursor=0,disposed=false;
+let platformCallback=null,sessionPending=null;
 let platformFile=null;
 const clipsMedia=new Set();
 const clipsPlayers=new Map();
@@ -21,7 +22,7 @@ function releaseClipsMedia(url){if(clipsMedia.delete(url)){pauseClipsMedia(url);
 function clearClipsMedia(){for(const url of clipsMedia)releaseClipsMedia(url);}
 let runtimeTimer=null,runtimeStatus='stopped',selectedBuild=null,runtimePending=null,runtimePaused=false,autoAttempted=false;
 let lifecycle=Promise.resolve(),requests=Promise.resolve(),ownedRuntime=null;
-const toolView=new URL(global.location.origin+(global.location.search||'')).searchParams.get('view')?.startsWith('tools/');
+const isToolView=()=>new URL(global.location.href||global.location.origin+(global.location.pathname||'')+(global.location.search||'')).searchParams.get('view')?.startsWith('tools/')||(global.location.pathname||'').startsWith('/demo/tools/');
 function stopToolRuntime(id,identity){
  return fetch(base+'/'+encodeURIComponent(id)+'/runtime/stop',{
   method:'POST',headers:{Authorization:'Bearer '+identity.access_token,'Content-Type':'application/json'},
@@ -29,7 +30,7 @@ function stopToolRuntime(id,identity){
  }).catch(()=>{});
 }
 function releaseToolRuntime(){
- if(!toolView||!ownedRuntime||ownedRuntime.identity!==session)return;
+ if(!ownedRuntime?.releaseOnLeave||ownedRuntime.identity!==session)return;
  const {id,identity}=ownedRuntime;
  ownedRuntime=null;
  void stopToolRuntime(id,identity);
@@ -41,7 +42,7 @@ const enqueueLifecycle=work=>{const result=lifecycle.then(work);lifecycle=result
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const base='/api/demo/backend/v1/sdr/genesis-demo/construction';
 const clipsGIFBase='/api/demo/backend/v1/sdr/genesis-demo/ecosystem/clips/gifs';
-const emit=(type,data={})=>callback?.(JSON.stringify({type,...data}));
+const emit=(type,data={})=>{const raw=JSON.stringify({type,...data});callback?.(raw);if(['session','view','agent','platform_error'].includes(type))platformCallback?.(raw);};
 const errors={revision_reuse_unavailable:'Esta revisão não pode reaproveitar as etapas com segurança. Selecione revisão completa.',invalid_revision_scope:'Escolha um escopo de revisão válido.',revision_parent_required:'Selecione a aplicação que deseja revisar.',frontend_compiler_unavailable:'O compilador Svelte precisa ser instalado pelo administrador. Execute scripts/build-demo.py e reinicie a demo.',frontend_compilation_failed:'A compilação Svelte falhou. Confira os traces e retome a etapa.',preview_records_limit:'A coleção atingiu o limite de 20 registros desta etapa.',preview_records_invalid:'O registro enviado pela aplicação é inválido ou ultrapassa o limite.',preview_data_unavailable:'Não foi possível salvar o dado. Reinicie a prévia e tente novamente.',preview_data_conflict:'O dado mudou durante a operação. Reinicie a prévia antes de tentar novamente.',preview_data_invalid:'O dado enviado pela aplicação é inválido ou ultrapassa o limite.',runtime_session_changed:'A prévia foi encerrada ou reiniciada. Tente novamente na sessão atual.',step_checkpoint_changed:'Esta etapa recebeu novos eventos. Atualize o projeto antes de continuar.',step_not_available:'Esta etapa não está disponível para iniciar.',construction_unavailable:'O serviço está encerrando. Tente novamente em instantes.',runtime_entrypoint_missing:'Continue o projeto para adaptar o backend ao contrato NewHandler.',runtime_contract_invalid:'Conclua a construção com um contrato válido antes de iniciar.',runtime_capabilities_unavailable:'Esta aplicação depende de integrações que ainda não estão disponíveis na prévia.',runtime_busy:'Já existe uma prévia em execução para esta empresa. Encerre-a antes de iniciar outra.',runtime_not_running:'Inicie o backend da prévia.',runtime_request_failed:'O backend não respondeu. Reinicie a prévia.',unauthorized:'Sua sessão terminou. Entre novamente.',construction_busy:'Outro projeto está em construção. Aguarde ou interrompa o projeto ativo.',construction_limit:'O limite de projetos deste laboratório foi atingido.',forbidden:'Seu perfil permite apenas acompanhar.',isolated_runner_unavailable:'O executor de testes precisa estar disponível para construir.',invalid_goal:'Descreva sua ideia com pelo menos 15 caracteres.'};
 async function request(url,body,signal,key){if(!session)throw Error('Aguardando sua sessão Arkom.');const r=await fetch(url,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+session.access_token,...(key?{'Idempotency-Key':key}:{}),...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),credentials:'omit',redirect:'error',cache:'no-store',signal:signal||AbortSignal.timeout(20000)});if(!r.ok){const data=await r.json().catch(()=>({}));const error=Error(errors[data.error]||'Não foi possível concluir a operação ('+r.status+').');error.status=r.status;error.code=data.error;throw error;}return r;}
 function stop(){clearTimeout(runtimeTimer);selection++;controller?.abort();clearTimeout(retry);controller=null;selectedBuild=null;runtimePending=null;runtimePaused=false;autoAttempted=false;requests=Promise.resolve();runtimeState({status:'stopped'});}
@@ -53,6 +54,7 @@ function ensureRuntime(id,generation,identity){
  if(runtimeStatus==='running')return Promise.resolve();
  clearTimeout(runtimeTimer);
  runtimeState({status:'starting'});
+ const releaseOnLeave=isToolView();
  const work=enqueueLifecycle(async()=>{
   const check=()=>{if(!current(id,generation,identity)||runtimePaused)throw Error('A prévia foi encerrada.');};
   check();
@@ -65,8 +67,8 @@ function ensureRuntime(id,generation,identity){
    const response=await request(base+'/'+encodeURIComponent(id)+'/runtime/start',{});
    state=await response.json();
    if(response.status===202){
-    if(toolView&&!current(id,generation,identity))void stopToolRuntime(id,identity);
-    else ownedRuntime={id,identity};
+    if(releaseOnLeave&&!current(id,generation,identity))void stopToolRuntime(id,identity);
+    else ownedRuntime={id,identity,releaseOnLeave};
    }
   }
   check();runtimeState(state);
@@ -101,7 +103,50 @@ async function pollRuntime(id,generation){
  try{const state=await(await request(base+'/'+encodeURIComponent(id)+'/runtime')).json();if(generation!==selection||id!==selected||disposed)return;if(runtimePending)return;runtimeState(state);if(['starting','running'].includes(state.status))runtimeTimer=setTimeout(()=>pollRuntime(id,generation),1500);}
  catch(e){if(generation===selection){runtimeStatus='stopped';emit('runtime',{status:'stopped'});emit('error',{message:e.message});}}
 }
-function receive(event){if(event.origin!==global.location.origin||event.source!==global.parent||event.data?.type!=='arkom.genesis.session')return;const next=event.data.session;if(!next?.access_token||!next?.identity)return;if(session?.access_token===next.access_token)return;releaseToolRuntime();stop();platformFile=null;clearClipsMedia();ownedRuntime=null;selected='';cursor=0;session=next;clearTimeout(handshake);emit('session',{identity:session.identity});}
+function allowedView(view){
+ return typeof view==='string'&&(
+  ['home','map','tools','team','sdr','crm','clips','multipropriedades','financeai','genesis','genesis/new','business'].includes(view)||
+  /^systems\/[a-z][a-z0-9_]{0,40}$/.test(view)||/^(?:tools|genesis)\/build_[a-f0-9]{48}$/.test(view)
+ );
+}
+function setSession(next){
+ if(!next?.access_token||!next?.identity||session?.access_token===next.access_token)return;
+ releaseToolRuntime();stop();agents?.reset();platformFile=null;clearClipsMedia();ownedRuntime=null;selected='';cursor=0;
+ session=next;disposed=false;clearTimeout(handshake);emit('session',{identity:session.identity});
+}
+function viewFromLocation(){
+ const query=new URL(global.location.href||global.location.origin+(global.location.pathname||'')+(global.location.search||'')).searchParams.get('view');
+ const path=global.location.pathname.replace(/^\/demo\/?/,'')||'team';
+ return allowedView(query||path)?(query||path):'team';
+}
+function navigate(view,extra={}){
+ if(!allowedView(view))throw Error('Destino indisponível.');
+ if(global.parent!==global){global.parent.postMessage({type:'arkom.platform.navigate',view},global.location.origin);return;}
+ agents?.prepareNavigation(view,extra);agents?.hide();
+ global.history.pushState({},'',view==='team'?'/demo':'/demo/'+view);
+ emit('view',{view,...extra});
+}
+async function ensureSession(){
+ if(session)return session;
+ if(sessionPending)return sessionPending;
+ sessionPending=(async()=>{
+  try{
+   const r=await fetch('/api/demo/backend/__test/ui/local-enter',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',credentials:'omit',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(20000)});
+   if(!r.ok)throw Error(r.status===429?'Muitas entradas neste ambiente local. Aguarde antes de tentar novamente.':'Não foi possível abrir sua conta local. Confira o serviço da Arkom.');
+   const next=await r.json();if(!next?.access_token||!next.identity)throw Error('Sessão inválida.');setSession(next);return next;
+  }catch(error){emit('platform_error',{message:error.message});throw error;}
+  finally{sessionPending=null;}
+ })();return sessionPending;
+}
+const agents=global.createArkomAgents?.({getSession:()=>session,request,emit,navigate});
+function receive(event){
+ if(global.parent===global||event.origin!==global.location.origin||event.source!==global.parent)return;
+ if(event.data?.type==='arkom.platform.view'){
+  if(session&&allowedView(event.data.view))emit('view',{view:event.data.view,navigationOnly:event.data.navigationOnly===true});return;
+ }
+ if(event.data?.type==='arkom.genesis.session')setSession(event.data.session);
+}
+global.addEventListener('popstate',()=>{if(global.parent===global){agents?.hide();emit('view',{view:viewFromLocation()});}});
 global.addEventListener('message',receive);
 global.genesisBridge={
  createClipsPlayer(url){
@@ -130,9 +175,29 @@ global.genesisBridge={
   };
   const result=requests.then(run);requests=result.catch(()=>{});return result;
  });},
- connect(cb){callback=cb;disposed=false;const ready=()=>{if(disposed)return;global.parent.postMessage({type:'arkom.genesis.ready'},global.location.origin);if(!session)handshake=setTimeout(ready,1000);};ready();if(session)emit('session',{identity:session.identity});},
- disconnect(){releaseToolRuntime();disposed=true;platformFile=null;clearClipsMedia();stop();clearTimeout(handshake);session=null;callback=null;},
+ connectPlatform(cb){
+  platformCallback=cb;disposed=false;
+  if(session)platformCallback(JSON.stringify({type:'session',identity:session.identity}));
+  else if(global.parent===global)void ensureSession().catch(()=>{});
+  else global.parent.postMessage({type:'arkom.genesis.ready'},global.location.origin);
+ },
+ disconnectPlatform(){agents?.reset();this.disconnect();session=null;platformCallback=null;disposed=true;},
+ connect(cb){
+  callback=cb;disposed=false;
+  if(session){callback(JSON.stringify({type:'session',identity:session.identity}));return;}
+  if(global.parent===global){void ensureSession().catch(()=>{});return;}
+  const ready=()=>{if(disposed)return;global.parent.postMessage({type:'arkom.genesis.ready'},global.location.origin);if(!session)handshake=setTimeout(ready,1000);};ready();
+ },
+ disconnect(){releaseToolRuntime();callback=null;stop();clearTimeout(handshake);if(!platformCallback){disposed=true;platformFile=null;clearClipsMedia();session=null;}},
  async invoke(action,payload){const data=JSON.parse(payload||'{}');
+ if(action==='navigation_preference'){
+  let collapsed=false;
+  try{
+   if(typeof data.collapsed==='boolean')global.localStorage?.setItem('arkom.ui.navigation.collapsed',String(data.collapsed));
+   collapsed=global.localStorage?.getItem('arkom.ui.navigation.collapsed')==='true';
+  }catch{/* Layout preference is optional; sessions never use storage. */}
+  return JSON.stringify({collapsed});
+ }
  if(action==='platform'){
   if(typeof data.path!=='string'||!['/v1/sdr/','/v1/core/','/v1/platform/','/__test/ui/'].some(prefix=>data.path.startsWith(prefix))||data.path.includes('..')||data.path.includes('://'))throw Error('Rota não permitida.');
   const identity=session;
@@ -141,7 +206,9 @@ global.genesisBridge={
   if(identity!==session||disposed)throw Error('Sua sessão mudou. Atualize a tela.');
   return JSON.stringify(result);
  }
- if(action==='navigate'){if(!['home','map','tools','team','sdr','crm','clips','multipropriedades','financeai','genesis','genesis/new','business'].includes(data.view)&&!/^systems\/[a-z][a-z0-9_]{0,40}$/.test(data.view)&&!/^(?:tools|genesis)\/build_[a-f0-9]{48}$/.test(data.view))throw Error('Destino indisponível.');global.parent.postMessage({type:'arkom.platform.navigate',view:data.view},global.location.origin);return '{}';}
+ if(action==='navigate'){navigate(data.view);return '{}';}
+ if(action==='platform_retry'){await ensureSession();return '{}';}
+ if(action.startsWith('agent_')){if(!agents)throw Error('Agentes indisponíveis.');return agents.invoke(action,data);}
  if(action==='clips_pick'){
   const identity=session;
   if(!identity||identity.identity.role==='viewer')throw Error('Seu perfil permite apenas acompanhar.');
@@ -235,8 +302,7 @@ global.genesisBridge={
  if(action==='advance_step'){if(data.id!==selected)throw Error('Selecione novamente o projeto.');return JSON.stringify(await(await request(base+'/'+encodeURIComponent(data.id)+'/advance',{step_id:data.step_id,sequence:data.sequence})).json());}
  if(action==='cancel')return JSON.stringify(await (await request(base+'/'+encodeURIComponent(data.id)+'/cancel',{})).json());
  if(action==='export'){const blob=await (await request(base+'/'+encodeURIComponent(data.id)+'/export')).blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='genesis-project.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);return '{}';}
- if(action==='qualification'){global.parent.postMessage({type:'arkom.genesis.qualification'},global.location.origin);return '{}';}
  throw Error('Ação não reconhecida.');}
 };
-global.addEventListener('pagehide',()=>global.genesisBridge.disconnect());
+global.addEventListener('pagehide',()=>global.genesisBridge.disconnectPlatform());
 })(globalThis);

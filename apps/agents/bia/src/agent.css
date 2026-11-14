@@ -1,0 +1,11 @@
+@font-face { font-family: ArkomSans; src: url('/genesis-flutter/assets/assets/fonts/Roboto-Regular.ttf') format('truetype'); font-display: swap; }
+:root { --font-jakarta: ArkomSans; --font-marcellus: Georgia; }
+html { color-scheme: light; }
+body { margin: 0; background: #f9f5ed; color: #242722; font-family: ArkomSans, sans-serif; }
+.arkom-demo { min-width: 0; }
+.demo-runtime.sdr-product-runtime { padding: clamp(18px, 2.5vw, 36px); border: 0; border-radius: 0; box-shadow: none; min-height: 100dvh; }
+.demo-runtime .lab-banner, .demo-runtime .lab-topbar { display: none; }
+.demo-runtime .lab-login { display: none; }
+.demo-runtime .btn-bilhon, .demo-runtime .btn-bilhon-outline, .demo-runtime .btn-bilhon-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; border: 1px solid var(--sdr-line); }
+.agent-loading { min-height: 70vh; display: grid; place-content: center; gap: 12px; text-align: center; padding: 24px; }
+.agent-loading a { color: #785438; }

@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:material_ui/material_ui.dart';
 
 import 'clips_workspace.dart';
+import 'agent_workspace.dart';
 import 'genesis_tools.dart';
 import 'main.dart' show Studio;
 import 'platform_workspaces.dart';
@@ -20,11 +21,13 @@ typedef PlatformCall = Future<dynamic> Function(
 
 class ArkomPlatform extends StatefulWidget {
   final String initialView;
+  final bool navigationOnly;
   final PlatformCall? api;
   final void Function(String)? onNavigate;
   const ArkomPlatform({
     super.key,
     required this.initialView,
+    this.navigationOnly = false,
     this.api,
     this.onNavigate,
   });
@@ -35,11 +38,14 @@ class ArkomPlatform extends StatefulWidget {
 class _ArkomPlatformState extends State<ArkomPlatform> {
   String view = '', error = '', toolsError = '', role = 'viewer';
   bool connected = false, loadingTools = true, teamExpanded = true;
+  bool navigationOnly = false, menuOpen = true;
   List<Map<String, dynamic>> solutions = [];
   List<Map<String, dynamic>> tools = [];
   int loadVersion = 0;
   int sessionVersion = 0;
-  String company = 'Alfa';
+  String company = 'Minha empresa';
+  bool returnToMaia = false;
+  final Map<String, Map<String, dynamic>> agentStates = {};
   bool get toolPreview => view.startsWith('tools/');
   bool get studio =>
       view == 'genesis' || view.startsWith('genesis/') || toolPreview;
@@ -54,7 +60,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
       solutions.where((s) => s['id'] == id).firstOrNull;
   bool available(String id) => workspaceMemberAvailable(solution(id));
   static const navigation = [
-    ('home', 'Início', Icons.home_outlined),
+    ('team', 'Início', Icons.home_outlined),
     ('tools', 'Ferramentas', Icons.grid_view_outlined),
     ('business', 'Seu negócio', Icons.storefront_outlined),
     ('genesis', 'Genesis', Icons.auto_awesome_outlined),
@@ -64,17 +70,46 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
   void initState() {
     super.initState();
     view = widget.initialView == 'systems' ? 'tools' : widget.initialView;
+    navigationOnly = widget.navigationOnly;
     if (widget.api != null) {
       connected = true;
       role = 'admin';
       unawaited(load());
-    } else if (!studio) {
-      transport.connect((raw) {
+    } else {
+      unawaited(
+        transport.invoke('navigation_preference', '{}').then((raw) {
+          if (mounted)
+            setState(() => menuOpen = jsonDecode(raw)['collapsed'] != true);
+        }),
+      );
+      transport.connectPlatform((raw) {
         if (!mounted) return;
         final e = jsonDecode(raw);
+        if (e['type'] == 'view') {
+          final next = e['view'] as String;
+          final onlyNavigation = e['navigationOnly'] == true;
+          if (next == view && onlyNavigation == navigationOnly) return;
+          setState(() {
+            view = next;
+            returnToMaia =
+                next == 'financeai' && e['returnTo'] == 'multipropriedades';
+            navigationOnly = onlyNavigation;
+            error = toolsError = '';
+          });
+          unawaited(load());
+        }
+        if (e['type'] == 'agent') {
+          setState(
+            () => agentStates[e['id'] as String] = Map<String, dynamic>.from(e),
+          );
+        }
+        if (e['type'] == 'platform_error') {
+          setState(() => error = e['message'] as String);
+        }
         if (e['type'] == 'session') {
           setState(() {
             sessionVersion++;
+            agentStates.clear();
             connected = true;
             role = e['identity']['role'];
             company = e['identity']['organization_id'] == 'org_demo_alfa'
@@ -106,7 +141,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
     final version = ++loadVersion;
     if (view == 'tools') {
       setState(() {
-        loadingTools = true;
+        loadingTools = tools.isEmpty;
         toolsError = '';
       });
     }
@@ -158,9 +193,28 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
     unawaited(transport.invoke('navigate', jsonEncode({'view': value})));
   }
 
+  void toggleMenu() {
+    setState(() => menuOpen = !menuOpen);
+    if (widget.api == null) {
+      unawaited(
+        transport.invoke(
+          'navigation_preference',
+          jsonEncode({'collapsed': !menuOpen}),
+        ),
+      );
+    }
+  }
+
+  Widget menuToggle({bool inside = false}) => IconButton(
+    key: ValueKey(inside ? 'navigation-collapse' : 'navigation-open'),
+    tooltip: inside ? 'Recolher menu Arkom' : 'Mostrar menu Arkom',
+    onPressed: toggleMenu,
+    icon: Icon(inside ? Icons.menu_open : Icons.menu, size: 20, color: muted),
+  );
+
   @override
   void dispose() {
-    if (!studio && widget.api == null) transport.disconnect();
+    if (widget.api == null) transport.disconnectPlatform();
     super.dispose();
   }
 
@@ -185,7 +239,12 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
       padding: const EdgeInsets.only(bottom: 4),
       child: Tooltip(
         message: enabled ? title : '$title · Indisponível',
+        excludeFromSemantics: true,
         child: Semantics(
+          key: ValueKey('navigation-$route'),
+          button: true,
+          enabled: enabled,
+          label: small ? title : null,
           selected: active,
           child: Material(
             color: active ? const Color(0xff26231c) : Colors.transparent,
@@ -261,61 +320,82 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: EdgeInsets.only(left: small ? 0 : 12, bottom: 19),
-          child: Align(
-            alignment: small ? Alignment.center : Alignment.centerLeft,
-            child: ArkomWordmark(compact: small),
-          ),
+          padding: EdgeInsets.only(left: small ? 0 : 12, bottom: 12),
+          child: small
+              ? Column(
+                  children: [
+                    Tooltip(
+                      key: const ValueKey('navigation-home'),
+                      message: 'Arkom · Visão geral',
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () => go('home'),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: ArkomWordmark(compact: small),
+                          ),
+                        ),
+                      ),
+                    ),
+                    menuToggle(inside: true),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(
+                      child: Tooltip(
+                        key: const ValueKey('navigation-home'),
+                        message: 'Arkom · Visão geral',
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () => go('home'),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: ArkomWordmark(compact: small),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    menuToggle(inside: true),
+                  ],
+                ),
         ),
         Expanded(
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
-              for (final n in navigation)
+              for (final n in navigation.take(1))
                 navItem(
                   n.$1,
                   n.$2,
                   Icon(n.$3, size: 19, color: section == n.$1 ? gold : muted),
                   small,
                 ),
-              const SizedBox(height: 9),
-              const Divider(color: line, height: 1),
-              const SizedBox(height: 8),
-              if (small)
-                navItem(
-                  'team',
-                  'Seu time',
-                  const Icon(Icons.groups_outlined, color: gold, size: 22),
-                  true,
-                )
-              else
-                Row(
-                  children: [
-                    Expanded(
-                      child: navItem(
-                        'team',
-                        'Seu time',
-                        const Icon(
-                          Icons.groups_outlined,
-                          color: gold,
-                          size: 22,
+              const SizedBox(height: 4),
+              if (!small)
+                TextButton(
+                  style: TextButton.styleFrom(alignment: Alignment.centerLeft),
+                  onPressed: () => setState(() => teamExpanded = !teamExpanded),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Agentes',
+                          style: TextStyle(color: muted, fontSize: 12),
                         ),
-                        false,
                       ),
-                    ),
-                    IconButton(
-                      tooltip: teamExpanded
-                          ? 'Recolher agentes'
-                          : 'Mostrar agentes',
-                      icon: Icon(
+                      Icon(
                         teamExpanded ? Icons.expand_less : Icons.expand_more,
                         color: muted,
                         size: 16,
                       ),
-                      onPressed: () =>
-                          setState(() => teamExpanded = !teamExpanded),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               if (teamExpanded || small)
                 for (final squad in workspaceSquads)
@@ -329,6 +409,16 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
                       small,
                       enabled: available(member.id),
                     ),
+              const SizedBox(height: 9),
+              const Divider(color: line, height: 1),
+              const SizedBox(height: 8),
+              for (final n in navigation.skip(1))
+                navItem(
+                  n.$1,
+                  n.$2,
+                  Icon(n.$3, size: 19, color: section == n.$1 ? gold : muted),
+                  small,
+                ),
             ],
           ),
         ),
@@ -384,97 +474,186 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
     ),
     home: Scaffold(
       body: LayoutBuilder(
-        builder: (context, c) => Row(
-          children: [
-            if (!studio && (view != 'clips' || c.maxWidth >= 650))
-              sidebar(c.maxWidth < 850),
-            Expanded(
-              child: Padding(
-                padding: studio
-                    ? EdgeInsets.zero
-                    : EdgeInsets.fromLTRB(
-                        c.maxWidth < 650 ? (view == 'clips' ? 14 : 8) : 22,
-                        22,
-                        view == 'clips' && c.maxWidth < 650 ? 14 : 22,
-                        16,
-                      ),
-                child: studio
-                    ? Studio(
-                        initialBuildId:
-                            view.startsWith('tools/') ||
-                                (view.startsWith('genesis/') &&
-                                    view != 'genesis/new')
-                            ? view.split('/').last
-                            : null,
-                        startNew: view == 'genesis/new',
-                        toolMode: toolPreview,
-                        onBack: () => go('tools'),
-                      )
-                    : !connected
-                    ? const Center(
-                        child: CircularProgressIndicator(color: gold),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: text(
-                                  'ARKOM  /  ${title()}',
-                                  size: 10,
-                                  color: muted,
-                                ),
-                              ),
-                              const Icon(
-                                Icons.circle,
-                                size: 6,
-                                color: Color(0xff8ac6ac),
-                              ),
-                              const SizedBox(width: 7),
-                              text('ESPAÇO LOCAL', size: 9, color: muted),
-                            ],
+        builder: (context, c) => navigationOnly
+            ? Align(
+                alignment: Alignment.centerLeft,
+                child: sidebar(c.maxWidth < 850),
+              )
+            : Row(
+                children: [
+                  AnimatedContainer(
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 180),
+                    curve: Curves.easeInOutCubic,
+                    width: menuOpen ? (c.maxWidth < 850 ? 77 : 250) : 0,
+                    child: ClipRect(
+                      child: ExcludeSemantics(
+                        excluding: !menuOpen,
+                        child: IgnorePointer(
+                          ignoring: !menuOpen,
+                          child: OverflowBox(
+                            alignment: Alignment.centerLeft,
+                            minWidth: c.maxWidth < 850 ? 77 : 250,
+                            maxWidth: c.maxWidth < 850 ? 77 : 250,
+                            child: sidebar(c.maxWidth < 850),
                           ),
-                          const SizedBox(height: 20),
-                          if (error.isNotEmpty ||
-                              (view == 'tools' && toolsError.isNotEmpty))
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: text(
-                                      view == 'tools' && toolsError.isNotEmpty
-                                          ? toolsError
-                                          : error,
-                                      size: 12,
-                                      color: const Color(0xfff0b4a2),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: studio
+                          ? EdgeInsets.zero
+                          : EdgeInsets.fromLTRB(
+                              c.maxWidth < 650
+                                  ? (view == 'clips' ? 14 : 8)
+                                  : 22,
+                              22,
+                              view == 'clips' && c.maxWidth < 650 ? 14 : 22,
+                              16,
+                            ),
+                      child: studio
+                          ? Studio(
+                              key: ValueKey(view),
+                              initialBuildId:
+                                  view.startsWith('tools/') ||
+                                      (view.startsWith('genesis/') &&
+                                          view != 'genesis/new')
+                                  ? view.split('/').last
+                                  : null,
+                              startNew: view == 'genesis/new',
+                              toolMode: toolPreview,
+                              onBack: () => go('tools'),
+                              onOpenNavigation: menuOpen ? null : toggleMenu,
+                            )
+                          : !connected
+                          ? Stack(
+                              children: [
+                                Center(
+                                  child: error.isEmpty
+                                      ? const CircularProgressIndicator(
+                                          color: gold,
+                                        )
+                                      : Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(error),
+                                            TextButton(
+                                              onPressed: () {
+                                                setState(() => error = '');
+                                                unawaited(
+                                                  transport.invoke(
+                                                    'platform_retry',
+                                                    '{}',
+                                                  ),
+                                                );
+                                              },
+                                              child: const Text(
+                                                'Tentar novamente',
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                ),
+                                if (!menuOpen)
+                                  Align(
+                                    alignment: Alignment.topLeft,
+                                    child: menuToggle(),
+                                  ),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  children: [
+                                    if (!menuOpen) menuToggle(),
+                                    Expanded(
+                                      child: text(
+                                        'ARKOM  /  ${title()}',
+                                        size: 10,
+                                        color: muted,
+                                      ),
+                                    ),
+                                    if (returnToMaia)
+                                      TextButton.icon(
+                                        onPressed: () => unawaited(
+                                          transport.invoke(
+                                            'agent_return',
+                                            '{}',
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          Icons.arrow_back,
+                                          size: 14,
+                                        ),
+                                        label: const Text('Voltar à Maia'),
+                                      ),
+                                    const Icon(
+                                      Icons.circle,
+                                      size: 6,
+                                      color: Color(0xff8ac6ac),
+                                    ),
+                                    const SizedBox(width: 7),
+                                    text('ESPAÇO LOCAL', size: 9, color: muted),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                                if (error.isNotEmpty ||
+                                    (view == 'tools' && toolsError.isNotEmpty))
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: text(
+                                            view == 'tools' &&
+                                                    toolsError.isNotEmpty
+                                                ? toolsError
+                                                : error,
+                                            size: 12,
+                                            color: const Color(0xfff0b4a2),
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: load,
+                                          child: const Text('Tentar novamente'),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  TextButton(
-                                    onPressed: load,
-                                    child: const Text('Tentar novamente'),
+                                Expanded(
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 180),
+                                    reverseDuration: const Duration(
+                                      milliseconds: 120,
+                                    ),
+                                    child: KeyedSubtree(
+                                      key: ValueKey(view),
+                                      child: content(),
+                                    ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          Expanded(child: content()),
-                        ],
-                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     ),
   );
   String title() =>
       ({
-        'home': 'Início',
+        'home': 'Visão geral',
         'map': 'Mapa',
         'tools': 'Ferramentas',
-        'team': 'Seu time',
+        'team': 'Início',
         'sdr': 'BIA SDR',
+        'multipropriedades': 'Maia',
+        'financeai': 'FinanceAI',
         'crm': 'CRM Arkom',
         'clips': 'Luma',
         'business': 'Seu negócio',
@@ -501,7 +680,15 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
       case 'map':
         return ecosystemMap();
       case 'sdr':
-        return SDRWorkspace(api: api, role: role);
+      case 'multipropriedades':
+      case 'financeai':
+        final state = agentStates[view];
+        return AgentWorkspace(
+          key: ValueKey('$view-$sessionVersion'),
+          id: view,
+          status: state?['status'] ?? 'loading',
+          message: state?['message'] ?? '',
+        );
       case 'crm':
         return CRMWorkspace(api: api, role: role);
       case 'clips':

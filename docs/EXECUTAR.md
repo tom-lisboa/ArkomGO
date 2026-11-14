@@ -46,10 +46,9 @@ A base `services/core` registra diretório, identidade e barramento em refatora�
 ## Verificar
 
 ```sh
-cd apps/portal
-npx tsc --noEmit
-node --test scripts/test-demo-session.cjs scripts/test-demo-proxy.cjs
-cd ../..
+(cd apps/agents/bia && npm ci --ignore-scripts && npm run build)
+(cd apps/genesis_flutter && flutter analyze && flutter test)
+node --test apps/genesis_flutter/test/*.test.cjs
 (cd services/sdr && go test ./...)
 (cd services/crm && go test ./...)
 (cd packages/deeph && go test ./...)
@@ -72,7 +71,7 @@ Arquivos e traces ficam no SQLite da demo. O download entrega um ZIP de fontes; 
 
 ### Genesis em Flutter Web
 
-Instale Flutter 3.50.0 e disponibilize `flutter` no PATH, ou informe `FLUTTER_BIN`. O script `build-demo.py` agora também compila o Genesis. Para reconstruir somente essa tela, execute `python3 scripts/build-genesis-flutter.py`. O launcher exige os assets gerados antes de iniciar. Fontes e CanvasKit são servidos pelo portal; não é necessário iniciar outro servidor Flutter.
+Instale Flutter 3.50.0 e disponibilize `flutter` no PATH, ou informe `FLUTTER_BIN`. O script `build-demo.py` agora também compila o Genesis. Para reconstruir somente essa tela, execute `python3 scripts/build-genesis-flutter.py`. O launcher exige os assets gerados antes de iniciar. Fontes e CanvasKit são servidos pelo servidor Go; não é necessário iniciar outro servidor Flutter.
 
 O estúdio usa sessão em memória e stream autenticado SSE por projeto. Mais detalhes e comandos de teste em [apps/genesis_flutter](../apps/genesis_flutter/README.md).
 
@@ -85,3 +84,9 @@ Navegação por telas e revisões somente de interface: [GENESIS-NAVIGATION.md](
 ## Plataforma Flutter e CLIPS
 
 A navegação local usa Flutter. O catálogo, os módulos disponíveis, o CLIPS e a inicialização opcional do PostgreSQL do CRM estão documentados em [ECOSISTEMA-LOCAL-FLUTTER.md](ECOSISTEMA-LOCAL-FLUTTER.md). O comando padrão `python3 scripts/demo.py` agora inicia os serviços locais configurados; não é necessário editar o launcher para desativar o CRM quando o banco DEV existente é gerenciado pela configuração.
+
+### Servidor da plataforma
+
+`demo.py` inicia `.local/bin/bia -web` em loopback na porta 3007. Ele serve `apps/genesis_flutter/build/web` e o agente `apps/agents/bia/dist`, sem Node/Next em execução na plataforma. Recompile com `scripts/build-demo.py` após mudanças no código; o build Flutter é de produção e não tem hot reload. O launcher não expõe os diretórios de fontes, `.env` ou dados privados.
+
+Teste de navegação no navegador (demo em execução): `npm run test:local --prefix apps/agents/bia`. Não cria mensagens, cobranças, clientes ou construções. O login local conserva os limites de acesso do laboratório; entradas repetidas em pouco tempo podem responder 429 e informar `Retry-After`.

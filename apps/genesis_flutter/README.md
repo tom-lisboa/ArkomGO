@@ -1,6 +1,6 @@
 # Genesis Flutter
 
-O estúdio de construção do Genesis usa Flutter Web 3.50.0, integrado ao portal Arkom em `/demo/genesis`. O portal mantém a navegação e entrega a sessão ao iframe de mesma origem; a tela principal, personagens, controles, arquivos, alterações e resultados são widgets Flutter. O ajuste legado de qualificação SDR/CRM permanece acessível pelo link no rodapé.
+A plataforma Arkom usa Flutter Web 3.50.0 diretamente, servida pelo Go na porta 3007. O Flutter mantém o menu, o histórico, o Início com squads, ferramentas, negócio, CRM, Luma e o estúdio Genesis. Não há hospedeiro Next. `/demo` abre o time; a logo Arkom leva para `/demo/home`. Os frontends próprios da BIA, Maia e FinanceAI são incorporados como agentes com autenticação vinculada à empresa.
 
 ## Executar
 
@@ -11,11 +11,11 @@ FLUTTER_BIN=/caminho/flutter/bin/flutter python3 scripts/build-genesis-flutter.p
 python3 scripts/demo.py
 ```
 
-O script compila e copia os assets para `apps/portal/public/genesis-flutter` (saída ignorada pelo Git). Para preparar outra máquina, use o [SDK oficial Flutter](https://docs.flutter.dev/install/manual). Nesta estação há uma instalação local em `.local/flutter`. Fontes e CanvasKit são servidos localmente, sem CDN no carregamento do estúdio.
+O script compila os assets em `build/web` (saída ignorada pelo Git), servidos diretamente pelo Go em `/genesis-flutter/`. Para preparar outra máquina, use o [SDK oficial Flutter](https://docs.flutter.dev/install/manual). Nesta estação há uma instalação local em `.local/flutter`. Fontes e CanvasKit são servidos localmente, sem CDN no carregamento do estúdio.
 
 ## Eventos e sessão
 
-`web/bridge.js` é somente o transporte do navegador: recebe a sessão via `postMessage` verificando origem e janela pai; mantém o token em memória; usa `fetch` autenticado para comandos e para SSE. Não há tokens na URL, no armazenamento local ou no bundle. O código gerado é exibido como texto nos detalhes. A prévia executa a interface gerada em um iframe separado com `sandbox="allow-scripts"`, origem opaca e CSP sem rede, frames, objetos, formulários ou navegação do portal. Não recebe sessão Arkom.
+`web/bridge.js` é somente o transporte do navegador: abre a sessão local em memória e compartilha a identidade entre os widgets da plataforma e do estúdio; mantém o token em memória; usa `fetch` autenticado para comandos e para SSE. Não há tokens na URL, no armazenamento local ou no bundle. O código gerado é exibido como texto nos detalhes. A prévia executa a interface gerada em um iframe separado com `sandbox="allow-scripts"`, origem opaca e CSP sem rede, frames, objetos, formulários ou navegação do portal. Não recebe sessão Arkom.
 
 `GET /v1/sdr/genesis-demo/construction/{id}/events?after={sequence}` entrega `snapshot`, `update`, `end` e `session.expired`. O primeiro quadro contém arquivos atuais; os seguintes trazem deltas de traces. A API notifica somente após persistir cada ação. O cliente aplica escritas aos arquivos, elimina duplicatas por sequência, reconecta com cursor e interrompe a conexão anterior ao trocar de projeto. O servidor valida empresa e sessão, limita conexões por empresa e emite heartbeat a cada 10 segundos. O proxy encaminha o stream sem acumular a resposta.
 
@@ -44,3 +44,7 @@ A prévia suporta interface estática, lógica local e chamadas ao backend Go is
 Novas ideias começam pelo planejamento. O painel **Passo a passo** mostra estado, critério e traces de cada fase. Clique em uma fase para abrir seu histórico; use **Iniciar próxima etapa** após revisar o checkpoint. Falhas e interrupções mantêm o mesmo passo disponível para retomada. Os estados vêm dos traces persistidos, sem estimativa por tempo. Veja [o contrato desse fluxo](../../docs/GENESIS-PASSO-A-PASSO.md).
 
 A aplicação Flutter também hospeda o catálogo e as superfícies locais SDR/CRM/CLIPS/contexto. Consulte [a migração da plataforma](../../docs/ECOSISTEMA-LOCAL-FLUTTER.md).
+
+`web/agents.js` mantém as superfícies dos agentes, valida janela/origem/nonce e fecha todas na troca de empresa. O retorno FinanceAI → Maia preserva a tela da Maia. Os testes `platform-navigation.test.cjs` cobrem essas fronteiras e a navegação sem recarregar o Flutter.
+
+O botão no menu recolhe a navegação; o botão no topo da tela a reabre. A única preferência salva no navegador é `arkom.ui.navigation.collapsed` (booleano), sem identidade, token ou dados de clientes. Os agentes ficam imediatamente abaixo de Início.

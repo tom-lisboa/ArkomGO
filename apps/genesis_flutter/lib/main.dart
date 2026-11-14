@@ -13,7 +13,16 @@ import 'visuals.dart';
 import 'platform.dart';
 
 void main() => runApp(
-  ArkomPlatform(initialView: Uri.base.queryParameters['view'] ?? 'genesis'),
+  ArkomPlatform(
+    initialView:
+        Uri.base.queryParameters['view'] ??
+        (Uri.base.path == '/demo' || Uri.base.path == '/demo/'
+            ? 'team'
+            : Uri.base.path.startsWith('/demo/')
+            ? Uri.base.path.substring(6)
+            : 'team'),
+    navigationOnly: Uri.base.queryParameters['navigation'] == 'only',
+  ),
 );
 
 class GenesisApp extends StatelessWidget {
@@ -52,7 +61,7 @@ class Studio extends StatefulWidget {
   final StudioController? controller;
   final String? initialBuildId;
   final bool startNew, toolMode;
-  final VoidCallback? onBack;
+  final VoidCallback? onBack, onOpenNavigation;
   const Studio({
     super.key,
     this.controller,
@@ -60,6 +69,7 @@ class Studio extends StatefulWidget {
     this.startNew = false,
     this.toolMode = false,
     this.onBack,
+    this.onOpenNavigation,
   });
   @override
   State<Studio> createState() => _StudioState();
@@ -376,6 +386,12 @@ class _StudioState extends State<Studio> {
             ),
             child: Row(
               children: [
+                if (widget.onOpenNavigation != null)
+                  iconAction(
+                    'Mostrar menu Arkom',
+                    Icons.menu,
+                    widget.onOpenNavigation,
+                  ),
                 iconAction(
                   'Voltar para Ferramentas',
                   Icons.arrow_back,
@@ -456,6 +472,8 @@ class _StudioState extends State<Studio> {
     ),
     child: Row(
       children: [
+        if (widget.onOpenNavigation != null)
+          iconAction('Mostrar menu Arkom', Icons.menu, widget.onOpenNavigation),
         if (widget.onBack != null) ...[
           iconAction(
             'Voltar para Ferramentas',
@@ -648,7 +666,6 @@ class _StudioState extends State<Studio> {
             if (v == 'runtime_start' || v == 'runtime_stop') model.action(v);
             if (v == 'replay') startReplay();
             if (v == 'export') model.action('export');
-            if (v == 'qualification') model.call('qualification');
             if (v == 'cancel') model.action('cancel');
           },
           itemBuilder: (_) => [
@@ -690,13 +707,6 @@ class _StudioState extends State<Studio> {
                   style: TextStyle(fontSize: 12),
                 ),
               ),
-            const PopupMenuItem(
-              value: 'qualification',
-              child: Text(
-                'Qualificação SDR/CRM',
-                style: TextStyle(fontSize: 12),
-              ),
-            ),
           ],
         ),
       ],

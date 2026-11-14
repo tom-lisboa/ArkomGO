@@ -61,8 +61,8 @@ for port in ports:
   except OSError:sys.exit(f'Porta {port} ocupada. Encerre a demo anterior antes de iniciar outra.')
 for name in ['bia','deeph']+(['crm'] if crm else []):
  if not (root/'.local/bin'/name).is_file():sys.exit('Execute python3 scripts/build-demo.py primeiro.')
-if not (root/'apps/portal/node_modules/next/dist/bin/next').is_file():sys.exit('Instale as dependências do portal com scripts/build-demo.py.')
-if not (root/'apps/portal/public/genesis-flutter/index.html').is_file():sys.exit('Compile o Genesis com python3 scripts/build-genesis-flutter.py antes de iniciar.')
+for path in ['apps/genesis_flutter/build/web/index.html','apps/agents/bia/dist/index.html']:
+ if not (root/path).is_file():sys.exit('Compile a plataforma e o agente BIA com scripts/build-demo.py antes de iniciar.')
 workspace=run/'deeph'
 shutil.copytree(root/'services/sdr/demo/deeph',workspace,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.deeph'))
 env.update(SDR_CRM_DEV_ENABLED='true',SDR_GENESIS_DEMO='true',SDR_PIPELINE_ENABLED='true',SDR_OPENAI_MODEL=env.get('SDR_OPENAI_MODEL') or 'gpt-5.4-mini',SDR_LOCAL_SECRETS_DIR=str(secret_dir),SDR_LOCAL_WORKER_LISTEN='127.0.0.1:8081',SDR_DEEPH_WORKSPACE=str(workspace),ARKOM_CRM_DEV_LISTEN='127.0.0.1:8098',ARKOM_LOCAL_DEMO='true')
@@ -73,7 +73,7 @@ for flag in ['SDR_VOICE_ENABLED','SDR_CALENDAR_ENABLED','SDR_CUSTOMER_DATA_ENABL
 bia=str(root/'.local/bin/bia')
 commands=([('crm',[str(root/'.local/bin/crm')],run)] if crm else [])+[
  ('api',[bia],run),('context',[bia,'-worker=context'],run),('execution',[bia,'-worker=execution'],run),
- ('portal',['node',str(root/'apps/portal/node_modules/next/dist/bin/next'),'dev','--hostname','127.0.0.1','--port','3007'],root/'apps/portal')]
+ ('web',[bia,'-web'],run)]
 pg_command=[]
 if crm and env.get('ARKOM_CRM_LOCAL_PG_DATA'):
  data=Path(env['ARKOM_CRM_LOCAL_PG_DATA']).expanduser().resolve()
@@ -97,6 +97,9 @@ try:
  for name,args,cwd in commands:
   log=(run/(name+'.log')).open('a');logs.append(log)
   child_env=env
+  if name=='web':
+   child_env={key:env[key] for key in ['PATH','SYSTEMROOT','TMPDIR'] if key in env}
+   child_env.update(ARKOM_LOCAL_DEMO='true',ARKOM_FLUTTER_BUILD=str(root/'apps/genesis_flutter/build/web'),ARKOM_BIA_BUILD=str(root/'apps/agents/bia/dist'))
   if name=='clips':
    child_env={**env,'CLIPS_LOCAL_GIF_PLATFORM_KEY':env['OPENAI_API_KEY']}
    child_env.pop('OPENAI_API_KEY',None)

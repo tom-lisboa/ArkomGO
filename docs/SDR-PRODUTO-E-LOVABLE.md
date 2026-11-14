@@ -10,7 +10,7 @@ por essa entrada do catálogo.
 
 `/demo/systems` → `/demo/systems/sdr` → **Acessar sistema** → `/demo/sdr`.
 O último endereço abre `SDRProduct`, reutilizando o cliente existente em
-`apps/portal/src/components/demo-runtime/LabApp.tsx`. A entrada é a aba WhatsApp,
+`apps/agents/bia/src/runtime/LabApp.tsx`. A entrada é a aba WhatsApp,
 como no template Lovable. As abas permanecem dentro do produto, sem redirecionar
 para superfícies reduzidas da plataforma.
 
@@ -62,7 +62,7 @@ módulos Flutter da plataforma. O componente e os estilos ficam em `SDRProduct`,
 Com a demo iniciada pelo launcher padrão:
 
 ```sh
-node apps/portal/scripts/check-sdr-product.cjs
+(cd apps/agents/bia && npm run build)
 ```
 
 O teste percorre catálogo, detalhes, entrada no produto, álbuns e suas fichas,

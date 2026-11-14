@@ -1,17 +1,8 @@
 # Arkom local em Flutter
 
-A demo em `/demo` usa Flutter para início, squads, ferramentas do Genesis, mapa,
-CRM, CLIPS, contexto da empresa e estúdio Genesis. O SDR abre o cliente completo já preparado para o Lovable,
-em React, até que a migração Flutter preserve suas funções. O Next serve os arquivos compilados,
-obtém a sessão local e encaminha pedidos para Go. As demais rotas educacionais e
-administrativas do portal original continuam na aplicação Next existente.
+A plataforma local é Flutter: navegação, Início com squads, ferramentas, negócio, catálogo, detalhes, CRM, Luma e Genesis. O Go serve o build na porta 3007 e encaminha as chamadas autenticadas para a API em 8080. O Next e seu portal foram excluídos. Somente os frontends próprios dos agentes permanecem em React/Vite: BIA, Maia e FinanceAI.
 
-A referência visual e de navegação é `bilhon-business/arkom-dash`, commit
-`82d36ecfffd7ddb73c606c1ce2638e63f9b35325`. O catálogo usa os nomes verificados
-nessa fonte e acrescenta CLIPS e Multipropriedades. Ele reúne 16
-entradas verificadas; não é apresentado como inventário completo das 23 soluções.
-Dados de aulas, eventos e indicadores comerciais da plataforma antiga não foram
-copiados para a demo; os indicadores locais vêm dos serviços existentes.
+`/demo` abre os squads como **Início**. A logo Arkom abre a visão geral anterior em `/demo/home`. Trocar de aba não recarrega o Flutter. As superfícies dos agentes são mantidas em memória para preservar o trabalho e são destruídas quando a sessão muda.
 
 ## Disponibilidade
 
@@ -36,9 +27,9 @@ habilitadas no backend. Consulte [SDR e Lovable](SDR-PRODUTO-E-LOVABLE.md).
 
 ```mermaid
 flowchart LR
-  P[Portal local] -->|Sessão em memória| F[Interface Flutter]
-  F -->|Mesmo domínio e Bearer| N[Proxy Next]
-  P --> L[Cliente SDR existente para Lovable em React]
+  P[Servidor Go local] --> F[Plataforma Flutter]
+  F -->|Mesmo domínio e Bearer| N[Proxy Go]
+  F --> L[Agente BIA em React/Vite]
   L -->|Mesma sessão e domínio| N
   N --> A[API Go autenticada]
   A --> S[SDR e contexto por empresa]
@@ -191,7 +182,7 @@ do produto são preservados. Para parar também os containers, execute
 
 ## FinanceAI
 
-Em **Seu time → Financeiro**, o agente FinanceAI abre sua interface React original
+Em **Início → Financeiro**, o agente FinanceAI abre sua interface React original
 em `/demo/financeai`. O frontend é compilado a partir do checkout configurado no
 `.env` privado em `ARKOM_FINANCEAI_ROOT`. Instale as dependências em
 `frontend/` nesse checkout e execute `python3 scripts/demo.py` na ArkomGO.
