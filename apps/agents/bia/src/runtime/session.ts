@@ -1,7 +1,7 @@
 import type {Session} from './api';
 
 type Entry = {session:Session; tab:string; surface:'sdr'|'agenda'};
-const tabs = ['whatsapp','chat','business','albums','automations','executions','crm','calendar','data','audit'];
+const tabs = ['whatsapp','chat','followup','voice','business','albums','automations','executions','crm','calendar','data','audit'];
 let current:Session|null = null;
 let pending:Promise<Entry>|null = null;
 

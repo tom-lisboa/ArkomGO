@@ -14,6 +14,7 @@ type Profile = {
 
 type Config = {
   available: boolean;
+  simulation_available?: boolean;
   configured: boolean;
   enabled: boolean;
   can_configure: boolean;
@@ -28,9 +29,9 @@ type Config = {
   voice_webhook?: string;
 };
 
-type Call = {id: string; status: string; created_at: string; conversation_id?: string; error_code?: string};
+type Call = {id: string; status: string; created_at: string; conversation_id?: string; simulated?: boolean; error_code?: string};
 type Draft = {account_sid: string; sender_sid: string; template_sid: string; test_phone: string; profile: Profile};
-type CallInput = {test: true} | {conversation_id: string};
+type CallInput = {test: true} | {conversation_id: string; simulate?: true};
 
 const base = '/v1/sdr/voice';
 const defaultProfile: Profile = {
@@ -100,6 +101,7 @@ export default function VoiceConsole({session}: {session: Session}) {
   const [calls, setCalls] = useState<Call[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [target, setTarget] = useState('');
+  const [testTarget, setTestTarget] = useState('');
   const [pending, setPending] = useState<{input: CallInput; key: string}|null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -123,13 +125,13 @@ export default function VoiceConsole({session}: {session: Session}) {
     };
     refresh();
     const timer = window.setInterval(() => { if (!document.hidden) refresh(); }, 4000);
-    if (config.enabled && operator) {
+    if ((config.enabled || config.simulation_available) && operator) {
       request<{items: Conversation[]}>('/v1/sdr/conversations?limit=100', session, undefined, undefined, cancel.signal)
-        .then(result => setConversations(result.items.filter(c => c.channel === 'whatsapp' && c.automation === 'active' && !c.opted_out)))
+        .then(result => setConversations(result.items.filter(c => c.automation === 'active' && !c.opted_out)))
         .catch(() => {});
     }
     return () => { cancel.abort(); window.clearInterval(timer); };
-  }, [config?.available, config?.enabled, operator, session]);
+  }, [config?.available, config?.enabled, config?.simulation_available, operator, session]);
 
   async function update(action: 'config'|'activate'|'disable') {
     if (!config || !draft) return;
@@ -224,14 +226,23 @@ export default function VoiceConsole({session}: {session: Session}) {
           {config.can_configure && config.test_phone && <Button variant="outline" disabled={busy} onClick={() => void call({test:true})}>Solicitar ligação de teste</Button>}
           <label>Conversa autorizada<select value={target} onChange={e => setTarget(e.target.value)}>
             <option value="">Escolha um contato</option>
-            {conversations.map(c => <option key={c.id} value={c.id}>{c.label || 'Contato do WhatsApp'}</option>)}
+            {conversations.filter(c => c.channel === 'whatsapp').map(c => <option key={c.id} value={c.id}>{c.label || 'Contato do WhatsApp'}</option>)}
           </select></label>
           <Button disabled={!target || busy} onClick={() => void call({conversation_id:target})}>Solicitar ligação</Button>
         </div>}
     </>}
+    {config.simulation_available && operator && <fieldset disabled={busy}>
+      <legend>Simulação de voz</legend>
+      <p>A simulação executa a fila com uma conversa fictícia e registra os estados da ligação.</p>
+      <label>Conversa fictícia<select value={testTarget} onChange={e => setTestTarget(e.target.value)}>
+        <option value="">Escolha uma conversa de teste</option>
+        {conversations.filter(c => c.channel === 'fake_whatsapp').map(c => <option key={c.id} value={c.id}>{c.label || 'Contato de teste'}</option>)}
+      </select></label>
+      <Button disabled={!testTarget || busy} onClick={() => void call({conversation_id:testTarget,simulate:true})}>Simular ligação</Button>
+    </fieldset>}
     {error && <p role="alert" className="lab-error">{error}</p>}
     {calls.length > 0 && <><h3>Ligações recentes</h3><ul>
-      {calls.map(c => <li key={c.id}>{new Date(c.created_at).toLocaleString('pt-BR')} · {labels[c.status] ?? c.status}
+      {calls.map(c => <li key={c.id}>{new Date(c.created_at).toLocaleString('pt-BR')} · {c.simulated ? 'Simulação · ' : ''}{labels[c.status] ?? c.status}
         {c.error_code && ` · ${errors[c.error_code] ?? c.error_code}`}</li>)}
     </ul></>}
   </section>;

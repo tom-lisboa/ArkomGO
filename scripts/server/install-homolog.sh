@@ -19,7 +19,7 @@ db=arkomgo-homolog-pg
 getent passwd "$account" >/dev/null || useradd --system --user-group --home-dir "$state" --shell /usr/sbin/nologin "$account"
 install -d -m 0755 "$root" "$root/releases"
 install -d -m 0750 -o root -g "$account" "$config" "$config/secrets"
-install -d -m 0700 -o "$account" -g "$account" "$state" "$state/whatsapp-media" "$state/tmp" "$state/sandboxes" "$state/deeph"
+install -d -m 0700 -o "$account" -g "$account" "$state" "$state/whatsapp-media" "$state/tmp" "$state/sandboxes" "$state/deeph" "$state/metrics"
 release="$(mktemp -d "$root/releases/release.XXXXXXXX")"
 cp -R "$bundle/." "$release/"
 chown -R root:root "$release"
@@ -36,10 +36,11 @@ secret() {
     chmod 0640 "$config/secrets/$name"
 }
 
-for name in context-worker execution-worker calendar-worker media-worker whatsapp-engine clips-bridge wa-postgres clips-postgres crm-postgres; do
+for name in context-worker execution-worker calendar-worker media-worker followup-worker metrics-worker metrics-admin whatsapp-engine clips-bridge wa-postgres clips-postgres crm-postgres; do
     secret "$name" -hex
 done
 secret clips-gif-seal -base64
+secret voice-seal -base64
 if [[ ! -s "$config/secrets/postgres-admin" ]]; then
     openssl rand -hex 32 > "$config/secrets/postgres-admin"
     chmod 0600 "$config/secrets/postgres-admin"
@@ -96,7 +97,7 @@ printf '[Service]\nNoNewPrivileges=no\n' > /etc/systemd/system/arkomgo-homolog@a
 ln -s "$release" "$root/.current-new"
 mv -Tf "$root/.current-new" "$root/current"
 systemctl daemon-reload
-units=(api web context execution calendar media wa-bridge wa-gateway clips)
+units=(api web context execution calendar media followup metrics wa-bridge wa-gateway clips)
 if [[ -s "$config/crm.env" && -s "$config/crm-routes.json" ]]; then
     units+=(crm)
 fi

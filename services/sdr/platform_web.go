@@ -209,7 +209,7 @@ func platformViewAllowed(view string) bool {
 
 func platformLegacyTab(view string) bool {
 	switch view {
-	case "whatsapp", "automations", "executions", "audit", "data", "calendar":
+	case "whatsapp", "followup", "voice", "automations", "executions", "audit", "data", "calendar":
 		return true
 	}
 	return false

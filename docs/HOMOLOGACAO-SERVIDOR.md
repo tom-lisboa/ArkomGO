@@ -83,6 +83,26 @@ readlink -f /opt/arkomgo-homolog/current
 curl -fsS http://127.0.0.1:13007/__arkom/ready
 ```
 
+## Follow-up, voz e métricas da BIA
+
+- **Follow-up** agenda uma mensagem por conversa. O worker Go consulta
+  a fila privada e reaproveita o transporte da BIA. Respostas novas,
+  pausa, bloqueio ou alteração no contexto publicado cancelam a
+  retomada. Conversas fictícias usam a caixa de teste. Para WhatsApp
+  real, o envio exige contato autorizado e janela de atendimento ativa.
+  O texto simples é limitado a 23 horas desde a última mensagem
+  recebida. Este fluxo usa agendamento manual.
+- **Voz** usa a fila Go da API. Em homologação, a aba **Voz** pode simular
+  permissão e ligação em conversas fictícias. Ligação real depende de
+  credenciais Twilio e OpenAI próprias, remetente validado e autorização
+  do contato. A rota `/arkomgo/voice-callback/` encaminha callbacks e
+  WebSocket validados pela assinatura da Twilio.
+- **Métricas** em **Meus dados** usa o coletor Go na porta 13090 de
+  loopback. O relatório contém contagens e identificadores de execução
+  da empresa autenticada. Conversas, números e credenciais ficam fora
+  das métricas. Follow-up e voz registram seus próprios eventos, e
+  a interface de operação global fica fora do proxy público.
+
 ## Instalação e estado
 
 Depois de compilar Flutter e BIA, gere os binários e monte o pacote:

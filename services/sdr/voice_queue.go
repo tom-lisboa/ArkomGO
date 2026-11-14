@@ -34,12 +34,13 @@ func (a *App) queueVoice(w http.ResponseWriter, r *http.Request, u User) {
 	var body struct {
 		Conversation string `json:"conversation_id"`
 		Test         bool   `json:"test"`
+		Simulated    bool   `json:"simulate,omitempty"`
 	}
 	if !decodeCore(w, r, &body) {
 		return
 	}
 	key := r.Header.Get("Idempotency-Key")
-	if (body.Conversation != "") == body.Test || key == "" || len(key) > 100 {
+	if (body.Conversation != "") == body.Test || (body.Simulated && body.Test) || key == "" || len(key) > 100 {
 		fail(w, 422, "voice_call_request_invalid")
 		return
 	}
@@ -53,13 +54,27 @@ func (a *App) queueVoice(w http.ResponseWriter, r *http.Request, u User) {
 		return
 	}
 	config := a.state.Voice.Configs[u.Org]
-	if !config.Enabled {
+	if body.Conversation != "" {
+		c := a.state.Conversations[body.Conversation]
+		if c == nil || c.Org != u.Org || (body.Simulated && c.Channel != "fake_whatsapp") ||
+			(!body.Simulated && c.Channel != "whatsapp") {
+			fail(w, 404, "not_found")
+			return
+		}
+	}
+	if body.Simulated && !a.voice.simulation {
+		fail(w, 409, "voice_simulation_unavailable")
+		return
+	}
+	if !body.Simulated && !config.Enabled {
 		fail(w, 409, "voice_not_enabled")
 		return
 	}
 	now := a.now().UTC()
-	call := &voiceRequest{ID: token(), Org: u.Org, ConfigID: config.ID, Revision: config.Revision, Conversation: body.Conversation, Status: "queued_permission", Created: now, Expires: now.Add(voicePermissionWindow), Sequence: -1}
-	if body.Test {
+	call := &voiceRequest{ID: token(), Org: u.Org, ConfigID: config.ID, Revision: config.Revision, Conversation: body.Conversation, Status: "queued_permission", Created: now, Expires: now.Add(voicePermissionWindow), Sequence: -1, Simulated: body.Simulated}
+	if body.Simulated {
+		call.Generation = a.state.Generation[body.Conversation]
+	} else if body.Test {
 		call.Phone = config.TestPhone
 	} else {
 		conv := a.state.Conversations[body.Conversation]
@@ -70,7 +85,7 @@ func (a *App) queueVoice(w http.ResponseWriter, r *http.Request, u User) {
 		call.Phone = "+" + strings.TrimSuffix(a.state.Transport.Bindings[conv.ID].Target, "@s.whatsapp.net")
 		call.Generation = a.state.Generation[conv.ID]
 	}
-	if !voicecall.Phone(call.Phone) || !a.voiceAllowed(call, config) {
+	if (!body.Simulated && !voicecall.Phone(call.Phone)) || !a.voiceAllowed(call, config) {
 		fail(w, 409, "voice_contact_unavailable")
 		return
 	}
@@ -79,9 +94,11 @@ func (a *App) queueVoice(w http.ResponseWriter, r *http.Request, u User) {
 		if old.Org != u.Org {
 			continue
 		}
-		if now.Sub(old.Created) < 24*time.Hour {
+		if old.Simulated == call.Simulated && now.Sub(old.Created) < 24*time.Hour {
 			daily++
-			if old.Phone == call.Phone {
+			duplicateNumber := !call.Simulated && old.Phone == call.Phone
+			activeSimulation := call.Simulated && old.Conversation == call.Conversation && !voiceTerminal(old.Status)
+			if duplicateNumber || activeSimulation {
 				fail(w, 409, "voice_contact_daily_limit")
 				return
 			}
@@ -110,6 +127,11 @@ func (a *App) queueVoice(w http.ResponseWriter, r *http.Request, u User) {
 }
 
 func (a *App) voiceAllowed(call *voiceRequest, config voiceConfig) bool {
+	if call.Simulated {
+		c := a.state.Conversations[call.Conversation]
+		return a.voice.simulation && c != nil && c.Org == call.Org && c.Channel == "fake_whatsapp" &&
+			c.Automation == "active" && !c.OptedOut && a.state.Generation[c.ID] == call.Generation
+	}
 	if !config.Enabled || config.ID != call.ConfigID || config.Revision != call.Revision || config.Sender == call.Phone {
 		return false
 	}
@@ -145,6 +167,7 @@ func (a *App) claimVoice() (voiceRequest, voiceConfig, voiceKeys, bool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	now := a.now().UTC()
+	a.workerHealth["voice"] = WorkerHealth{At: now}
 	var chosen *voiceRequest
 	cleanup := map[string]string{}
 	for _, call := range a.state.Voice.Calls {
@@ -153,7 +176,7 @@ func (a *App) claimVoice() (voiceRequest, voiceConfig, voiceKeys, bool, error) {
 		}
 		if call.Status == "requesting" || call.Status == "dialing" {
 			if now.Sub(call.Started) > 35*time.Second {
-				if call.Status == "dialing" {
+				if call.Status == "dialing" && !call.Simulated {
 					cleanup[call.ID] = "uncertain_call"
 				} else {
 					cleanup[call.ID] = "failed"
@@ -185,7 +208,7 @@ func (a *App) claimVoice() (voiceRequest, voiceConfig, voiceKeys, bool, error) {
 	if len(cleanup) == 0 && chosen == nil {
 		return snapshot, config, keys, false, nil
 	}
-	if chosen != nil {
+	if chosen != nil && !chosen.Simulated {
 		config = a.state.Voice.Configs[chosen.Org]
 		var err error
 		keys, err = a.voice.open(chosen.Org, config)
@@ -197,11 +220,26 @@ func (a *App) claimVoice() (voiceRequest, voiceConfig, voiceKeys, bool, error) {
 	err := a.transact(func() {
 		for id, status := range cleanup {
 			c := a.state.Voice.Calls[id]
+			if c.Status == "requesting" {
+				a.metricEnd("voice", c.Org, c.ID+":queued_permission", "attempt", "failed")
+			} else if c.Status == "dialing" {
+				outcome := "uncertain"
+				if c.Simulated {
+					outcome = "failed"
+				}
+				a.metricEnd("voice", c.Org, c.ID+":approved", "attempt", outcome)
+			}
 			c.Status = status
 			c.Error = "voice_attempt_closed"
 		}
 		if chosen != nil {
 			chosen.Started = now
+			mode := "real"
+			if chosen.Simulated {
+				mode = "simulated"
+			}
+			stage := chosen.Status
+			a.metricStart("voice", chosen.Org, chosen.ID+":"+stage, "attempt", "voice", mode)
 			if chosen.Status == "approved" {
 				chosen.Status = "dialing"
 			} else {
@@ -223,8 +261,17 @@ func (a *App) voiceTick(ctx context.Context) error {
 	allowed := a.voiceAllowed(&call, a.state.Voice.Configs[call.Org])
 	a.mu.Unlock()
 	status, code, sid := "cancelled", "", ""
+	stage := "queued_permission"
+	if call.Status == "dialing" {
+		stage = "approved"
+	}
 	existingPermission := false
-	if allowed {
+	if allowed && call.Simulated {
+		status = "approved"
+		if call.Status == "dialing" {
+			status = "completed"
+		}
+	} else if allowed {
 		ctx, cancel := context.WithTimeout(ctx, 7*time.Second)
 		defer cancel()
 		if call.Status == "dialing" {
@@ -254,6 +301,17 @@ func (a *App) voiceTick(ctx context.Context) error {
 		return nil
 	}
 	err = a.transact(func() {
+		outcome := "completed"
+		if status == "failed" || status == "cancelled" {
+			outcome = status
+		}
+		if status == "uncertain_call" {
+			outcome = "uncertain"
+		}
+		a.metricEnd("voice", call.Org, call.ID+":"+stage, "attempt", outcome)
+		if call.Simulated {
+			a.record(AuditEntry{Org: call.Org, Actor: "voice-worker", Action: "voice.simulated." + status, Conversation: call.Conversation, Operation: call.ID})
+		}
 		if call.Status == "dialing" && sid != "" && current.CallSID == "" {
 			current.CallSID = sid
 		}

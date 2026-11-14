@@ -93,7 +93,7 @@ func (a *App) voicePermission(w http.ResponseWriter, r *http.Request, org string
 	a.mu.Lock()
 	callID := ""
 	for _, call := range a.state.Voice.Calls {
-		if call.Org == org && call.Phone == from && (call.Status == "requesting" || call.Status == "awaiting_permission") &&
+		if !call.Simulated && call.Org == org && call.Phone == from && (call.Status == "requesting" || call.Status == "awaiting_permission") &&
 			a.voiceAllowed(call, c) && a.now().Before(call.Expires) &&
 			(replySID == "" || call.PermissionSID == "" || replySID == call.PermissionSID) {
 			callID = call.ID
@@ -141,7 +141,7 @@ func (a *App) voiceCallCallback(w http.ResponseWriter, r *http.Request, org stri
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	call := a.state.Voice.Calls[id]
-	if call == nil || call.Org != org || call.ConfigID != c.ID {
+	if call == nil || call.Simulated || call.Org != org || call.ConfigID != c.ID {
 		http.NotFound(w, r)
 		return
 	}
@@ -219,7 +219,7 @@ func (a *App) voiceCallCallback(w http.ResponseWriter, r *http.Request, org stri
 func (a *App) streamVoice(w http.ResponseWriter, r *http.Request, org, id string) {
 	a.mu.Lock()
 	call := a.state.Voice.Calls[id]
-	if call == nil || call.Org != org || !voiceInFlight(call.Status) || call.CallSID == "" ||
+	if call == nil || call.Simulated || call.Org != org || !voiceInFlight(call.Status) || call.CallSID == "" ||
 		call.StreamUsed || !a.voiceAllowed(call, a.state.Voice.Configs[org]) {
 		a.mu.Unlock()
 		http.Error(w, "voice unavailable", 409)

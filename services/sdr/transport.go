@@ -354,6 +354,13 @@ func (a *App) ingestReal(v realInbound) error {
 			text = "[Mídia recebida; processamento pendente]"
 		}
 		m := a.applyLead(c, text)
+		// A delayed gateway receipt must not extend the WhatsApp service window.
+		for i := len(a.state.Messages[id]) - 1; i >= 0; i-- {
+			if a.state.Messages[id][i].ID == m.ID {
+				a.state.Messages[id][i].Created = v.At
+				break
+			}
+		}
 		if v.Media != nil {
 			a.incomingMedia(c, m.ID, v)
 		}
@@ -395,6 +402,14 @@ func (a *App) realEligible(d *realDelivery) bool {
 	found := false
 	for _, m := range a.state.Messages[c.ID] {
 		if m.ID == e.ID && (m.Status == "queued" || m.Status == "sending") {
+			if m.FollowupID != "" {
+				j := a.state.Followups[m.FollowupID]
+				now := a.now()
+				if j == nil || j.Org != c.Org || j.Conversation != c.ID || j.Message != m.ID ||
+					!now.Before(j.Expires) || a.followupReason(c, j, now) != "" {
+					return false
+				}
+			}
 			if !a.workflowMediaDeliveryAllowed(c, &m) {
 				return false
 			}

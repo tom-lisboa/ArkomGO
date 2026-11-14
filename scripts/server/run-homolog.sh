@@ -17,6 +17,8 @@ export ARKOM_LOCAL_WEB_LISTEN=127.0.0.1:13007
 export SDR_LOCAL_WORKER_LISTEN=127.0.0.1:13081
 export SDR_LOCAL_SECRETS_DIR="$secrets"
 export SDR_OPENAI_MODEL=gpt-5.4-mini
+export SDR_METRICS_LISTEN=127.0.0.1:13090
+export SDR_METRICS_DB="$state/metrics/metrics.sqlite"
 
 case "${1:-}" in
     api)
@@ -26,6 +28,10 @@ case "${1:-}" in
         export ARKOM_CRM_BETA_HOMOLOG=true
         export SDR_GENESIS_DEMO=true SDR_PIPELINE_ENABLED=true SDR_CALENDAR_ENABLED=true
         export SDR_MEDIA_ENABLED=true SDR_CUSTOMER_DATA_ENABLED=true
+        export SDR_FOLLOWUP_ENABLED=true SDR_METRICS_ENABLED=true SDR_VOICE_ENABLED=true
+        export SDR_VOICE_KEY_FILE="$secrets/voice-seal"
+        export SDR_VOICE_PUBLIC_URL=https://sdk.arkom.ai/arkomgo/voice-callback
+        export ARKOM_VOICE_SIMULATION=true
         export TMPDIR="$state/sandboxes"
         export SDR_DEEPH_WORKSPACE="$state/deeph"
         export ARKOM_MULTI_STATE_DIR="$state/maia"
@@ -51,7 +57,7 @@ case "${1:-}" in
         export ARKOM_FLUTTER_BUILD="$release/flutter" ARKOM_BIA_BUILD="$release/bia-web"
         exec bia -web
         ;;
-    context|execution|calendar|media)
+    context|execution|calendar|media|followup|metrics)
         export SDR_MEDIA_AUDIO_MODEL=gpt-transcribe SDR_MEDIA_VISION_MODEL=gpt-5.4-mini
         exec bia "-worker=$1"
         ;;

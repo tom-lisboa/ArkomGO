@@ -208,7 +208,7 @@ func TestEcosystemSDRCapabilitiesFollowRuntimeAndOrganization(t *testing.T) {
 			if caps["calendar"] != true || caps["customer_data"] != false || caps["crm"] != (company == "alfa") {
 				t.Fatal("incorrect product availability", company, caps)
 			}
-			if len(caps) != 3 || s["interface"].(map[string]any)["route"] != "/demo/sdr" {
+			if len(caps) != 5 || caps["followup"] != false || caps["voice"] != false || s["interface"].(map[string]any)["route"] != "/demo/sdr" {
 				t.Fatal("unexpected client contract", s)
 			}
 		}

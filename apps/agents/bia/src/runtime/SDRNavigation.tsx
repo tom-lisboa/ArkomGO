@@ -15,6 +15,8 @@ export default function SDRNavigation({session, tab, capabilities, onSelect}: Pr
     {id: 'chat', label: 'Conversas'},
     {id: 'business', label: 'Meu negócio'},
     {id: 'albums', label: 'Álbuns'},
+    {id: 'followup', label: 'Follow-up', capability: 'followup'},
+    {id: 'voice', label: 'Voz', capability: 'voice'},
     {id: 'automations', label: 'Automações'},
     {id: 'executions', label: 'Execuções'},
     {id: 'crm', label: 'CRM', capability: 'crm'},

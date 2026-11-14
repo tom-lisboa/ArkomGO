@@ -37,6 +37,7 @@ type Conversation struct {
 	ResumedAt    *time.Time `json:"automation_resumed_at,omitempty"`
 }
 type Message struct {
+	FollowupID      string        `json:"followup_id,omitempty"`
 	ID              string        `json:"id"`
 	Conversation    string        `json:"conversation_id"`
 	Sequence        int           `json:"sequence"`
@@ -84,6 +85,7 @@ type Task struct {
 	RunID        string
 }
 type State struct {
+	Followups       map[string]*followupJob      `json:",omitempty"`
 	Signups         map[string]platformAccount   `json:",omitempty"`
 	HomologCRMs     map[string]*homologCRM       `json:",omitempty"`
 	CRMContacts     map[string]map[string]string `json:",omitempty"`
@@ -441,6 +443,9 @@ func (a *App) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.mediaRoute(w, r, u, path) {
+		return
+	}
+	if a.followupHTTP(w, r, u, path) {
 		return
 	}
 	if path == voicePath || strings.HasPrefix(path, voicePath+"/") {
@@ -927,7 +932,7 @@ func main() {
 		if err := a.configureVoice(); err != nil {
 			log.Fatal("voice configuration invalid")
 		}
-		go a.runVoiceWorker(context.Background())
+
 	}
 	if os.Getenv("SDR_CALENDAR_ENABLED") == "true" {
 		if os.Getenv("SDR_PIPELINE_ENABLED") != "true" {
@@ -945,6 +950,9 @@ func main() {
 	}
 	if err := a.configurePipeline(); err != nil {
 		log.Fatal("isolated worker configuration invalid")
+	}
+	if a.voice != nil {
+		go a.runVoiceWorker(context.Background())
 	}
 	if os.Getenv("SDR_CUSTOMER_DATA_ENABLED") == "true" {
 		if err := a.configureCustomerData(); err != nil {

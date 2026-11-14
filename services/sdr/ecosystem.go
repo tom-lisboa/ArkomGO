@@ -123,6 +123,7 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 		crm := a.crmRoutes[u.Org].Origin != "" || homologCRMEnabled(u.Org)
 		clips := os.Getenv("SDR_CLIPS_BRIDGE_KEY") != ""
 		a.mu.Lock()
+		_, followup := a.workerSecrets["followup"]
 		health, present := a.workerHealth["calendar"]
 		age := a.now().Sub(health.At)
 		calendarReady := a.calendarEnabled && present && age >= 0 && age < 30*time.Second
@@ -142,7 +143,7 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 			case "sdr":
 				configured = true
 				item["product_capabilities"] = map[string]bool{
-					"crm": crm, "calendar": calendarReady, "customer_data": a.customerEnabled && u.Role == "admin",
+					"crm": crm, "followup": followup, "voice": a.voice != nil, "calendar": calendarReady, "customer_data": a.customerEnabled && u.Role == "admin",
 				}
 			case "agenda":
 				configured = calendarReady

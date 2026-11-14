@@ -26,6 +26,8 @@ var (
 	hostedSafePath     = regexp.MustCompile(`^/[A-Za-z0-9_/-]+(?:\.[A-Za-z0-9_/-]+)*$`)
 )
 
+var hostedVoiceCallback = regexp.MustCompile(`^/voice-callback/v1/sdr/voice/twilio/[a-f0-9]{48}/(?:permission|incoming|(?:answer|status|permission-status|stream)/[a-f0-9]{48})$`)
+
 func viewRoot(mount string) string {
 	if mount == "" {
 		return "/demo"
@@ -41,6 +43,7 @@ func hostedPlatformWebHandler(flutter, bia string, api *url.URL, maia, finance s
 		}
 	}
 	platform := platformWebWithMount(flutter, bia, api, hostedPlatformMount)
+	voiceCallbacks := httputil.NewSingleHostReverseProxy(api)
 	financeWeb := hostedAgentFiles("/agents/financeai/", finance, false)
 	maiaWeb := hostedAgentFiles("/agents/maia/", maia, true)
 	financeAPI := hostedAgentProxy("127.0.0.1:8194", "/finance-api", "/api", "http://127.0.0.1:8194")
@@ -59,6 +62,21 @@ func hostedPlatformWebHandler(flutter, bia string, api *url.URL, maia, finance s
 		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
+		relative := strings.TrimPrefix(p, hostedPlatformMount)
+		if hostedVoiceCallback.MatchString(relative) {
+			// Twilio authenticates each callback or stream with its own
+			// signature. Never forward an Arkom browser session to this route.
+			if r.URL.RawQuery != "" || (r.Method != http.MethodPost && r.Method != http.MethodGet) {
+				http.NotFound(w, r)
+				return
+			}
+			r = r.Clone(r.Context())
+			r.URL.Path = strings.TrimPrefix(relative, "/voice-callback")
+			r.Header.Del("Cookie")
+			r.Header.Del("Authorization")
+			voiceCallbacks.ServeHTTP(w, r)
+			return
+		}
 		read := r.Method == http.MethodGet || r.Method == http.MethodHead
 		origin := r.Header.Get("Origin")
 		if (origin != "" && origin != hostedPlatformOrigin) ||

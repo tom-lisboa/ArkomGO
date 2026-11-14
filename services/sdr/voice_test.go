@@ -222,3 +222,39 @@ func TestTenantVoiceRequiresNativeConsentAndKeepsKeysPrivate(t *testing.T) {
 		t.Fatal("Twilio permanent permission was not honored")
 	}
 }
+
+func TestVoiceSimulationNeverCallsProviderOrSharesQueue(t *testing.T) {
+	a, creds, err := newApp("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	a.voice, err = newVoiceService("https://voice.example.com", bytes.Repeat([]byte{9}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.voice.simulation = true
+	a.voice.http.Transport = voiceHTTPFunc(func(r *http.Request) (*http.Response, error) {
+		t.Fatal("simulation reached the voice provider")
+		return nil, nil
+	})
+	aToken := login(t, a, creds, "alfa.admin")
+	bToken := login(t, a, creds, "beta.admin")
+	code, call := req(a, "POST", "/v1/sdr/voice/calls", aToken, "simulated-call",
+		map[string]any{"conversation_id": "conv_demo_alfa", "simulate": true})
+	if code != 202 || call["simulated"] != true {
+		t.Fatal(code, call)
+	}
+	path := "/v1/sdr/voice/calls/" + call["id"].(string)
+	for _, status := range []string{"approved", "completed"} {
+		if err := a.voiceTick(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if code, out := req(a, "GET", path, aToken, "", nil); code != 200 || out["status"] != status {
+			t.Fatal(code, out)
+		}
+		if code, _ := req(a, "GET", path, bToken, "", nil); code != 404 {
+			t.Fatal("Beta read the Alfa voice queue", code)
+		}
+	}
+}
