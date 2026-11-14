@@ -6,6 +6,7 @@ global.createArkomAgents=function({getSession,request,emit,navigate}){
  let active=null,financeTitle='',returnToMaia=false;
  const configs={
   sdr:{origin:location.origin,url:'/agents/bia/',name:'BIA SDR'},
+  agenda:{origin:location.origin,url:'/agents/bia/?surface=agenda',name:'Lia · Agenda'},
   multipropriedades:{origin:'http://127.0.0.1:8180',url:'http://127.0.0.1:8180/__arkom/entrar',name:'Maia'},
   financeai:{origin:'http://127.0.0.1:8194',url:'http://127.0.0.1:8194',name:'FinanceAI'},
  };
@@ -46,12 +47,12 @@ global.createArkomAgents=function({getSession,request,emit,navigate}){
   const data=event.data,child=entry.frame.contentWindow,config=configs[entry.id];
   if(!data||typeof data!=='object')return;
   try{
-   if(entry.id==='sdr'&&data.type==='arkom.bia.ready'&&typeof data.requestId==='string'&&!entry.nonce){
+   if(['sdr','agenda'].includes(entry.id)&&data.type==='arkom.bia.ready'&&typeof data.requestId==='string'&&!entry.nonce){
     entry.nonce=data.requestId;
-    const tab=new URL(location.href).searchParams.get('tab');
-    child.postMessage({type:'arkom.bia.session',requestId:entry.nonce,session:entry.identity,tab},config.origin);
+    const tab=entry.id==='agenda'?'calendar':new URL(location.href).searchParams.get('tab');
+    child.postMessage({type:'arkom.bia.session',requestId:entry.nonce,session:entry.identity,tab,surface:entry.id},config.origin);
     // BIA confirms acceptance of this exact session.
-   }else if(entry.id==='sdr'&&data.type==='arkom.bia.opened'&&data.requestId===entry.nonce){
+   }else if(['sdr','agenda'].includes(entry.id)&&data.type==='arkom.bia.opened'&&data.requestId===entry.nonce){
     clearTimeout(entry.timeout);status(entry,'open');
    }else if(entry.id==='multipropriedades'){
     if(data.type==='arkom.multi.ready'&&typeof data.requestId==='string'&&!entry.nonce){

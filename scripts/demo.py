@@ -15,7 +15,8 @@ if file.exists():
 if not env.get('OPENAI_API_KEY'):sys.exit('Configure OPENAI_API_KEY em .env antes de iniciar.')
 run=root/'.local/runtime';secret_dir=run/'secrets';secret_dir.mkdir(parents=True,exist_ok=True)
 secret_dir.chmod(0o700)
-for name in ['context-worker','execution-worker']:
+calendar=env.get('ARKOM_CALENDAR_LOCAL_ENABLED','true')=='true'
+for name in ['context-worker','execution-worker']+(['calendar-worker'] if calendar else []):
  p=secret_dir/name
  if not p.exists():
   with p.open('x') as f:f.write(secrets.token_urlsafe(48))
@@ -66,14 +67,18 @@ for path in ['apps/genesis_flutter/build/web/index.html','apps/agents/bia/dist/i
 workspace=run/'deeph'
 shutil.copytree(root/'services/sdr/demo/deeph',workspace,dirs_exist_ok=True,ignore=shutil.ignore_patterns('.deeph'))
 env.update(SDR_CRM_DEV_ENABLED='true',SDR_GENESIS_DEMO='true',SDR_PIPELINE_ENABLED='true',SDR_OPENAI_MODEL=env.get('SDR_OPENAI_MODEL') or 'gpt-5.4-mini',SDR_LOCAL_SECRETS_DIR=str(secret_dir),SDR_LOCAL_WORKER_LISTEN='127.0.0.1:8081',SDR_DEEPH_WORKSPACE=str(workspace),ARKOM_CRM_DEV_LISTEN='127.0.0.1:8098',ARKOM_LOCAL_DEMO='true')
+# This local stage uses our native calendar only; external OAuth is not adopted implicitly.
+env['SDR_CALENDAR_ENABLED']='true' if calendar else 'false'
+for key in ['SDR_GOOGLE_CALENDAR_CONFIG_FILE','SDR_GOOGLE_CALENDAR_KEY_FILE']:env.pop(key,None)
 env['ARKOM_FRONTEND_TOOLCHAIN']=str(root/'packages/genesis-frontend')
 env['PATH']=str(root/'.local/bin')+os.pathsep+env.get('PATH','')
 # Other optional channels are not enabled by this launcher.
-for flag in ['SDR_VOICE_ENABLED','SDR_CALENDAR_ENABLED','SDR_CUSTOMER_DATA_ENABLED','SDR_MEDIA_ENABLED','SDR_METRICS_ENABLED']:env[flag]='false'
+for flag in ['SDR_VOICE_ENABLED','SDR_CUSTOMER_DATA_ENABLED','SDR_MEDIA_ENABLED','SDR_METRICS_ENABLED']:env[flag]='false'
 bia=str(root/'.local/bin/bia')
 commands=([('crm',[str(root/'.local/bin/crm')],run)] if crm else [])+[
- ('api',[bia],run),('context',[bia,'-worker=context'],run),('execution',[bia,'-worker=execution'],run),
- ('web',[bia,'-web'],run)]
+ ('api',[bia],run),('context',[bia,'-worker=context'],run),('execution',[bia,'-worker=execution'],run)]
+if calendar:commands.append(('calendar',[bia,'-worker=calendar'],run))
+commands.append(('web',[bia,'-web'],run))
 pg_command=[]
 if crm and env.get('ARKOM_CRM_LOCAL_PG_DATA'):
  data=Path(env['ARKOM_CRM_LOCAL_PG_DATA']).expanduser().resolve()
@@ -97,6 +102,8 @@ try:
  for name,args,cwd in commands:
   log=(run/(name+'.log')).open('a');logs.append(log)
   child_env=env
+  if name=='calendar':
+   child_env={key:env[key] for key in ['PATH','SYSTEMROOT','TMPDIR','SDR_CRM_DEV_ENABLED','SDR_LOCAL_WORKER_LISTEN','SDR_LOCAL_SECRETS_DIR'] if key in env}
   if name=='web':
    child_env={key:env[key] for key in ['PATH','SYSTEMROOT','TMPDIR'] if key in env}
    child_env.update(ARKOM_LOCAL_DEMO='true',ARKOM_FLUTTER_BUILD=str(root/'apps/genesis_flutter/build/web'),ARKOM_BIA_BUILD=str(root/'apps/agents/bia/dist'))
@@ -109,6 +116,7 @@ try:
   time.sleep(.5)
  print('Demo: http://127.0.0.1:3007/demo',flush=True)
  print('CLIPS: '+('ativado localmente; preparando o serviço de vídeo' if clips else 'não configurado'),flush=True)
+ print('Agenda: '+('motor e worker próprios ativados; conexão Google não configurada' if calendar else 'desativada'),flush=True)
  print('CRM: '+('configurado; depende das rotas DEV provisionadas' if crm else 'não configurado; Genesis e SDR disponíveis'),flush=True)
  if multi_root:print('Multipropriedades: preparando a homologação local',flush=True)
  if finance_root:print('FinanceAI: preparando a homologação local',flush=True)

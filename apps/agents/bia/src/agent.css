@@ -9,3 +9,40 @@ body { margin: 0; background: #f9f5ed; color: #242722; font-family: ArkomSans, s
 .demo-runtime .btn-bilhon, .demo-runtime .btn-bilhon-outline, .demo-runtime .btn-bilhon-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; border: 1px solid var(--sdr-line); }
 .agent-loading { min-height: 70vh; display: grid; place-content: center; gap: 12px; text-align: center; padding: 24px; }
 .agent-loading a { color: #785438; }
+.agenda-agent-masthead { display: flex; align-items: center; gap: 24px; padding-bottom: 24px; margin-bottom: 28px; border-bottom: 1px solid var(--sdr-line, #d9cbb9); }
+.agenda-agent-brand { font-family: Georgia, serif; font-size: 25px; color: #242722; letter-spacing: 4px; }
+.agenda-agent-brand > span { color: #b58d4e; }
+.agenda-agent-identity { display: flex; flex-direction: column; gap: 5px; padding-left: 24px; border-left: 1px solid var(--sdr-line, #d9cbb9); }
+.agenda-agent-masthead strong { font-family: Georgia, serif; font-size: 26px; font-weight: 400; }
+.agenda-agent-identity > span, .agenda-agent-masthead small { font-size: 11px; color: #6a685e; }
+.agenda-agent-masthead > p { margin-left: auto; text-align: right; font-size: 12px; }
+.agenda-agent-masthead small { display: block; margin-top: 5px; }
+@media (max-width: 640px) {
+ .agenda-agent-masthead { flex-wrap: wrap; gap: 14px; }
+ .agenda-agent-brand { font-size: 22px; }
+ .agenda-agent-identity { padding-left: 14px; }
+ .agenda-agent-masthead > p { width: 100%; text-align: left; margin: 0; }
+}
+
+.agenda-agent .core-card label:not(.core-checkbox, .core-solution-options label) {
+ display: grid;
+ gap: 6px;
+ font-size: 13px;
+}
+.agenda-agent .core-card :is(input:not([type="checkbox"]), select) {
+ width: 100%;
+ min-width: 0;
+ padding: 8px 10px;
+ border: 1px solid var(--sdr-line, #d9cbb9);
+ border-radius: 6px;
+ background: #fffdf8;
+}
+.agenda-agent .core-card button:disabled { opacity: .6; cursor: default; }
+
+/* The agent can be narrower than a phone when the Flutter rail is open. */
+@media (max-width: 640px) {
+ .demo-runtime.sdr-product-runtime .agenda-agent .core-layout { grid-template-columns: minmax(0, 1fr); }
+ .agenda-agent :is(.core-page, .core-editor, .core-side, .core-card, .core-row) { grid-template-columns: minmax(0, 1fr); }
+ .agenda-agent :is(input, select, textarea, button) { min-width: 0; max-width: 100%; }
+ .agenda-agent button { white-space: normal; }
+}

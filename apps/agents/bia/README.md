@@ -12,3 +12,5 @@ O servidor Go serve `dist` em `/agents/bia/`. O Flutter incorpora o agente em `/
 Maia e FinanceAI mantêm seus próprios frontends nos checkouts locais configurados. A navegação, os squads e o Genesis pertencem ao Flutter.
 
 Com a demo iniciada, `npm run test:local` verifica a navegação Flutter, a preservação dos álbuns da BIA, Genesis, Maia, FinanceAI e as dimensões no celular, sem criar dados de negócio. Instale o navegador de teste com `npx playwright install chromium` se necessário.
+
+O bundle também hospeda a superfície da Lia em `/demo/agenda`, selecionada pela mensagem autenticada do Flutter. Reutiliza o console de agendas, sem carregar o restante da BIA. `npm run test:agenda:local` verifica criação, aprovação, remarcação, cancelamento e isolamento Alfa/Beta no laboratório.

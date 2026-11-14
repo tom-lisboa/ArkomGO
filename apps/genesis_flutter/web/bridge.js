@@ -105,7 +105,7 @@ async function pollRuntime(id,generation){
 }
 function allowedView(view){
  return typeof view==='string'&&(
-  ['home','map','tools','team','sdr','crm','clips','multipropriedades','financeai','genesis','genesis/new','business'].includes(view)||
+  ['home','map','tools','team','sdr','crm','agenda','clips','multipropriedades','financeai','genesis','genesis/new','business'].includes(view)||
   /^systems\/[a-z][a-z0-9_]{0,40}$/.test(view)||/^(?:tools|genesis)\/build_[a-f0-9]{48}$/.test(view)
  );
 }

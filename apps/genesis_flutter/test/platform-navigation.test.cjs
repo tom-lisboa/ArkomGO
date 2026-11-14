@@ -105,3 +105,19 @@ test('only the menu preference is stored; session remains in memory',async()=>{
  await h.invoke('navigation_preference',{collapsed:false});
  assert.equal(JSON.parse(await h.invoke('navigation_preference')).collapsed,false);
 });
+
+test('Lia receives the same tenant session in a dedicated calendar surface',async()=>{
+ const h=harness(),events=[];h.platform(e=>events.push(e));await tick();
+ await h.invoke('navigate',{view:'agenda'});
+ assert.equal(h.navigated.at(-1),'/demo/agenda');
+ await h.invoke('agent_open',{id:'agenda',lease:'agenda-1'});
+ const frame=h.frames[0],origin=h.global.location.origin;
+ assert.equal(frame.src,'/agents/bia/?surface=agenda');
+ await h.message({},origin,{type:'arkom.bia.ready',requestId:'forged'});
+ assert.equal(frame.contentWindow.sent.length,0);
+ await h.message(frame.contentWindow,origin,{type:'arkom.bia.ready',requestId:'owned'});
+ const data=frame.contentWindow.sent[0].data;
+ assert.equal(data.surface,'agenda');assert.equal(data.tab,'calendar');assert.equal(data.session.access_token,'test-alfa');
+ await h.message(frame.contentWindow,origin,{type:'arkom.bia.opened',requestId:'owned'});
+ assert.equal(events.at(-1).id,'agenda');assert.equal(events.at(-1).status,'open');
+});

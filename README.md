@@ -26,7 +26,7 @@ Este repositório reúne o **estado de desenvolvimento de 13/11/2026** do portal
 | Pasta | Responsabilidade |
 | --- | --- |
 | `apps/genesis_flutter` | Plataforma Flutter: navegação, Início com squads, negócio, ferramentas, CRM, Luma e Genesis |
-| `apps/agents/bia` | Frontend independente do agente BIA em React/Vite; exceção de agente, incorporado pelo Flutter |
+| `apps/agents/bia` | Interfaces da BIA e da Lia em React/Vite, abertas no Flutter |
 | `services/sdr` | Servidor web Go, proxy local, API, contexto da empresa, atendimento, sessões, automações, aprovações, workers e ponte Genesis |
 | `services/crm` | CRMGO: contatos, funis e oportunidades; roteamento por empresa e integração Clickmax |
 | `services/core` | Backend Arkom/Bia em refatoração, diretório, identidade, barramento e integrações |
@@ -59,4 +59,6 @@ Consulte [EXECUTAR](docs/EXECUTAR.md) para requisitos, configuração e comandos
 
 A [plataforma local](docs/ECOSISTEMA-LOCAL-FLUTTER.md) usa Flutter no catálogo, detalhes, CRM, CLIPS e Genesis. O SDR abre seu cliente completo existente, preparado para o Lovable, em React; a migração dele precisa preservar suas funções. Soluções ainda sem backend nesta estrutura ficam bloqueadas no catálogo.
 
-A plataforma não depende de Next.js. O Go serve o Flutter compilado diretamente. `/demo` abre o time como **Início**; a logo Arkom abre a **Visão geral** em `/demo/home`. Os frontends próprios da BIA, Maia e FinanceAI são superfícies de agentes incorporadas, com sessão vinculada à empresa.
+A plataforma não depende de Next.js. O Go serve o Flutter compilado diretamente. `/demo` abre o time como **Início**; a logo Arkom abre a **Visão geral** em `/demo/home`. Os frontends próprios da BIA, Lia, Maia e FinanceAI são superfícies de agentes incorporadas, com sessão vinculada à empresa.
+
+A agente **Lia** reutiliza a agenda nativa Go já existente e seu worker isolado. O acesso pelo time e pela BIA usa as mesmas agendas da empresa, com aprovações e regras próprias. Veja [integração da Lia](docs/ECOSISTEMA-LOCAL-FLUTTER.md#lia--agenda).

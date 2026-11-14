@@ -1,6 +1,6 @@
 # Arkom local em Flutter
 
-A plataforma local é Flutter: navegação, Início com squads, ferramentas, negócio, catálogo, detalhes, CRM, Luma e Genesis. O Go serve o build na porta 3007 e encaminha as chamadas autenticadas para a API em 8080. O Next e seu portal foram excluídos. Somente os frontends próprios dos agentes permanecem em React/Vite: BIA, Maia e FinanceAI.
+A plataforma local é Flutter: navegação, Início com squads, ferramentas, negócio, catálogo, detalhes, CRM, Luma e Genesis. O Go serve o build na porta 3007 e encaminha as chamadas autenticadas para a API em 8080. O Next e seu portal foram excluídos. Somente os frontends próprios dos agentes permanecem em React/Vite: BIA, Lia, Maia e FinanceAI.
 
 `/demo` abre os squads como **Início**. A logo Arkom abre a visão geral anterior em `/demo/home`. Trocar de aba não recarrega o Flutter. As superfícies dos agentes são mantidas em memória para preservar o trabalho e são destruídas quando a sessão muda.
 
@@ -9,6 +9,7 @@ A plataforma local é Flutter: navegação, Início com squads, ferramentas, neg
 | Solução | Serviço | Experiência desta entrega |
 | --- | --- | --- |
 | BIA SDR | `services/sdr` | Cliente React existente: WhatsApp, negócio, conversas, automações, execuções, CRM, agendas, dados, auditoria e álbuns |
+| Lia | `services/sdr/internal/calendarworker` | Agente de agenda, horários, reservas, remarcações, cancelamentos e aprovações; usa o mesmo motor da aba Agendas da BIA |
 | CRM Arkom | `services/crm` + Clickmax DEV | Funis, contatos, oportunidades, cadastro e movimentação |
 | CLIPS | `services/core/pilots/clips` | Biblioteca e estúdio Flutter para cortes verticais e geração de GIFs por descrição |
 | Arkom Multipropriedades | API Go e homologação local no checkout próprio | Operação original incorporada à plataforma |
@@ -239,3 +240,14 @@ A venda gera o registro do contrato com cotas e parcelas. A aba
 O código também tem geração de minuta Villagio em PDF para um
 empreendimento configurado com o DOCX privado. A ArkomGO local
 executa sem esse modelo e sem assinatura.
+
+
+## Lia · Agenda
+
+A Lia aparece no squad Vendas e no menu, logo abaixo de Início. A plataforma Flutter abre a superfície própria do agente em `/demo/agenda`. Ela reaproveita o console e os contratos de agenda existentes, compartilhando a sessão e os dados da mesma empresa com a aba **Agendas** da BIA. Não há outro cadastro de cliente nem cópia das agendas.
+
+O launcher inicia o worker Go `-worker=calendar` com credencial própria e sem chave OpenAI, na rede de loopback. A disponibilidade no catálogo exige um sinal recente desse worker. `ARKOM_CALENDAR_LOCAL_ENABLED=false` desativa o serviço; por padrão ele está ativo no laboratório. O launcher usa somente agendas nativas e não carrega configuração Google de outro ambiente. A conexão Google fica bloqueada na interface.
+
+Cada agenda começa sem permissão de atuação da BIA. O administrador libera consulta, reserva, remarcação e cancelamento individualmente. A aprovação começa habilitada; somente o resultado concluído pelo worker confirma uma reserva. Remarcar mantém a reserva anterior até a alteração ser confirmada.
+
+Verificação: `(cd services/sdr && go test ./...)`, `node --test apps/genesis_flutter/test/*.test.cjs` e `npm run test:agenda:local --prefix apps/agents/bia` com a demo iniciada. O último roteiro usa somente Alfa e Beta fictícias, cria/reutiliza a agenda de teste, aprova reserva/remarcação/cancelamento e verifica a separação dos dados. Ao final cancela reservas restantes e desabilita a agenda de teste; o histórico auditável é conservado.

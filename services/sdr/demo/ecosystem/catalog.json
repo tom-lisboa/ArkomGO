@@ -114,6 +114,61 @@
       ]
     },
     {
+      "id": "agenda",
+      "name": "Lia",
+      "area": "Vendas",
+      "description": "Organize horários, reservas, remarcações e cancelamentos com a agenda da sua empresa.",
+      "service": "services/sdr/internal/calendarworker",
+      "kind": "Agentes",
+      "guide": [
+        {
+          "title": "Crie sua agenda",
+          "description": "Informe os horários de atendimento, a duração e as regras de reserva."
+        },
+        {
+          "title": "Escolha as permissões",
+          "description": "Decida o que a BIA pode consultar, reservar, remarcar ou cancelar. As permissões começam desativadas."
+        },
+        {
+          "title": "Encontre um horário",
+          "description": "Selecione as agendas e consulte a disponibilidade. A reserva atual é mantida até uma remarcação ser concluída."
+        },
+        {
+          "title": "Confirme o resultado",
+          "description": "Acompanhe os pedidos e aprove as alterações quando a agenda exigir. Somente reservas concluídas aparecem como confirmadas."
+        }
+      ],
+      "features": [
+        "Agendas próprias por empresa",
+        "Disponibilidade e regras de horários",
+        "Reservas, remarcações e cancelamentos",
+        "Aprovação e histórico dos pedidos",
+        "Permissões de agenda para a BIA"
+      ],
+      "remix_available": false,
+      "tutorial_video_url": null,
+      "requirements": [
+        {
+          "name": "Conta Arkom",
+          "status": "Incluído"
+        },
+        {
+          "name": "Agenda e processamento",
+          "status": "Incluído"
+        },
+        {
+          "name": "Conexão Google",
+          "status": "Opcional; requer configuração"
+        }
+      ],
+      "interface": {
+        "source": "apps/agents/bia/src/CalendarAgent.tsx",
+        "route": "/demo/agenda",
+        "framework": "React",
+        "surface": "agent"
+      }
+    },
+    {
       "id": "genesis",
       "name": "Genesis",
       "area": "Produto",

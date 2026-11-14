@@ -25,6 +25,13 @@ const workspaceSquads = [
         gopher: 1,
       ),
       (
+        id: 'agenda',
+        name: 'Lia',
+        role: 'Agenda e agendamentos',
+        icon: Icons.calendar_month_outlined,
+        gopher: 4,
+      ),
+      (
         id: 'crm',
         name: 'CRM Arkom',
         role: 'Contatos e oportunidades',

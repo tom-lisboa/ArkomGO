@@ -16,7 +16,10 @@ const fs=require('node:fs');
   page.on('pageerror',e=>errors.push(e.message));
   page.on('response',r=>{if(r.status()===404&&r.url().includes('/agents/bia/'))missing.push(r.url())});
   page.on('request',r=>{if(r.isNavigationRequest()&&r.frame()===page.mainFrame())documents.push(r.url())});
+  const entering=page.waitForResponse(r=>r.url().endsWith('/__test/ui/local-enter'));
   await page.goto('http://127.0.0.1:3007/demo');
+  const entrance=await entering;
+  if(!entrance.ok())throw Error(`Local demo entry: HTTP ${entrance.status()}${entrance.headers()['retry-after'] ? ` (retry after ${entrance.headers()['retry-after']} s)` : ''}`);
   await page.waitForSelector('flutter-view',{state:'attached'});
   await page.evaluate(()=>document.querySelector('flt-semantics-placeholder')?.click());
   await expect(page.getByRole('button',{name:'Início',exact:true})).toBeVisible();
@@ -31,6 +34,7 @@ const fs=require('node:fs');
   const selector='iframe[data-arkom-agent="sdr"]';
   await expect(page.locator(selector)).toBeVisible({timeout:25000});
   const bia=page.frameLocator(selector);
+  await expect(bia.getByRole('button',{name:'Agendas',exact:true})).toBeEnabled();
   await bia.getByRole('button',{name:'Álbuns',exact:true}).click();
   await expect(bia.getByRole('heading',{name:/Álbum de projetos/})).toBeVisible();
   await page.evaluate(()=>document.querySelector('iframe[data-arkom-agent="sdr"]').contentWindow.document.documentElement.dataset.smoke='same-agent');
@@ -45,7 +49,7 @@ const fs=require('node:fs');
   await expect(page.getByRole('button',{name:'Início',exact:true})).toBeVisible();
   await page.evaluate(()=>globalThis.genesisBridge.invoke('navigate','{"view":"team"}'));
   await expect(page.getByRole('button',{name:'Início',exact:true})).toBeVisible();
-  for(const [id,title] of [['multipropriedades','Maia'],['financeai','FinanceAI']]){
+  for(const [id,title] of [['agenda','Lia'],['multipropriedades','Maia'],['financeai','FinanceAI']]){
    await page.getByRole('button',{name:title,exact:true}).click();
    await expect(page.locator(`iframe[data-arkom-agent="${id}"]`)).toBeVisible({timeout:30000});
    console.log(title+': opened');

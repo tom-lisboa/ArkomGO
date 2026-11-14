@@ -116,6 +116,11 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 	if r.URL.Path == base && r.Method == "GET" {
 		crm := a.crmRoutes[u.Org].Origin != ""
 		clips := os.Getenv("SDR_CLIPS_BRIDGE_KEY") != ""
+		a.mu.Lock()
+		health, present := a.workerHealth["calendar"]
+		age := a.now().Sub(health.At)
+		calendarReady := a.calendarEnabled && present && age >= 0 && age < 30*time.Second
+		a.mu.Unlock()
 		var catalog struct {
 			Version   string           `json:"version"`
 			Solutions []map[string]any `json:"solutions"`
@@ -131,7 +136,12 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 			case "sdr":
 				configured = true
 				item["product_capabilities"] = map[string]bool{
-					"crm": crm, "calendar": a.calendarEnabled, "customer_data": a.customerEnabled,
+					"crm": crm, "calendar": calendarReady, "customer_data": a.customerEnabled,
+				}
+			case "agenda":
+				configured = calendarReady
+				if !configured {
+					item["reason"] = "A agenda está aguardando seu serviço de processamento."
 				}
 			case "genesis":
 				configured = os.Getenv("OPENAI_API_KEY") != ""

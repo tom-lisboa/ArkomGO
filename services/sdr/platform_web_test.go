@@ -34,7 +34,7 @@ func TestPlatformWebFlutterRoutesAndAgentBoundary(t *testing.T) {
 		code int
 		body string
 	}{
-		{"/demo", 200, "flutter-platform"}, {"/demo/team", 200, "flutter-platform"},
+		{"/demo", 200, "flutter-platform"}, {"/demo/team", 200, "flutter-platform"}, {"/demo/agenda", 200, "flutter-platform"},
 		{"/demo/home", 200, "flutter-platform"}, {"/demo/genesis/new", 200, "flutter-platform"},
 		{"/demo/multipropriedades", 200, "flutter-platform"}, {"/demo/financeai", 200, "flutter-platform"},
 		{"/demo/genesis/build_" + strings.Repeat("a", 48), 200, "flutter-platform"},

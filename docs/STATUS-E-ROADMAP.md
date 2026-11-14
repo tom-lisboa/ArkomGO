@@ -2,9 +2,10 @@
 
 | Capacidade | Estado |
 | --- | --- |
-| Plataforma local em Flutter | Início, mapa, catálogo e superfícies SDR/CRM/CLIPS/contexto/Genesis; áreas educacionais e administrativas ainda em Next |
+| Plataforma local em Flutter | Plataforma Flutter, navegação persistente e servidor Go; o Next foi excluído. Frontends próprios dos agentes são incorporados |
 | Portal com visual Arkom e navegação por ferramentas | Implementado na demo local |
-| Sessão compartilhada, CRM e SDR no portal | Implementado; verificação visual interativa pendente |
+| Sessão compartilhada, CRM e SDR no portal | Implementado; navegação, agentes e menu verificados em desktop e celular |
+| Lia: agenda própria por empresa | Integrada ao time e à BIA; disponibilidade, reservas, remarcações, cancelamentos e aprovações pelo worker Go local |
 | Atendimento com IA e workers separados | Exercitado com dados fictícios |
 | CRMGO e oportunidade no Clickmax DEV | Exercitado com integração real |
 | Planejamento Genesis com quatro agentes deepH | Exercitado com inferência real |
@@ -15,13 +16,13 @@
 | Persistência mínima da aplicação | Implementado: um documento JSON por empresa/aplicação, com commit e auditoria |
 | Contrato versionado de aplicações geradas | Implementado: identidade, revisão, rotas, capacidades, validação e exportação |
 | Publicar e operar aplicações novas dentro da Arkom | Ainda não implementado |
-| Catálogo local | 15 entradas verificadas; 4 soluções implementadas, 11 bloqueadas. Inventário completo das 23 ainda não confirmado |
+| Catálogo local | 17 entradas; 7 com serviços internos, 10 bloqueadas. Disponibilidade depende da configuração e da empresa |
 | Remix automático para a conta Lovable do cliente | Ainda não implementado |
 | Provisionamento comercial multiempresa de ponta a ponta | Ainda não concluído |
 
 ## Prioridade definida
 
-Neste momento, evoluir backend Go, deepH, contratos e execução. Quando a etapa de interface começar, migrar o frontend completo para Flutter. A demo web existente permanece como instrumento de validação. A migração começou pelo estúdio Genesis a pedido do usuário; demais telas ainda pendentes.
+Integrar os serviços existentes na plataforma Flutter e evoluir o backend Go, o deepH, os contratos e a execução. BIA, Lia, Maia e FinanceAI têm interfaces próprias dentro da plataforma. Áreas sem serviço integrado ficam bloqueadas.
 
 ## Entregas incrementais
 

@@ -652,6 +652,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
         'tools': 'Ferramentas',
         'team': 'Início',
         'sdr': 'BIA SDR',
+        'agenda': 'Lia',
         'multipropriedades': 'Maia',
         'financeai': 'FinanceAI',
         'crm': 'CRM Arkom',
@@ -680,6 +681,7 @@ class _ArkomPlatformState extends State<ArkomPlatform> {
       case 'map':
         return ecosystemMap();
       case 'sdr':
+      case 'agenda':
       case 'multipropriedades':
       case 'financeai':
         final state = agentStates[view];

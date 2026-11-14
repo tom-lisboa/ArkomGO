@@ -165,7 +165,7 @@ func platformSameOrigin(r *http.Request) bool {
 
 func platformViewAllowed(view string) bool {
 	switch view {
-	case "", "home", "map", "tools", "team", "sdr", "crm", "clips", "multipropriedades", "financeai", "genesis", "genesis/new", "business":
+	case "", "home", "map", "tools", "team", "sdr", "crm", "agenda", "clips", "multipropriedades", "financeai", "genesis", "genesis/new", "business":
 		return true
 	}
 	return platformProjectRoute.MatchString(view) || platformSolutionRoute.MatchString(view)

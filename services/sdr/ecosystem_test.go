@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 type ecosystemTransport func(*http.Request) (*http.Response, error)
@@ -33,7 +34,7 @@ func TestEcosystemCatalogAndPrivateClipsBridge(t *testing.T) {
 			t.Fatal("unimplemented service unlocked")
 		}
 	}
-	if count != 6 {
+	if count != 7 {
 		t.Fatal("incorrect operational catalog", count)
 	}
 	t.Setenv("SDR_CLIPS_BRIDGE_KEY", strings.Repeat("a", 48))
@@ -188,6 +189,7 @@ func TestGIFBridgeUsesOnlyAuthenticatedCompanyAndAccount(t *testing.T) {
 func TestEcosystemSDRCapabilitiesFollowRuntimeAndOrganization(t *testing.T) {
 	a, creds, _ := genesisApp(t)
 	a.calendarEnabled = true
+	a.workerHealth["calendar"] = WorkerHealth{At: a.now()}
 	a.crmRoutes = map[string]crmRoute{"org_demo_alfa": {Origin: "http://127.0.0.1:8098", Token: "server-only-test-token"}}
 	for _, company := range []string{"alfa", "beta"} {
 		token := login(t, a, creds, company+".admin")
@@ -213,5 +215,50 @@ func TestEcosystemSDRCapabilitiesFollowRuntimeAndOrganization(t *testing.T) {
 		if !found {
 			t.Fatal("SDR not in catalog")
 		}
+	}
+}
+
+func TestAgendaCatalogRequiresLiveWorkerAndKeepsSDRInSync(t *testing.T) {
+	a, creds, _ := genesisApp(t)
+	token := login(t, a, creds, "alfa.admin")
+	for _, tc := range []struct {
+		name             string
+		enabled, present bool
+		age              time.Duration
+		ready            bool
+	}{
+		{"disabled", false, true, 0, false},
+		{"not-started", true, false, 0, false},
+		{"live", true, true, time.Second, true},
+		{"stale", true, true, 31 * time.Second, false},
+		{"future", true, true, -time.Second, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a.calendarEnabled = tc.enabled
+			delete(a.workerHealth, "calendar")
+			if tc.present {
+				a.workerHealth["calendar"] = WorkerHealth{At: a.now().Add(-tc.age)}
+			}
+			code, out := req(a, "GET", "/v1/sdr/genesis-demo/ecosystem", token, "", nil)
+			if code != 200 {
+				t.Fatal(code, out)
+			}
+			found := false
+			for _, raw := range out["solutions"].([]any) {
+				item := raw.(map[string]any)
+				if item["id"] == "agenda" {
+					found = true
+					if item["configured"] != tc.ready || item["implemented"] != true {
+						t.Fatal("incorrect agenda availability", item)
+					}
+				}
+				if item["id"] == "sdr" && item["product_capabilities"].(map[string]any)["calendar"] != tc.ready {
+					t.Fatal("SDR calendar disagrees with Lia")
+				}
+			}
+			if !found {
+				t.Fatal("Lia missing from catalog")
+			}
+		})
 	}
 }

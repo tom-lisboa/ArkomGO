@@ -90,3 +90,7 @@ A navegação local usa Flutter. O catálogo, os módulos disponíveis, o CLIPS 
 `demo.py` inicia `.local/bin/bia -web` em loopback na porta 3007. Ele serve `apps/genesis_flutter/build/web` e o agente `apps/agents/bia/dist`, sem Node/Next em execução na plataforma. Recompile com `scripts/build-demo.py` após mudanças no código; o build Flutter é de produção e não tem hot reload. O launcher não expõe os diretórios de fontes, `.env` ou dados privados.
 
 Teste de navegação no navegador (demo em execução): `npm run test:local --prefix apps/agents/bia`. Não cria mensagens, cobranças, clientes ou construções. O login local conserva os limites de acesso do laboratório; entradas repetidas em pouco tempo podem responder 429 e informar `Retry-After`.
+
+### Lia e agenda nativa
+
+A demo inicia a agenda própria e seu worker Go por padrão. `ARKOM_CALENDAR_LOCAL_ENABLED=false` desativa essa capacidade. O acesso é pelo agente Lia em Início ou pela aba Agendas da BIA. Agendas, regras, pedidos e reservas pertencem à empresa autenticada. A conexão Google permanece bloqueada nesta etapa local. Teste completo com dados fictícios: `npm run test:agenda:local --prefix apps/agents/bia`.

@@ -32,6 +32,13 @@ Future<dynamic> api(String path, [Map<String, dynamic>? body]) async {
           'rating': {'mine': 0, 'count': 0, 'average': null},
         },
         {
+          'id': 'agenda',
+          'name': 'Lia',
+          'implemented': true,
+          'configured': true,
+          'kind': 'Agentes',
+        },
+        {
           'id': 'crm',
           'name': 'CRM Arkom',
           'area': 'Vendas',
@@ -211,8 +218,10 @@ void main() {
       );
       expect(find.text('ARKOM  /  BIA SDR'), findsNothing);
       expect(find.byType(WorkspaceTeam), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('navigation-agenda')));
+      expect(navigated, ['agenda']);
       await tester.tap(find.byKey(const ValueKey('navigation-financeai')));
-      expect(navigated, ['financeai']);
+      expect(navigated, ['agenda', 'financeai']);
       await tester.tap(find.byKey(const ValueKey('navigation-team')));
       expect(navigated.last, 'team');
       await tester.tap(find.byKey(const ValueKey('navigation-home')));

@@ -1,6 +1,6 @@
 import type {Session} from './api';
 
-type Entry = {session:Session; tab:string};
+type Entry = {session:Session; tab:string; surface:'sdr'|'agenda'};
 const tabs = ['whatsapp','chat','business','albums','automations','executions','crm','calendar','data','audit'];
 let current:Session|null = null;
 let pending:Promise<Entry>|null = null;
@@ -30,7 +30,7 @@ export function connectToPlatform():Promise<Entry> {
    window.removeEventListener('message',receive);
    current=data.session;
    window.parent.postMessage({type:"arkom.bia.opened",requestId},origin);
-   resolve({session:data.session,tab:tabs.includes(data.tab)?data.tab:'whatsapp'});
+   resolve({session:data.session,tab:tabs.includes(data.tab)?data.tab:'whatsapp',surface:data.surface==='agenda'?'agenda':'sdr'});
   }
   window.addEventListener('message',receive);
   window.parent.postMessage({type:'arkom.bia.ready',requestId},origin);
