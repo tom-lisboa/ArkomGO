@@ -27,9 +27,9 @@ bash scripts/server/read-homolog-login.sh usuario@servidor ~/.ssh/arkom_dev beta
 
 ## Cadastro de empresas
 
-Abra [Criar conta](https://sdk.arkom.ai/arkomgo/signup) e preencha nome,
-atividade, fuso horário, e-mail e senha. O cadastro prepara a empresa em
-segundo plano. A entrada é liberada quando a Maia e o FinanceAI têm
+O cadastro público está fechado. Quando habilitado, o formulário
+**Criar conta** pede nome, atividade, fuso horário, e-mail e senha.
+O cadastro prepara a empresa em segundo plano. A entrada é liberada quando a Maia e o FinanceAI têm
 organizações próprias e o canal de WhatsApp está provisionado. O portal
 publica o contexto do cadastro para a BIA, configura o CRM nativo e cria
 uma agenda com aprovação. Projetos Genesis, mídia, conversas e contatos
@@ -46,7 +46,10 @@ Com Maia e FinanceAI da homologação instalados, execute
 `sudo bash scripts/server/install-signup-db.sh`. O script prepara um
 login SQL restrito em cada banco. O pacote de release instala
 `signup/provision.py`, usado por `arkomgo-homolog@api.service` quando as
-duas credenciais estão disponíveis. A API da Maia precisa ser compilada
+duas credenciais estão disponíveis e o ambiente do serviço define
+`ARKOM_HOMOLOG_SIGNUP_ENABLED=true`. A configuração padrão fecha o
+cadastro e permite o login das contas já criadas. Reinicie a API após
+alterar essa configuração. A API da Maia precisa ser compilada
 com a integração FinanceAI de `scripts/multipropriedades/finance-registry.go`
 e `finance-http.go`. O cadastro adiciona os vínculos de cada empresa a
 `maia/finance/onboarded` sem precisar reiniciar a Maia. Atualize também

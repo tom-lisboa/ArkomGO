@@ -30,7 +30,10 @@ case "${1:-}" in
         export SDR_DEEPH_WORKSPACE="$state/deeph"
         export ARKOM_MULTI_STATE_DIR="$state/maia"
         export ARKOM_FINANCEAI_STATE_DIR="$state/finance"
-        if [[ -x "$release/signup/provision.py" && -r "$secrets/signup-maia-postgres" && -r "$secrets/signup-finance-postgres" ]]; then
+        unset ARKOM_SIGNUP_PROVISIONER
+        if [[ "${ARKOM_HOMOLOG_SIGNUP_ENABLED:-false}" == true &&
+              -x "$release/signup/provision.py" && -r "$secrets/signup-maia-postgres" &&
+              -r "$secrets/signup-finance-postgres" ]]; then
             export ARKOM_SIGNUP_PROVISIONER="$release/signup/provision.py"
         fi
         export ARKOM_FRONTEND_TOOLCHAIN="$release/genesis-frontend"
