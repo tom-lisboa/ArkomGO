@@ -155,7 +155,7 @@ func (a *App) multiSession(w http.ResponseWriter, r *http.Request, u User) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 	login, _ := json.Marshal(map[string]string{"email": account.Email, "password": account.Password})
 	var token struct {
