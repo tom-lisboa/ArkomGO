@@ -346,7 +346,8 @@ class _StudioState extends State<Studio> {
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, c) {
-          final narrow = c.maxWidth < 760;
+          final narrow = c.maxWidth < 960;
+          final compactBackend = c.maxWidth < 1180;
           return Column(
             children: [
               header(narrow),
@@ -370,13 +371,13 @@ class _StudioState extends State<Studio> {
               Expanded(
                 child: Row(
                   children: [
-                    if (!narrow && showChat)
+                    if (!narrow) ...[
                       SizedBox(
-                        width: c.maxWidth < 1050 ? 280 : 316,
-                        child: conversation(),
+                        width: compactBackend ? 56 : 208,
+                        child: backendConversation(compact: compactBackend),
                       ),
-                    if (!narrow && showChat)
                       const VerticalDivider(width: 1, color: line),
+                    ],
                     Expanded(
                       child: Column(
                         children: [
@@ -393,19 +394,11 @@ class _StudioState extends State<Studio> {
                         ],
                       ),
                     ),
-                    if (c.maxWidth >= 1050 &&
-                        !newIdea &&
-                        (model.steps.isNotEmpty ||
-                            model.files.containsKey(
-                              'frontend/svelte.json',
-                            ))) ...[
+                    if (!narrow && showChat) ...[
                       const VerticalDivider(width: 1, color: line),
                       SizedBox(
-                        width: 270,
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(18),
-                          child: frontendStepsPanel(),
-                        ),
+                        width: c.maxWidth >= 1280 ? 348 : 316,
+                        child: conversation(),
                       ),
                     ],
                   ],
@@ -543,7 +536,14 @@ class _StudioState extends State<Studio> {
           child: const Icon(Icons.auto_awesome, size: 16, color: gold),
         ),
         const SizedBox(width: 10),
-        label('GENESIS', size: 11, weight: FontWeight.w600, spacing: 2.1),
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            label('GENESIS', size: 11, weight: FontWeight.w600, spacing: 2.1),
+            label('Agentes Visuais', size: 9, color: muted),
+          ],
+        ),
         const SizedBox(width: 18),
         const SizedBox(
           height: 18,
@@ -644,10 +644,10 @@ class _StudioState extends State<Studio> {
       children: [
         iconAction(
           narrow
-              ? 'Conversar com o Genesis'
+              ? 'Conversar sobre o Front-end'
               : showChat
-              ? 'Recolher conversa'
-              : 'Mostrar conversa',
+              ? 'Recolher conversa de Front-end'
+              : 'Mostrar conversa de Front-end',
           Icons.chat_bubble_outline,
           () => setState(() {
             if (narrow) {
@@ -889,10 +889,168 @@ class _StudioState extends State<Studio> {
     ),
   );
 
+  Widget visualAgentHeading(
+    String title,
+    String subtitle,
+    IconData icon, {
+    bool active = false,
+  }) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: line)),
+    ),
+    child: Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: (active ? gold : muted).withValues(alpha: .08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 17, color: active ? gold : muted),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              label(title, size: 13, weight: FontWeight.w600),
+              label(subtitle, size: 10, color: muted),
+            ],
+          ),
+        ),
+        if (active)
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: agentColors[3],
+            ),
+          ),
+      ],
+    ),
+  );
+
+  Widget backendConversation({bool compact = false}) => Container(
+    key: const ValueKey('backend-conversation'),
+    color: const Color(0xff101113),
+    child: compact
+        ? Column(
+            children: [
+              const SizedBox(height: 18),
+              const Tooltip(
+                message: 'Agente de Back-end · Em breve',
+                child: Icon(
+                  Icons.account_tree_outlined,
+                  size: 20,
+                  color: muted,
+                ),
+              ),
+              const SizedBox(height: 18),
+              RotatedBox(
+                quarterTurns: 3,
+                child: label('Back-end · Em breve', size: 10, color: muted),
+              ),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              visualAgentHeading(
+                'Back-end',
+                'Estrutura e conexões',
+                Icons.account_tree_outlined,
+              ),
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        label('EM BREVE', size: 9, color: muted, spacing: 1.5),
+                        const SizedBox(height: 12),
+                        label('Um espaço para a estrutura.', size: 19),
+                        const SizedBox(height: 12),
+                        label(
+                          'A conversa com os agentes de Back-end vai ficar aqui.',
+                          size: 12,
+                          color: muted,
+                        ),
+                        const SizedBox(height: 16),
+                        label(
+                          'Por enquanto, vamos dar forma à sua página com o time de Front-end.',
+                          size: 11,
+                          color: muted,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: label('Time de soluções', size: 10, color: muted),
+              ),
+            ],
+          ),
+  );
+
+  Widget frontendProgressDrawer() {
+    final completed = model.steps
+        .where((step) => ['completed', 'reused'].contains(step['status']))
+        .length;
+    final current = model.steps
+        .where((step) => step['status'] == 'running')
+        .firstOrNull;
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: line)),
+      ),
+      child: ExpansionTile(
+        key: ValueKey('frontend-progress-${model.id}'),
+        initiallyExpanded: model.build?['mode'] != 'frontend',
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+        dense: true,
+        shape: const Border(),
+        collapsedShape: const Border(),
+        iconColor: gold,
+        collapsedIconColor: muted,
+        title: label('Passo a passo', size: 11, weight: FontWeight.w500),
+        subtitle: label(
+          current?['title']?.toString() ??
+              '$completed de ${model.steps.length} etapas concluídas',
+          size: 10,
+          color: muted,
+          lines: 1,
+        ),
+        children: [
+          SizedBox(
+            height: math.min(260, MediaQuery.sizeOf(context).height * .3),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: frontendStepsPanel(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget conversation() => Container(
+    key: const ValueKey('frontend-conversation'),
     color: const Color(0xff111214),
     child: Column(
       children: [
+        visualAgentHeading(
+          'Front-end',
+          'Design e páginas',
+          Icons.auto_awesome_outlined,
+          active: true,
+        ),
+        if (!newIdea && model.steps.isNotEmpty) frontendProgressDrawer(),
         Expanded(
           child: SingleChildScrollView(
             reverse: true,

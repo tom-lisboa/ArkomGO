@@ -12,7 +12,7 @@ Os elementos são ligados a posições da AST Svelte. Textos dinâmicos e estilo
 
 A prévia permanece em origem opaca e só pode propor seleção/texto aos controles do host. A gravação exige a sessão do projeto e da empresa. Fontes de backend, manifestos e bundles não são aceitos pelo endpoint de edição. Projetos em geração não recebem gravações manuais. O runtime anterior é encerrado após uma edição salva; suas fontes Go permanecem iguais.
 
-O passo a passo fica à direita em telas amplas; em telas menores abre pelo botão de progresso. A edição manual é por rascunho e salvamento explícito. Não há colaboração simultânea sobre o mesmo elemento, edição de texto dinâmico pelo canvas ou reorganização livre por arraste nesta etapa.
+O Genesis organiza o time de Agentes Visuais em três áreas: espaço reservado de Back-end à esquerda (sem conversa ativa nesta etapa), prévia central e conversa de Front-end à direita. O passo a passo pode ser expandido dentro do painel de Front-end. Em telas menores, conversa e prévia alternam pelo botão do chat; o progresso também abre pelo botão de etapas. A edição manual é por rascunho e salvamento explícito. Não há colaboração simultânea sobre o mesmo elemento, edição de texto dinâmico pelo canvas ou reorganização livre por arraste nesta etapa.
 
 ## Motor de criação
 

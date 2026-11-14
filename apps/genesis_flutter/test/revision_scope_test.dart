@@ -51,7 +51,7 @@ void main() {
       await tester.pumpWidget(GenesisApp(controller: c));
       await tester.pump();
       if (width == 390) {
-        await tester.tap(find.byTooltip('Conversar com o Genesis'));
+        await tester.tap(find.byTooltip('Conversar sobre o Front-end'));
         await tester.pump();
       }
       expect(find.byKey(const ValueKey('interface-revision')), findsNothing);

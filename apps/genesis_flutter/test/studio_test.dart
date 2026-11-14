@@ -304,7 +304,7 @@ void main() {
         same(preview),
       );
       if (width == 390) {
-        await tester.tap(find.byTooltip('Conversar com o Genesis'));
+        await tester.tap(find.byTooltip('Conversar sobre o Front-end'));
         await tester.pump();
         expect(find.byType(TextField), findsOneWidget);
         await tester.tap(find.byTooltip('Solução'));
