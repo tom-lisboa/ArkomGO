@@ -18,7 +18,7 @@ var platformProjectRoute = regexp.MustCompile(`^(tools|genesis)/build_[a-f0-9]{4
 var platformSolutionRoute = regexp.MustCompile(`^systems/[a-z][a-z0-9_]{0,40}$`)
 
 func platformWebEntrypoint() bool {
-	if len(os.Args) != 2 || os.Args[1] != "-web" {
+	if len(os.Args) != 2 || (os.Args[1] != "-web" && os.Args[1] != "-web-public") {
 		return false
 	}
 	if os.Getenv("ARKOM_LOCAL_DEMO") != "true" {
@@ -41,20 +41,32 @@ func platformWebEntrypoint() bool {
 		log.Fatal("endereço da API precisa ser loopback")
 	}
 	target, _ := url.Parse("http://" + api)
+	handler := platformWebHandler(flutter, bia, target)
+	if os.Args[1] == "-web-public" {
+		if !platformRequiresLogin() || address != hostedPlatformListen {
+			log.Fatal("a homologação pública exige login e escuta dedicada em loopback")
+		}
+		handler = hostedPlatformWebHandler(flutter, bia, target,
+			os.Getenv("ARKOM_MAIA_BUILD"), os.Getenv("ARKOM_FINANCE_BUILD"))
+	}
 	listener, err := net.Listen("tcp4", address)
 	if err != nil {
 		log.Fatal(err)
 	}
 	server := &http.Server{
-		Handler: platformWebHandler(flutter, bia, target), ReadHeaderTimeout: 5 * time.Second,
+		Handler: handler, ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 40 * time.Second, IdleTimeout: 60 * time.Second,
 	}
-	log.Printf("Arkom Flutter pronta em http://%s/demo", address)
+	log.Printf("Arkom Flutter pronta em %s", address)
 	log.Fatal(server.Serve(listener))
 	return true
 }
 
 func platformWebHandler(flutter, bia string, target *url.URL) http.Handler {
+	return platformWebWithMount(flutter, bia, target, "")
+}
+
+func platformWebWithMount(flutter, bia string, target *url.URL, mount string) http.Handler {
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(target)
@@ -76,6 +88,16 @@ func platformWebHandler(flutter, bia string, target *url.URL) http.Handler {
 		ModifyResponse: func(r *http.Response) error {
 			r.Header.Set("Cache-Control", "no-store, no-transform")
 			r.Header.Set("X-Accel-Buffering", "no")
+			if mount != "" && strings.HasPrefix(r.Request.URL.Path, "/v1/platform/auth/") {
+				cookies := r.Cookies()
+				r.Header.Del("Set-Cookie")
+				for _, cookie := range cookies {
+					if cookie.Name == platformSessionCookie && cookie.Path == "/api/demo/backend/v1/platform/auth/" {
+						cookie.Path = mount + cookie.Path
+						r.Header.Add("Set-Cookie", cookie.String())
+					}
+				}
+			}
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
@@ -138,11 +160,11 @@ func platformWebHandler(flutter, bia string, target *url.URL) http.Handler {
 		case r.URL.Path == "/":
 			http.Redirect(w, r, "/demo", http.StatusFound)
 		case r.URL.Path == "/demo/systems":
-			http.Redirect(w, r, "/demo/tools", http.StatusFound)
+			http.Redirect(w, r, viewRoot(mount)+"/tools", http.StatusFound)
 		case r.URL.Path == "/demo" || strings.HasPrefix(r.URL.Path, "/demo/"):
 			view := strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, "/demo"), "/")
 			if platformLegacyTab(view) {
-				http.Redirect(w, r, "/demo/sdr?tab="+view, http.StatusFound)
+				http.Redirect(w, r, viewRoot(mount)+"/sdr?tab="+view, http.StatusFound)
 				return
 			}
 			if !platformViewAllowed(view) {

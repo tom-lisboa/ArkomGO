@@ -1,22 +1,20 @@
 # ArkomGO em homologação no servidor
 
-A homologação roda no servidor da Arkom com acesso por SSH. As empresas Alfa e
+A homologação roda no servidor da Arkom. As empresas Alfa e
 Beta são fictícias. A interface Flutter abre a BIA, a Lia, o CLIPS, a Maia, o
 FinanceAI, o CRM e o estúdio Genesis. O diretório de homologação e os processos
 do systemd têm nomes próprios.
 
 ## Acesso
 
-Execute em um computador com acesso SSH ao servidor e abra
-[ArkomGO](http://127.0.0.1:13007/demo) enquanto o túnel estiver ativo.
+Abra a [ArkomGO](https://sdk.arkom.ai/arkomgo/) no navegador. O Caddy
+encaminha essa rota ao serviço `arkomgo-public.service`, que escuta na
+porta 13008 de loopback. Para tarefas administrativas, o acesso por túnel
+também está disponível em [127.0.0.1:13007/demo](http://127.0.0.1:13007/demo).
 
 ```sh
 bash scripts/server/connect-homolog.sh usuario@servidor ~/.ssh/arkom_dev
 ```
-
-A equipe usa a mesma porta local 13007 para a ArkomGO. As outras portas do
-túnel permitem abrir a Maia, o FinanceAI e a autenticação da Maia dentro do
-portal. O túnel padrão não encaminha bancos de dados.
 
 Entre com `alfa@arkom.test` ou `beta@arkom.test`. Consulte a senha de
 cada conta pelo terminal com acesso administrativo ao servidor. A sessão
@@ -29,6 +27,7 @@ bash scripts/server/read-homolog-login.sh usuario@servidor ~/.ssh/arkom_dev beta
 
 ## Serviços
 
+- `arkomgo-public.service` serve os builds HTTPS da plataforma e dos agentes.
 - `arkomgo-homolog@*.service` supervisiona o portal, a API, a BIA, a Lia,
   o WhatsApp, a mídia, o CLIPS e o CRM.
 - `arkomgo-homolog-finance.service` inicia o FinanceAI e seus seis workers em
@@ -47,7 +46,7 @@ bash scripts/server/read-homolog-login.sh usuario@servidor ~/.ssh/arkom_dev beta
 Para conferir os processos e a versão ativa no servidor:
 
 ```sh
-systemctl list-units 'arkomgo-homolog*'
+systemctl list-units 'arkomgo*'
 readlink -f /opt/arkomgo-homolog/current
 curl -fsS http://127.0.0.1:13007/__arkom/ready
 ```
@@ -73,13 +72,26 @@ As aplicações usam `/var/lib/arkomgo-homolog` e os volumes dedicados.
 O instalador mantém credenciais em `/etc/arkomgo-homolog`. Os arquivos do
 CRM precisam conter somente a configuração do workspace DEV. Maia e
 FinanceAI usam também seus próprios artefatos compilados e vínculos
-provisionados para Alfa e Beta. A origem do portal nesses artefatos é
-`http://127.0.0.1:13007`.
+provisionados para Alfa e Beta. O gateway público usa a mesma API de homologação e os mesmos vínculos.
+A documentação e os serviços do SDK têm suas próprias rotas no Caddy.
 
-A versão hospedada usa contas de homologação com login obrigatório. A
-liberação para clientes requer autenticação comercial, provisionamento por
-empresa e publicação HTTPS da plataforma e dos agentes. O domínio
-`sdk.arkom.ai` atende a documentação e os serviços SDK existentes.
+### Build do gateway HTTPS
+
+Monte um release em `/opt/arkomgo-homolog/public/releases/` e aponte
+`/opt/arkomgo-homolog/public/current` para ele. O release usa o binário
+Linux amd64 `bia` e quatro diretórios de frontend.
+
+- `flutter` usa `flutter build web --release --base-href /arkomgo/genesis-flutter/ --no-web-resources-cdn`.
+- `bia-web` usa a base Vite `/arkomgo/agents/bia/`.
+- `finance-web` usa o frontend preparado por `scripts/financeai/run.py` com
+  `scripts/financeai/entry.tsx` e a base Vite `/arkomgo/agents/financeai/`.
+- `maia-web` usa o `dist` de `node scripts/multipropriedades/build-hosted.mjs
+  <checkout-da-maia> <staging-novo> <json-de-configuração>`. O JSON contém
+  `PUBLISHABLE_KEY` do Supabase de homologação.
+
+Instale `scripts/server/arkomgo-public.service` no systemd. Importe
+`scripts/server/arkomgo-public.caddy` dentro do virtual host
+`sdk.arkom.ai`. Valide a configuração do Caddy antes de recarregá-la.
 
 O primeiro build Go em um servidor pequeno pode precisar preparar o cache
 da biblioteca padrão. Execute `sudo bash scripts/server/warm-go-cache.sh`

@@ -4,11 +4,13 @@
 global.createArkomAgents=function({getSession,request,emit,navigate}){
  const frames=new Map();
  let active=null,financeTitle='',returnToMaia=false;
+ const mount=location.pathname.startsWith('/arkomgo/')?'/arkomgo':'';
+ const api=mount+'/api/demo/backend';
  const configs={
-  sdr:{origin:location.origin,url:'/agents/bia/',name:'BIA SDR'},
-  agenda:{origin:location.origin,url:'/agents/bia/?surface=agenda',name:'Lia · Agenda'},
-  multipropriedades:{origin:'http://127.0.0.1:8180',url:'http://127.0.0.1:8180/__arkom/entrar',name:'Maia'},
-  financeai:{origin:'http://127.0.0.1:8194',url:'http://127.0.0.1:8194',name:'FinanceAI'},
+  sdr:{origin:location.origin,url:mount+'/agents/bia/',name:'BIA SDR'},
+  agenda:{origin:location.origin,url:mount+'/agents/bia/?surface=agenda',name:'Lia · Agenda'},
+  multipropriedades:{origin:mount?location.origin:'http://127.0.0.1:8180',url:mount?mount+'/agents/maia/__arkom/entrar':'http://127.0.0.1:8180/__arkom/entrar',name:'Maia'},
+  financeai:{origin:mount?location.origin:'http://127.0.0.1:8194',url:mount?mount+'/agents/financeai/':'http://127.0.0.1:8194',name:'FinanceAI'},
  };
  function status(entry,value,message=''){
   entry.status=value;entry.message=message;
@@ -57,7 +59,7 @@ global.createArkomAgents=function({getSession,request,emit,navigate}){
    }else if(entry.id==='multipropriedades'){
     if(data.type==='arkom.multi.ready'&&typeof data.requestId==='string'&&!entry.nonce){
      entry.nonce=data.requestId;
-     const result=await(await request('/api/demo/backend/v1/sdr/genesis-demo/ecosystem/multipropriedades/session',{},entry.abort.signal)).json();
+     const result=await(await request(api+'/v1/sdr/genesis-demo/ecosystem/multipropriedades/session',{},entry.abort.signal)).json();
      if(entry.identity!==getSession()||entry.abort.signal.aborted)return;
      child.postMessage({type:'arkom.multi.session',requestId:entry.nonce,session:result},config.origin);
     }else if(entry.nonce&&data.requestId===entry.nonce){
@@ -69,7 +71,7 @@ global.createArkomAgents=function({getSession,request,emit,navigate}){
    }else if(entry.id==='financeai'){
     if(data.type==='arkom.finance.ready'&&typeof data.state==='string'&&typeof data.challenge==='string'&&!entry.nonce){
      entry.nonce=data.state;
-     const result=await(await request('/api/demo/backend/v1/sdr/genesis-demo/ecosystem/financeai/session',{state:data.state,challenge:data.challenge},entry.abort.signal)).json();
+     const result=await(await request(api+'/v1/sdr/genesis-demo/ecosystem/financeai/session',{state:data.state,challenge:data.challenge},entry.abort.signal)).json();
      if(entry.identity!==getSession()||entry.abort.signal.aborted||result.state!==entry.nonce)return;
      child.postMessage({...result,type:'arkom.finance.handoff',titleId:financeTitle||undefined},config.origin);
     }else if(entry.nonce&&data.state===entry.nonce){

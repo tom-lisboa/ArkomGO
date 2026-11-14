@@ -1,0 +1,7 @@
+# Import inside the sdk.arkom.ai site block.
+redir /arkomgo /arkomgo/ 308
+handle /arkomgo/* {
+    reverse_proxy 127.0.0.1:13008 {
+        flush_interval -1
+    }
+}

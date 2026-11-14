@@ -3,8 +3,9 @@ import {Workspace} from './App';
 import {FinanceAISession} from '../../examples/lovable/session';
 import './style.css';
 
-const portal = 'http://127.0.0.1:3007';
-const product = 'http://127.0.0.1:8194';
+const hosted = location.pathname.startsWith('/arkomgo/agents/financeai/');
+const portal = hosted ? location.origin : 'http://127.0.0.1:3007';
+const product = hosted ? location.origin : 'http://127.0.0.1:8194';
 const base64url = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 const nonce = () => base64url(crypto.getRandomValues(new Uint8Array(32)));
@@ -22,7 +23,7 @@ async function connect() {
     window.removeEventListener('message', receive);
     try {
       if (!['alfa', 'beta'].includes(data.company) || typeof data.name !== 'string') throw Error('invalid_company');
-      const apiBase = product + '/api/' + data.company;
+      const apiBase = product + (hosted ? '/arkomgo/finance-api/' : '/api/') + data.company;
       const session = new FinanceAISession(apiBase, data.installationId);
       await session.exchangeArkomHandoff(data.code, state, verifier);
       const modes = {bankingMode:'simulated', aiMode:'simulated', fiscalMode:'simulated', portalConnected:true};

@@ -1,0 +1,30 @@
+[Unit]
+Description=ArkomGO public homologation web gateway
+After=network-online.target arkomgo-homolog@api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=arkomgo-homolog
+Group=arkomgo-homolog
+WorkingDirectory=/opt/arkomgo-homolog/public/current
+Environment=SDR_CRM_DEV_ENABLED=true
+Environment=ARKOM_LOCAL_DEMO=true
+Environment=ARKOM_PLATFORM_REQUIRE_LOGIN=true
+Environment=ARKOM_LOCAL_API_LISTEN=127.0.0.1:13080
+Environment=ARKOM_LOCAL_WEB_LISTEN=127.0.0.1:13008
+Environment=ARKOM_FLUTTER_BUILD=/opt/arkomgo-homolog/public/current/flutter
+Environment=ARKOM_BIA_BUILD=/opt/arkomgo-homolog/public/current/bia-web
+Environment=ARKOM_MAIA_BUILD=/opt/arkomgo-homolog/public/current/maia-web
+Environment=ARKOM_FINANCE_BUILD=/opt/arkomgo-homolog/public/current/finance-web
+ExecStart=/opt/arkomgo-homolog/public/current/bia -web-public
+Restart=on-failure
+RestartSec=5
+UMask=0077
+ProtectSystem=strict
+ProtectHome=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

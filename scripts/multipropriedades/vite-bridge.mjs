@@ -30,7 +30,7 @@ if (window.parent !== window) {
 }
 `;
 
-function addFinanceDialog(source) {
+export function addFinanceDialog(source, parentOrigin = portal, apiOrigin = "http://127.0.0.1:8190") {
   const patches = [
     ['import { useMemo, useState } from "react";', 'import { useEffect, useMemo, useState } from "react";'],
     ['  const [avulso, setAvulso] = useState(false);',
@@ -53,7 +53,10 @@ function addFinanceDialog(source) {
     if (source.split(anchor).length !== 2) throw Error("Tela de parcelas da Maia incompatível.");
     source = source.replace(anchor, replacement);
   }
-  return source + "\n" + readFileSync(new URL("finance-dialog.tsx", import.meta.url), "utf8");
+  const dialog = readFileSync(new URL("finance-dialog.tsx", import.meta.url), "utf8")
+    .replaceAll("http://127.0.0.1:3007", parentOrigin)
+    .replaceAll("http://127.0.0.1:8190", apiOrigin);
+  return source + "\n" + dialog;
 }
 
 function arkomMultiBridge(publishableKey, financeEnabled) {

@@ -1,3 +1,4 @@
+import {assetBase} from '../paths';
 import {Lock, ShieldCheck} from 'lucide-react';
 import type {Session} from './api';
 
@@ -30,7 +31,7 @@ export default function SDRNavigation({session, tab, capabilities, onSelect}: Pr
   return <header className="sdr-navigation">
     <div className="sdr-masthead">
       <div className="sdr-brand">
-        <img src="/agents/bia/demo-assets/arkom-sdr-logo.png" alt="Arkom SDR"/>
+        <img src={assetBase+'arkom-sdr-logo.png'} alt="Arkom SDR"/>
         <span>Relacionamento com contexto</span>
       </div>
       <div className="sdr-workspace">

@@ -1,3 +1,4 @@
+import {assetBase} from '../paths';
 import {demoSession,forgetDemoSession} from './session';
 import {AutomationStudio,ExecutionCenter} from './PlatformConsole';
 import BusinessCore from './BusinessCore';
@@ -14,7 +15,7 @@ import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {Bot,User,Pause,Send,MessageSquare,ShieldCheck,FlaskConical,LogOut,RefreshCw} from 'lucide-react';
 import {Button} from './components/Button';
 import {request,describe,ApiError,type Session,type Conversation,type Message,type Audit,type Runtime} from './api';
-const logo='/agents/bia/demo-assets/arkom-sdr-logo.png';
+const logo=assetBase+'arkom-sdr-logo.png';
 type Page<T>={items:T[];next_cursor:string|null};
 type Pending={path:string;body:unknown;key:string;kind:'message'|'inbound'|'action'|'new-conversation'};
 const genesisDemo = true;

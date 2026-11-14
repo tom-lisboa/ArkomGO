@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -110,5 +113,56 @@ func TestBetaCRMSyntheticTenant(t *testing.T) {
 	results := run(beta, "cards.list", map[string]string{"pipeline_id": "beta-matriculas", "status": "won"}, 200)
 	if len(results["data"].([]any)) != 1 {
 		t.Fatal("expected one Beta card")
+	}
+}
+
+func TestHostedPlatformScopesLoginAndBlocksPrivateRoutes(t *testing.T) {
+	t.Setenv("ARKOM_PLATFORM_REQUIRE_LOGIN", "true")
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("ArkomGO"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	login := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/platform/auth/login" {
+			t.Errorf("unexpected upstream path %s", r.URL.Path)
+		}
+		setPlatformCookie(w, "test", 3600)
+	}))
+	defer login.Close()
+	target, err := url.Parse(login.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := hostedPlatformWebHandler(dir, dir, target, dir, dir)
+	call := func(path, origin string) *http.Response {
+		t.Helper()
+		r := httptest.NewRequest(http.MethodPost, hostedPlatformOrigin+path, strings.NewReader("{}"))
+		r.RemoteAddr = "127.0.0.1:54321"
+		r.Header.Set("Origin", origin)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		return w.Result()
+	}
+	const auth = "/arkomgo/api/demo/backend/v1/platform/auth/"
+	for _, origin := range []string{"", "https://example.test"} {
+		if got := call(auth+"login", origin); got.StatusCode != http.StatusForbidden {
+			t.Fatalf("untrusted origin admitted: %d", got.StatusCode)
+		}
+	}
+	result := call(auth+"login", hostedPlatformOrigin)
+	cookies := result.Cookies()
+	if result.StatusCode != http.StatusOK || len(cookies) != 1 ||
+		cookies[0].Path != auth || !cookies[0].Secure || !cookies[0].HttpOnly {
+		t.Fatalf("hosted login did not issue a scoped secure cookie: %d", result.StatusCode)
+	}
+	for _, path := range []string{
+		"/arkomgo/api/demo/backend/__test/ui/local-enter",
+		"/arkomgo/api/demo/backend/v1/platform/auth/%2e%2e/login",
+		"/arkomgo/maia-data/auth/v1/admin/users",
+		"/arkomgo/maia-data/auth/v1/token?grant_type=password",
+	} {
+		if got := call(path, hostedPlatformOrigin); got.StatusCode != http.StatusNotFound {
+			t.Fatalf("private route %s returned %d", path, got.StatusCode)
+		}
 	}
 }

@@ -1,4 +1,3 @@
-@font-face { font-family: ArkomSans; src: url('/genesis-flutter/assets/assets/fonts/Roboto-Regular.ttf') format('truetype'); font-display: swap; }
 :root { --font-jakarta: ArkomSans; --font-marcellus: Georgia; }
 html { color-scheme: light; }
 body { margin: 0; background: #f9f5ed; color: #242722; font-family: ArkomSans, sans-serif; }

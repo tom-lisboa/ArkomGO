@@ -1,5 +1,6 @@
+import {apiBase} from '../paths';
 import {ApiError,type Session} from './api';
-const base='/api/demo/backend';
+const base=apiBase;
 export type MediaFile={kind:'audio'|'image'|'document'|'video';mime:string;name:string;size:number;sha256:string};
 export type MediaAsset={id:string;organization_id:string;conversation_id:string;direction:string;file:MediaFile;status:string;error?:string;expires_at:string};
 export type MessageMedia={id:string;kind:string;mime:string;name:string;size:number;status:string};

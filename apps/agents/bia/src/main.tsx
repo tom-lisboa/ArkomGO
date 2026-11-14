@@ -1,3 +1,4 @@
+import {platformHome, platformFont} from './paths';
 import {createRoot} from 'react-dom/client';
 import LabApp from './runtime/LabApp';
 import CalendarAgent from './CalendarAgent';
@@ -7,6 +8,8 @@ import './runtime/lab.css';
 import './product.css';
 import './agent.css';
 
+void new FontFace('ArkomSans', 'url('+platformFont+')').load().then(font=>document.fonts.add(font)).catch(()=>{});
+
 const root=createRoot(document.getElementById('root')!);
 root.render(<p className="agent-loading" role="status">Abrindo seu agente…</p>);
 void connectToPlatform().then(({tab,session,surface}) => {
@@ -15,5 +18,5 @@ void connectToPlatform().then(({tab,session,surface}) => {
  </div></section>);
 }).catch((error:Error) => {
  root.render(<div className="agent-loading" role="alert"><p>{error.message}</p>
-  <a href="/demo" target="_top">Abrir meu time na Arkom</a></div>);
+  <a href={platformHome} target="_top">Abrir meu time na Arkom</a></div>);
 });

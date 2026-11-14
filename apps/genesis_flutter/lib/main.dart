@@ -12,18 +12,21 @@ import 'studio_controller.dart';
 import 'visuals.dart';
 import 'platform.dart';
 
-void main() => runApp(
-  ArkomPlatform(
-    initialView:
-        Uri.base.queryParameters['view'] ??
-        (Uri.base.path == '/demo' || Uri.base.path == '/demo/'
-            ? 'team'
-            : Uri.base.path.startsWith('/demo/')
-            ? Uri.base.path.substring(6)
-            : 'team'),
-    navigationOnly: Uri.base.queryParameters['navigation'] == 'only',
-  ),
-);
+void main() {
+  final segments = Uri.base.pathSegments;
+  final route =
+      segments.isNotEmpty &&
+          (segments.first == 'demo' || segments.first == 'arkomgo')
+      ? segments.skip(1).join('/')
+      : '';
+  runApp(
+    ArkomPlatform(
+      initialView:
+          Uri.base.queryParameters['view'] ?? (route.isEmpty ? 'team' : route),
+      navigationOnly: Uri.base.queryParameters['navigation'] == 'only',
+    ),
+  );
+}
 
 class GenesisApp extends StatelessWidget {
   final StudioController? controller;

@@ -1,11 +1,12 @@
-const perfil='/agents/bia/demo-assets/perfil-voz.webp';
-const autorizacao='/agents/bia/demo-assets/autorizacao-whatsapp.webp';
-const conversas='/agents/bia/demo-assets/conversas.webp';
-const controle='/agents/bia/demo-assets/controle-equipe.webp';
-const agenda='/agents/bia/demo-assets/agendamento.webp';
-const horarios='/agents/bia/demo-assets/agendamento-horarios.webp';
-const followUp='/agents/bia/demo-assets/follow-up.webp';
-const whatsapp='/agents/bia/demo-assets/atendimento-whatsapp.webp';
+import {assetBase} from '../../paths';
+const perfil=assetBase+'perfil-voz.webp';
+const autorizacao=assetBase+'autorizacao-whatsapp.webp';
+const conversas=assetBase+'conversas.webp';
+const controle=assetBase+'controle-equipe.webp';
+const agenda=assetBase+'agendamento.webp';
+const horarios=assetBase+'agendamento-horarios.webp';
+const followUp=assetBase+'follow-up.webp';
+const whatsapp=assetBase+'atendimento-whatsapp.webp';
 
 export type Capture = { image: string; alt: string; caption: string; source?: string };
 type Sheet = {

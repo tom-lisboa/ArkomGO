@@ -1,3 +1,4 @@
+import {apiBase} from '../paths';
 export type Identity={user_id:string;organization_id:string;role:'viewer'|'operator'|'admin';environment:string};
 export type Session={access_token:string;identity:Identity};
 export type Conversation={id:string;label?:string;organization_id:string;contact_id:string;channel:'fake_whatsapp'|'whatsapp';automation:'active'|'human'|'paused';opted_out:boolean;revision:number;updated_at:string};
@@ -7,7 +8,7 @@ export class ApiError extends Error{constructor(public status:number,public code
 // No configurable URL, Supabase client, persistent token or provider credential.
 export async function request<T>(path:string,session?:Session,body?:unknown,key?:string,signal?:AbortSignal):Promise<T>{
  if(!path.startsWith('/v1/sdr/')&&!path.startsWith('/v1/core/')&&!path.startsWith('/v1/platform/')&&!path.startsWith('/v1/customer/')&&!path.startsWith('/__test/ui/'))throw Error('Rota fora do laboratório');
- const base='/api/demo/backend';
+ const base=apiBase;
  const response=await fetch(base+path,{method:body===undefined?'GET':'POST',headers:{...(body===undefined?{}:{'Content-Type':'application/json'}),...(session?{Authorization:`Bearer ${session.access_token}`} :{}),...(key?{'Idempotency-Key':key}:{})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:signal??AbortSignal.timeout(12000),credentials:'omit',redirect:'error'});
  const data=await response.json();if(!response.ok)throw new ApiError(response.status,data.error,response.headers.get('Retry-After'),Array.isArray(data.issues)?data.issues:[]);return data;
 }
@@ -17,4 +18,4 @@ export function describe(error:unknown):string{
 
 export type Runtime={enabled:boolean;ai_enabled:boolean;media_enabled?:boolean;delivery:string;status?:string;memory?:{key:string;value:string;message_id:string}[];last_run?:{status:string;action:string;business_version:number;error_code:string;suggested_response:string}};
 
-export async function constructionExport(session:Session,id:string):Promise<Blob>{const response=await fetch('/api/demo/backend'+'/v1/sdr/genesis-demo/construction/'+encodeURIComponent(id)+'/export',{headers:{Authorization:`Bearer ${session.access_token}`},credentials:'omit',redirect:'error',signal:AbortSignal.timeout(15000)});if(!response.ok)throw new Error('export_failed');return response.blob()}
+export async function constructionExport(session:Session,id:string):Promise<Blob>{const response=await fetch(apiBase+'/v1/sdr/genesis-demo/construction/'+encodeURIComponent(id)+'/export',{headers:{Authorization:`Bearer ${session.access_token}`},credentials:'omit',redirect:'error',signal:AbortSignal.timeout(15000)});if(!response.ok)throw new Error('export_failed');return response.blob()}
