@@ -1146,6 +1146,12 @@ class _StudioState extends State<Studio> {
       ),
       const SizedBox(height: 10),
       label('Você conversa. O time cuida da criação.', size: 12, color: muted),
+      const SizedBox(height: 10),
+      label(
+        'Luma · GIFs com CLIPS\nFluxo · scroll e animações',
+        size: 10,
+        color: muted,
+      ),
       const SizedBox(height: 22),
       for (final step in model.steps)
         Padding(

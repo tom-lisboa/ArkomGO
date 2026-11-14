@@ -46,6 +46,7 @@ type Event struct {
 type Engine struct {
 	RevisionScope string
 	StepsVersion  int
+	GIFGenerator  GIFGenerator
 	Provider      Provider
 	Tester        Tester
 	References    map[string]string

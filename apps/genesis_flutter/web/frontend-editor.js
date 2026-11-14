@@ -22,7 +22,7 @@ function selectionClient(){
  let editing=false,selected=null,entry=null,original='';
  // Cursors visualize persisted source actions on the rendered elements. They
  // do not claim a browser agent clicked, tested, or authored DOM with a mouse.
- const actors={architect:['Atlas','#d4b477'],ux:['Lia','#f0b4a2'],designer:['Cora','#a9baff'],interface:['Íris','#b29cdd'],reviewer:['Vega','#8ac6ac']};
+ const actors={architect:['Atlas','#d4b477'],ux:['Lia','#f0b4a2'],designer:['Cora','#a9baff'],interface:['Íris','#b29cdd'],reviewer:['Vega','#8ac6ac'],gif:['Luma','#edb876'],motion:['Fluxo','#7dcbd1']};
  let activityVersion=0,activityKey='',liveActor='';
  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
  function paintActions(actions){
@@ -122,7 +122,7 @@ function create(files,api,options){
   finally{busy=false;sourceArea.disabled=false;if(!disposed){mode();refreshStatus(status.textContent);}}
  }
  async function reload(){try{const latest=await api.refresh();if(disposed)return;operations={};overrides={};undo=[];redo=[];conflict=false;apply(latest.files,{sequence:latest.build.sequence,running:latest.build.status==='running'});}catch(e){refreshStatus(e.message);}}
- function enqueueActions(actions){for(const e of actions||[])if(!seenActions.has(e.sequence)&&['interface','reviewer','designer','ux','architect'].includes(e.agent)){seenActions.add(e.sequence);pendingActions.push(e);}if(pendingActions.length>20)pendingActions=pendingActions.slice(-20);}
+ function enqueueActions(actions){for(const e of actions||[])if(!seenActions.has(e.sequence)&&['interface','reviewer','designer','ux','architect','gif','motion'].includes(e.agent)){seenActions.add(e.sequence);pendingActions.push(e);}if(pendingActions.length>20)pendingActions=pendingActions.slice(-20);}
  function flushActions(){if(!frame||!pendingActions.length)return;const actions=pendingActions.splice(0).map(e=>({agent:e.agent,kind:e.kind,ids:elements.filter(n=>n.path===e.path&&['h1','h2','h3','p','section','button','img','nav','header','article'].includes(n.tag)).map(n=>n.id)}));frame.contentWindow?.postMessage({type:'arkom.agents.actions',actions},'*');}
  function apply(next,opts){options={...options,...opts};enqueueActions(opts.actions);if(busy)return;if(opts.sequence!==sequence&&dirty()){conflict=true;refreshStatus();return;}
   if(!next['frontend/index.html']||!next['frontend/build.json']||!next['frontend/bundle.js']){sequence=opts.sequence;mode();refreshStatus();return;}

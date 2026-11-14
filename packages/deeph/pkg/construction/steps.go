@@ -24,9 +24,16 @@ func Steps() []Step {
 	}
 }
 func SupportsSteps(version int) bool {
-	return version == 1 || version == 2 || version == 3 || version == 4
+	return version == 1 || version == 2 || version == 3 || version == 4 || version == 5
 }
 func StepsForVersion(version int) []Step {
+	if version == 5 {
+		base := StepsForVersion(4)
+		return append(append(append([]Step{}, base[:3]...),
+			Step{"gif", "Criando suas animações", "GIFs reais do CLIPS disponíveis para a página, ou reuso/ausência justificados.", "Você é Luma, especialista em GIFs. Leia o pedido, as fontes e frontend/media.json. Se o cliente pediu animações GIF, use generate_gif para criar uma peça coerente com o design. Reutilize assets adequados já existentes; não gere mídia sem necessidade. Descreva composição, paleta, movimento e loop no prompt. Não escreva fontes nem chame test. Depois do resultado real da ferramenta, conclua ready. Em indisponibilidade, registre claramente a lacuna sem afirmar que gerou. Leia reference/visual-agents.md.", 4},
+			base[3],
+			Step{"motion", "Dando movimento à página", "Scroll e animações implementados e frontend compilado.", "Você é Fluxo, especialista em Motion, Lenis e scroll. Leia reference/visual-agents.md e a página já implementada. Escolha e implemente animações apropriadas ao pedido diretamente nos componentes Svelte, preservando layout, GIFs, filtros e navegação. Importe as bibliotecas locais ou use as ações @arkom/motion. Faça mudanças pequenas, com conteúdo sempre legível, limpeza de listeners e prefers-reduced-motion. Registre em design/motion.json os efeitos escolhidos. Execute test e conclua ready quando compilar; não alegue teste visual. Se movimento não for adequado ao pedido, preserve a página e explique sua decisão.", 8}), base[4])
+	}
 	if version == 4 {
 		base := StepsForVersion(3)
 		steps := []Step{base[0], base[1], base[2], base[4], base[5]}

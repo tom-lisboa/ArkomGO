@@ -113,6 +113,7 @@ func (a *App) prepareConstruction(stepID string) (construction.Provider, constru
 // Called under a.mu after the start transaction commits.
 func (a *App) launchConstruction(b *ConstructionBuild, provider construction.Provider, tester construction.Tester) {
 	version, revisionScope := b.StepsVersion, b.RevisionScope
+	creator := b.Creator
 	id, executionID, stepID, goal := b.ID, b.ExecutionID, b.nextStepID(), b.Goal
 	files := map[string]string{}
 	for k, v := range b.Files {
@@ -137,7 +138,7 @@ func (a *App) launchConstruction(b *ConstructionBuild, provider construction.Pro
 			data, _ := constructionReferences.ReadFile("demo/construction/reference/" + name)
 			refs["reference/"+name] = string(data)
 		}
-		engine := construction.Engine{RevisionScope: revisionScope, StepsVersion: version, Provider: provider, Tester: tester, References: refs, Emit: func(e construction.Event) error { return a.constructionRunTrace(id, executionID, e) }}
+		engine := construction.Engine{GIFGenerator: constructionGIFGenerator{app: a, user: creator, buildID: id}, RevisionScope: revisionScope, StepsVersion: version, Provider: provider, Tester: tester, References: refs, Emit: func(e construction.Event) error { return a.constructionRunTrace(id, executionID, e) }}
 		_, err := engine.RunStep(ctx, goal, files, stepID)
 		a.finishConstructionStep(id, executionID, stepID, err, ctx.Err())
 		a.continueFrontendConstruction(id, executionID, provider, tester)

@@ -25,6 +25,7 @@ type ConstructionTrace struct {
 	At       time.Time `json:"at"`
 }
 type ConstructionBuild struct {
+	Creator       User                  `json:"creator,omitempty"`
 	Mode          string                `json:"mode,omitempty"`
 	RevisionScope string                `json:"revision_scope,omitempty"`
 	StepsVersion  int                   `json:"steps_version,omitempty"`
@@ -253,7 +254,7 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			startStep = "interface"
 		}
 		if body.Mode == "frontend" {
-			version = 4
+			version = 5
 			// Frontend mode never invents or changes an API/backend contract.
 			if parent == nil {
 				manifest, _ := json.Marshal(application.Manifest{SchemaVersion: application.SchemaVersion, CatalogVersion: "arkom-capabilities-v1", Name: "Sua página", Backend: "go", Entrypoint: "frontend/index.html", Routes: []application.Route{}, Capabilities: []string{}})
@@ -273,7 +274,7 @@ func (a *App) constructionHTTP(w http.ResponseWriter, r *http.Request, u User) b
 			return true
 		}
 		applicationID, revision := a.constructionIdentity(u.Org, parent)
-		b := &ConstructionBuild{Mode: body.Mode, RevisionScope: body.RevisionScope, StepsVersion: version, ExecutionID: token(), ApplicationID: applicationID, Revision: revision, ID: "build_" + token(), Org: u.Org, Goal: body.Goal, ParentID: body.ParentID, Status: "running", CreatedAt: a.now().UTC(), UpdatedAt: a.now().UTC(), Files: initial, Traces: []ConstructionTrace{}}
+		b := &ConstructionBuild{Creator: User{ID: u.ID, Org: u.Org, Role: u.Role, Environment: u.Environment}, Mode: body.Mode, RevisionScope: body.RevisionScope, StepsVersion: version, ExecutionID: token(), ApplicationID: applicationID, Revision: revision, ID: "build_" + token(), Org: u.Org, Goal: body.Goal, ParentID: body.ParentID, Status: "running", CreatedAt: a.now().UTC(), UpdatedAt: a.now().UTC(), Files: initial, Traces: []ConstructionTrace{}}
 		if a.transact(func() {
 			if a.state.Platform.Constructions == nil {
 				a.state.Platform.Constructions = map[string]*ConstructionBuild{}

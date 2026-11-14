@@ -34,10 +34,10 @@ func TestFrontendChatAutomaticallyCompletesAndRevisesWithoutBackend(t *testing.T
 	}
 	id := start["id"].(string)
 	out := stepCheckpoint(t, a, admin, id, "ready")
-	for _, stage := range []string{"architect", "ux", "designer", "interface", "reviewer"} {
+	for _, stage := range []string{"architect", "ux", "designer", "gif", "interface", "motion", "reviewer"} {
 		assertStepEvidence(t, out, stage, "completed")
 	}
-	if len(out["build"].(map[string]any)["steps"].([]any)) != 5 {
+	if len(out["build"].(map[string]any)["steps"].([]any)) != 7 {
 		t.Fatal("unexpected backend phase")
 	}
 	if code, _ = req(a, "GET", base+"/"+id, beta, "", nil); code != 404 {

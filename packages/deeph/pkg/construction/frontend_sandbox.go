@@ -38,7 +38,7 @@ func (Sandbox) compileFrontend(ctx context.Context, files map[string]string, pre
 	if err != nil || !filepath.IsAbs(toolchain) {
 		return result, fmt.Errorf("%w: frontend_compiler_unavailable", ErrFrontendRunner)
 	}
-	for _, name := range []string{"compiler.mjs", "navigation.mjs", "node_modules/svelte/package.json", "node_modules/esbuild/package.json"} {
+	for _, name := range []string{"compiler.mjs", "navigation.mjs", "motion.mjs", "assets.mjs", "AnimatedImage.svelte", "node_modules/motion/package.json", "node_modules/lenis/package.json", "node_modules/svelte/package.json", "node_modules/esbuild/package.json"} {
 		if _, err := os.Stat(filepath.Join(toolchain, name)); err != nil {
 			return result, fmt.Errorf("%w: frontend_compiler_unavailable", ErrFrontendRunner)
 		}

@@ -16,15 +16,15 @@ test('visual drafts survive a remote update and iframe messages have an exact so
  const save=buttons().find(e=>e.textContent==='Salvar frontend');assert.equal(save.disabled,true);save.click();assert.equal(saved,0);
  editor.dispose();dom.window.close();
 });
-for(const reduced of [false,true])test('cursor actions use real mapped elements and respect reduced motion: '+reduced,()=>{
+for(const [agent,displayName] of [['interface','Íris'],['gif','Luma'],['motion','Fluxo']])for(const reduced of [false,true])test('cursor actions use real mapped elements and respect reduced motion: '+agent+' '+reduced,()=>{
  const dom=new JSDOM('<body><h1 data-genesis-node="actual">Minha página</h1></body>',{runScripts:'outside-only'}),w=dom.window;
  w.HTMLElement.prototype.getBoundingClientRect=()=>({left:10,top:10,bottom:90,right:210,width:200,height:80});
  w.matchMedia=()=>({matches:reduced});w.requestAnimationFrame=fn=>{fn(w.performance.now()+500);return 1;};
  let animated=0;w.Element.prototype.animate=()=>{animated++;};
  w.eval(fs.readFileSync(require.resolve('../web/frontend-editor.js'),'utf8'));w.genesisFrontendEditor.selectionClient();
- const send=(source,ids)=>w.dispatchEvent(new w.MessageEvent('message',{source,data:{type:'arkom.agents.actions',actions:[{agent:'interface',kind:'file.written',ids}]}}));
+ const send=(source,ids)=>w.dispatchEvent(new w.MessageEvent('message',{source,data:{type:'arkom.agents.actions',actions:[{agent,kind:'file.written',ids}]}}));
  send({},['actual']);assert.equal(animated,0);send(w,['missing']);assert.equal(w.document.body.textContent,'Minha página');
- send(w,['actual']);assert.match(w.document.body.textContent,/Íris/);assert.equal(animated,reduced?0:1);assert.equal(w.document.querySelector('h1').textContent,'Minha página');
+ send(w,['actual']);assert.ok(w.document.body.textContent.includes(displayName));assert.equal(animated,reduced?0:1);assert.equal(w.document.querySelector('h1').textContent,'Minha página');
  dom.window.close();
 });
 test('the agent cursor remains active until its real working state ends',async()=>{

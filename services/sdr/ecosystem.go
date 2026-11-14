@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"encoding/base32"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -277,23 +276,7 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 	upstream.Header.Set("Content-Type", r.Header.Get("Content-Type"))
 	upstream.Header.Set("Idempotency-Key", r.Header.Get("Idempotency-Key"))
 	if isGIF {
-		mac := hmac.New(sha256.New, []byte(secret))
-		subjectInput, _ := json.Marshal([]string{"clips-gif-subject/v1", u.Org, u.ID})
-		mac.Write(subjectInput)
-		raw := hex.EncodeToString(mac.Sum(nil)[:16])
-		subject := raw[:8] + "-" + raw[8:12] + "-" + raw[12:16] + "-" + raw[16:20] + "-" + raw[20:]
-		scope := "write"
-		if u.Role == "viewer" {
-			scope = "read"
-		} else if u.Role == "admin" && u.Environment == "isolated-test" && (u.Org == "org_demo_alfa" && u.ID == "user_alfa_admin" ||
-			u.Org == betaOrganization && homologCRMEnabled(u.Org) && u.ID == "user_beta_admin") {
-			scope = "demo"
-		}
-		mac.Reset()
-		mac.Write([]byte("clips-gif/v1\x00" + subject + "\x00" + scope + "\x00" + method + "\x00" + gifPath))
-		upstream.Header.Set("X-Arkom-Clips-Subject", subject)
-		upstream.Header.Set("X-Arkom-Clips-Scope", scope)
-		upstream.Header.Set("X-Arkom-Clips-Signature", hex.EncodeToString(mac.Sum(nil)))
+		setClipsGIFIdentity(upstream, u, secret)
 	} else {
 		upstream.AddCookie(&http.Cookie{Name: "clips_go", Value: owner})
 	}

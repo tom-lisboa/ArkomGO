@@ -130,3 +130,30 @@ test('publishes a real first section before planned routes exist, while final co
  await assert.rejects(()=>compileFrontend(files),/Implemente a tela declarada/);
  assert.equal(JSON.stringify(files),original);
 });
+
+
+test('bundles the local scroll libraries and the host Svelte actions without a CDN', async () => {
+  const result = await compileFrontend({'frontend/src/App.svelte': `<script>import {reveal,parallax,smoothScroll,scrollProgress} from '@arkom/motion';</script><main use:smoothScroll><div use:scrollProgress></div><section use:reveal><h1>Uma pausa</h1><div use:parallax={{distance:30}}>Café</div></section></main>`});
+  assert.ok(result.javascript.length>10000 && result.javascript.length<256*1024);
+  assert.match(result.css,/lenis/);
+  assert.ok(!result.warnings.some(w=>w.code==='unused_source'));
+  await assert.rejects(compileFrontend({'frontend/src/App.svelte':`<script>import x from 'motion/../../node:fs';</script><p>{x}</p>`}));
+});
+
+test('real GIF component can pause and follows changes to reduced motion without a network call', async () => {
+  const result = await compileFrontend({'frontend/src/App.svelte': `<script>import AnimatedImage from '@arkom/AnimatedImage.svelte';</script><AnimatedImage asset="coffee" />`});
+  const listeners=new Set(); let reduced=false;
+  const asset={src:'data:image/gif;base64,R0lGODlh',poster:'data:image/png;base64,iVBORw0K',alt:'Café soltando vapor',width:512,height:512};
+  const dom=new JSDOM('<script type="application/json" id="arkom-media">'+JSON.stringify({assets:{coffee:asset}})+'</script><div id="app"></div>',{runScripts:'outside-only',pretendToBeVisual:true});
+  dom.window.matchMedia=()=>({get matches(){return reduced},addEventListener(_event,fn){listeners.add(fn)},removeEventListener(_event,fn){listeners.delete(fn)}});
+  dom.window.fetch=()=>{throw Error('GIF must be self-contained')};
+  dom.window.eval(result.javascript);
+  await new Promise(resolve=>setImmediate(resolve));
+  const img=dom.window.document.querySelector('img'), button=dom.window.document.querySelector('button');
+  assert.equal(img.src,asset.src); assert.equal(img.alt,asset.alt);
+  button.click();await new Promise(resolve=>setImmediate(resolve));assert.equal(img.src,asset.poster);
+  button.click();await new Promise(resolve=>setImmediate(resolve));assert.equal(img.src,asset.src);
+  reduced=true;for(const listener of listeners)listener();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(img.src,asset.poster);assert.equal(dom.window.document.querySelector('button'),null);
+  dom.window.close();
+});
