@@ -16,7 +16,25 @@ if not env.get('OPENAI_API_KEY'):sys.exit('Configure OPENAI_API_KEY em .env ante
 run=root/'.local/runtime';secret_dir=run/'secrets';secret_dir.mkdir(parents=True,exist_ok=True)
 secret_dir.chmod(0o700)
 calendar=env.get('ARKOM_CALENDAR_LOCAL_ENABLED','true')=='true'
-for name in ['context-worker','execution-worker']+(['calendar-worker'] if calendar else []):
+customer_data=env.get('ARKOM_CUSTOMER_DATA_LOCAL_ENABLED','true')=='true'
+media=env.get('ARKOM_MEDIA_LOCAL_ENABLED','false')=='true'
+media_bin=Path(env['ARKOM_MEDIA_BIN']).expanduser().resolve() if env.get('ARKOM_MEDIA_BIN') else None
+media_path=(str(media_bin)+os.pathsep if media_bin else '')+env.get('PATH','')
+if media and not all(shutil.which(tool,path=media_path) for tool in ('ffmpeg','ffprobe')):
+ sys.exit('Mídia da BIA exige ffmpeg e ffprobe no PATH ou no diretório ARKOM_MEDIA_BIN.')
+whatsapp_root=None
+if env.get('ARKOM_WHATSAPP_ENGINE_ROOT'):
+ whatsapp_root=Path(env['ARKOM_WHATSAPP_ENGINE_ROOT']).expanduser().resolve()
+ if not all((whatsapp_root/file).is_file() for file in ('go.mod','cmd/sdr-whatsapp-engine/main.go','cmd/wa-gateway-service/main.go')):
+  sys.exit('Confira ARKOM_WHATSAPP_ENGINE_ROOT no .env local.')
+ pg_bin=Path(env.get('ARKOM_LOCAL_PG_BIN') or '/opt/homebrew/opt/postgresql@17/bin')
+ if not all((pg_bin/tool).is_file() for tool in ('postgres','initdb','pg_isready','psql')):
+  sys.exit('WhatsApp local exige os binários do PostgreSQL. Configure ARKOM_LOCAL_PG_BIN.')
+worker_secrets=['context-worker','execution-worker']
+if calendar:worker_secrets.append('calendar-worker')
+if media:worker_secrets.append('media-worker')
+if whatsapp_root:worker_secrets.append('whatsapp-engine')
+for name in worker_secrets:
  p=secret_dir/name
  if not p.exists():
   with p.open('x') as f:f.write(secrets.token_urlsafe(48))
@@ -55,6 +73,7 @@ if env.get('ARKOM_FINANCEAI_ROOT'):
   sys.exit('FinanceAI: confira o checkout e instale as dependências do frontend.')
  env['ARKOM_FINANCEAI_STATE_DIR']=str(run/'financeai')
 ports=[3007,8080,8081,8099]+([8098] if crm else [])+([18082] if clips else [])
+if whatsapp_root:ports.extend((18083,18084,55496))
 for port in ports:
  with socket.socket() as check:
   check.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
@@ -73,11 +92,21 @@ for key in ['SDR_GOOGLE_CALENDAR_CONFIG_FILE','SDR_GOOGLE_CALENDAR_KEY_FILE']:en
 env['ARKOM_FRONTEND_TOOLCHAIN']=str(root/'packages/genesis-frontend')
 env['PATH']=str(root/'.local/bin')+os.pathsep+env.get('PATH','')
 # Other optional channels are not enabled by this launcher.
-for flag in ['SDR_VOICE_ENABLED','SDR_CUSTOMER_DATA_ENABLED','SDR_MEDIA_ENABLED','SDR_METRICS_ENABLED']:env[flag]='false'
+for flag in ['SDR_VOICE_ENABLED','SDR_METRICS_ENABLED']:env[flag]='false'
+env['SDR_CUSTOMER_DATA_ENABLED']='true' if customer_data else 'false'
+env['SDR_MEDIA_ENABLED']='true' if media else 'false'
+env.pop('SDR_WHATSAPP_ENGINE_URL',None)
+env.pop('SDR_WHATSAPP_ENGINE_TOKEN_FILE',None)
+if whatsapp_root:
+ env['SDR_WHATSAPP_ENGINE_URL']='http://127.0.0.1:18083'
+ env['SDR_WHATSAPP_ENGINE_TOKEN_FILE']=str(secret_dir/'whatsapp-engine')
 bia=str(root/'.local/bin/bia')
 commands=([('crm',[str(root/'.local/bin/crm')],run)] if crm else [])+[
  ('api',[bia],run),('context',[bia,'-worker=context'],run),('execution',[bia,'-worker=execution'],run)]
 if calendar:commands.append(('calendar',[bia,'-worker=calendar'],run))
+if media:commands.append(('media',[bia,'-worker=media'],run))
+if whatsapp_root:
+ commands.append(('whatsapp',[sys.executable,str(root/'scripts/whatsapp/run.py'),str(whatsapp_root),str(run/'whatsapp'),str(pg_bin),str(secret_dir/'whatsapp-engine')],run))
 commands.append(('web',[bia,'-web'],run))
 pg_command=[]
 if crm and env.get('ARKOM_CRM_LOCAL_PG_DATA'):
@@ -102,27 +131,36 @@ try:
  for name,args,cwd in commands:
   log=(run/(name+'.log')).open('a');logs.append(log)
   child_env=env
-  if name=='calendar':
+  if name in ('calendar','media'):
    child_env={key:env[key] for key in ['PATH','SYSTEMROOT','TMPDIR','SDR_CRM_DEV_ENABLED','SDR_LOCAL_WORKER_LISTEN','SDR_LOCAL_SECRETS_DIR'] if key in env}
+  if name=='media':
+   child_env.update(
+    PATH=media_path,
+    OPENAI_API_KEY=env['OPENAI_API_KEY'],
+    SDR_MEDIA_AUDIO_MODEL=env.get('SDR_MEDIA_AUDIO_MODEL') or 'gpt-transcribe',
+    SDR_MEDIA_VISION_MODEL=env.get('SDR_MEDIA_VISION_MODEL') or env['SDR_OPENAI_MODEL'])
   if name=='web':
    child_env={key:env[key] for key in ['PATH','SYSTEMROOT','TMPDIR'] if key in env}
    child_env.update(ARKOM_LOCAL_DEMO='true',ARKOM_FLUTTER_BUILD=str(root/'apps/genesis_flutter/build/web'),ARKOM_BIA_BUILD=str(root/'apps/agents/bia/dist'))
   if name=='clips':
    child_env={**env,'CLIPS_LOCAL_GIF_PLATFORM_KEY':env['OPENAI_API_KEY']}
    child_env.pop('OPENAI_API_KEY',None)
-  if name in ('multipropriedades','financeai'):
+  if name in ('multipropriedades','financeai','whatsapp'):
    child_env=os.environ.copy()
   processes.append((name,subprocess.Popen(args,cwd=cwd,env=child_env,stdout=log,stderr=log,start_new_session=True)))
   time.sleep(.5)
  print('Demo: http://127.0.0.1:3007/demo',flush=True)
  print('CLIPS: '+('ativado localmente; preparando o serviço de vídeo' if clips else 'não configurado'),flush=True)
  print('Agenda: '+('motor e worker próprios ativados; conexão Google não configurada' if calendar else 'desativada'),flush=True)
+ print('WhatsApp: '+('preparando gateway local' if whatsapp_root else 'gateway não configurado'),flush=True)
+ print('Mídia BIA: '+('worker ativado' if media else 'worker desativado'),flush=True)
+ print('Meus dados: '+('exportação ativada' if customer_data else 'exportação desativada'),flush=True)
  print('CRM: '+('configurado; depende das rotas DEV provisionadas' if crm else 'não configurado; Genesis e SDR disponíveis'),flush=True)
  if multi_root:print('Multipropriedades: preparando a homologação local',flush=True)
  if finance_root:print('FinanceAI: preparando a homologação local',flush=True)
  while True:
   for name,p in processes[:]:
-   if name in ('multipropriedades','financeai') and p.poll() is not None:
+   if name in ('multipropriedades','financeai','whatsapp') and p.poll() is not None:
     print(f'{name} indisponível. Consulte .local/runtime/{name}.log.',file=sys.stderr,flush=True)
     processes.remove((name,p))
   failed=[name for name,p in processes if p.poll() is not None]

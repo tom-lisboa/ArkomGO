@@ -114,6 +114,12 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 		return true
 	}
 	if r.URL.Path == base && r.Method == "GET" {
+		resolved, err := a.directoryUser(r.Context(), u)
+		if err != nil {
+			directoryFailure(w, err)
+			return true
+		}
+		u = resolved
 		crm := a.crmRoutes[u.Org].Origin != ""
 		clips := os.Getenv("SDR_CLIPS_BRIDGE_KEY") != ""
 		a.mu.Lock()
@@ -136,7 +142,7 @@ func (a *App) ecosystemHTTP(w http.ResponseWriter, r *http.Request, u User) bool
 			case "sdr":
 				configured = true
 				item["product_capabilities"] = map[string]bool{
-					"crm": crm, "calendar": calendarReady, "customer_data": a.customerEnabled,
+					"crm": crm, "calendar": calendarReady, "customer_data": a.customerEnabled && u.Role == "admin",
 				}
 			case "agenda":
 				configured = calendarReady

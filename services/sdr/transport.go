@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -485,6 +486,18 @@ companyLoop:
 		p := a.state.Transport.Policies[org]
 		needSync := a.state.Transport.Synced[org] != p.Revision || a.now().Sub(a.state.Transport.LastSync[org]) >= 30*time.Second
 		a.mu.Unlock()
+		// A fresh demo company has no gateway binding until the connection worker
+		// provisions it. Synchronize disabled policies only after that step.
+		if !p.Enabled && p.Revision == 1 && a.db != nil {
+			var status string
+			err := a.db.QueryRowContext(ctx, "SELECT provisioning FROM whatsapp_channels WHERE organization_id=?", org).Scan(&status)
+			if errors.Is(err, sql.ErrNoRows) || (err == nil && status != "ready") {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+		}
 		var err error
 		if needSync {
 			err = engine.PutMessaging(ctx, org, p)

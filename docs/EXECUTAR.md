@@ -94,3 +94,16 @@ Teste de navegação no navegador (demo em execução): `npm run test:local --pr
 ### Lia e agenda nativa
 
 A demo inicia a agenda própria e seu worker Go por padrão. `ARKOM_CALENDAR_LOCAL_ENABLED=false` desativa essa capacidade. O acesso é pelo agente Lia em Início ou pela aba Agendas da BIA. Agendas, regras, pedidos e reservas pertencem à empresa autenticada. A conexão Google permanece bloqueada nesta etapa local. Teste completo com dados fictícios: `npm run test:agenda:local --prefix apps/agents/bia`.
+
+
+### WhatsApp, mídia e exportação da BIA
+
+No `.env` local, aponte `ARKOM_WHATSAPP_ENGINE_ROOT` para o checkout privado do motor WhatsApp. `scripts/demo.py` compila uma cópia de trabalho com o ajuste de loopback em `.local/runtime/whatsapp` e inicia o bridge, o gateway Whatsmeow e um PostgreSQL dedicado. O checkout original permanece disponível para seu fluxo de desenvolvimento.
+
+Ative `ARKOM_MEDIA_LOCAL_ENABLED=true` para iniciar o worker de mídia. Disponibilize `ffmpeg` e `ffprobe` no PATH ou informe a pasta dos binários em `ARKOM_MEDIA_BIN`. O worker usa a chave OpenAI já configurada para transcrição e leitura de mídias recebidas. A preparação dos anexos para envio acontece localmente.
+
+Em **BIA SDR → WhatsApp**, gere o QR para parear um número de teste e autorize os contatos no próprio painel. A permissão de mídia é controlada pelo administrador da empresa. Em **Conversas**, assuma uma conversa para preparar um anexo antes de enviá-lo.
+
+**Meus dados** fica disponível para administradores e exporta o que a BIA conserva para a empresa autenticada. O ZIP expira em 24 horas. As métricas de uso dependem do serviço de métricas, desativado nesta demo. Para desativar a exportação no laboratório, use `ARKOM_CUSTOMER_DATA_LOCAL_ENABLED=false`.
+
+A conferência `npm run test:workers:local --prefix apps/agents/bia` gera um QR, prepara uma imagem em uma conversa fictícia, baixa o ZIP e verifica as permissões de Alfa e Beta. O roteiro exige os workers ligados e os codecs disponíveis.

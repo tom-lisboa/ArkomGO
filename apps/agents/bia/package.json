@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "test:local": "node scripts/check-platform.cjs",
-    "test:agenda:local": "node scripts/check-agenda-local.cjs"
+    "test:agenda:local": "node scripts/check-agenda-local.cjs",
+    "test:workers:local": "node scripts/check-workers-local.cjs"
   },
   "dependencies": {
     "react": "19.2.4",
